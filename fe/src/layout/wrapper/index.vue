@@ -2,12 +2,12 @@
     <div class="admin-layout">
 
         <!-- SIDEBAR -->
-        <MenuAdmin class="sidebar" />
+        <Menu class="sidebar" />
 
         <div class="main-area">
 
             <!-- HEADER -->
-            <TopAdmin />
+            <Top />
 
             <!-- CONTENT -->
             <div class="page-content content-wrapper" style="margin-top: 70px;">
@@ -15,16 +15,16 @@
             </div>
 
             <!-- FOOTER -->
-            <BotAdmin />
+            <Bot />
         </div>
 
     </div>
 </template>
 
 <script>
-import TopAdmin from "../components/TopAdmin.vue";
-import MenuAdmin from "../components/MenuAdmin.vue";
-import BotAdmin from "../components/BotAdmin.vue";
+import Top from "../components/Top.vue";
+import Menu from "../components/Menu.vue";
+import Bot from "../components/Bot.vue";
 
 // assets
 import "../../assets/js/bootstrap.bundle.min.js";
@@ -38,7 +38,7 @@ import "../../assets/js/pace.min.js";
 
 export default {
     name: "App",
-    components: { TopAdmin, MenuAdmin, BotAdmin }
+    components: { Top, Menu, Bot }
 }
 </script>
 

@@ -1,10 +1,27 @@
 import { createRouter, createWebHistory } from "vue-router"; // cài vue-router: npm install vue-router@next --save
 import checkToken from "./checkToken";
 const routes = [
-  // {
-  //     path : '/',
-  //     component: ()=>import('../layout/wrapper/index.vue')
-  // },
+  {
+    path: "/dang-nhap",
+    component: () => import("../components/Auth/DangNhap/index.vue"),
+    meta: {
+      layout: "default",
+    },
+  },
+  {
+    path: "/dang-ky",
+    component: () => import("../components/Auth/DangKy/index.vue"),
+    meta: {
+      layout: "default",
+    },
+  },
+  {
+    path: "/quen-mat-khau",
+    component: () => import("../components/Auth/QuenMatKhau/index.vue"),
+    meta: {
+      layout: "default",
+    },
+  },
 
   // ============= Admin ==================
   // {
@@ -197,10 +214,9 @@ const routes = [
   //   meta: { layout: "customer" },
   // },
   {
-  path: "/staff",
-  redirect: "/admin", // hoặc "/admin/trang-chu"
-}
-
+    path: "/staff",
+    redirect: "/admin", // hoặc "/admin/trang-chu"
+  },
 ];
 
 const router = createRouter({
@@ -210,7 +226,6 @@ const router = createRouter({
     // Luôn cuộn lên đầu trang
     return { top: 0 };
   },
-
 });
 
 export default router;
