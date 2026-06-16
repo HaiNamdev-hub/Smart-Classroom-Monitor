@@ -25,8 +25,6 @@ return new class extends Migration
                 'lop_truong',
                 'bi_thu',
                 'co_van',
-                'phong_qldt',
-                'admin',
             ]);
             $table->text('ghi_chu')->nullable();
             $table->timestamp('created_at')->useCurrent();

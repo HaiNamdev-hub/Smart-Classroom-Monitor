@@ -38,7 +38,7 @@ class PhieuRenLuyenSeeder extends Seeder
                     'tong_diem_lop' => $tongDiemLop,
                     'tong_diem_cuoi' => $tongDiemCuoi,
                     'xep_loai' => $xeploai,
-                    'trang_thai' => $index % 3 === 0 ? 'submitted' : 'draft',
+                    'trang_thai' => $index % 3 === 0 ? 'da_gui' : 'nhap',
                 ]
             );
         }

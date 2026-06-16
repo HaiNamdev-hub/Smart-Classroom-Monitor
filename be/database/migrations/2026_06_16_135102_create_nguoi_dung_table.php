@@ -23,7 +23,7 @@ return new class extends Migration
                 ->constrained('vai_tro')
                 ->cascadeOnUpdate()
                 ->restrictOnDelete();
-            $table->enum('trang_thai', ['active', 'inactive', 'locked'])->default('active');
+            $table->enum('trang_thai', ['hoat_dong', 'khong_hoat_dong', 'bi_khoa'])->default('hoat_dong');
             $table->timestamps();
         });
     }

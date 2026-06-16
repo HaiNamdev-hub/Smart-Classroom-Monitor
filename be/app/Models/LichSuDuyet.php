@@ -19,4 +19,18 @@ class LichSuDuyet extends Model
         'vai_tro_duyet',
         'ghi_chu',
     ];
+
+    protected $casts = [
+        'created_at' => 'datetime',
+    ];
+
+    public function phieu()
+    {
+        return $this->belongsTo(PhieuRenLuyen::class, 'phieu_id');
+    }
+
+    public function nguoiDuyet()
+    {
+        return $this->belongsTo(NguoiDung::class, 'nguoi_duyet_id');
+    }
 }

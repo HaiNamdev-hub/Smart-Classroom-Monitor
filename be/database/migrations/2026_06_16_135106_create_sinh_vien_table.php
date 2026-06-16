@@ -23,7 +23,7 @@ return new class extends Migration
                 ->constrained('lop')
                 ->cascadeOnUpdate()
                 ->restrictOnDelete();
-            $table->timestamp('created_at')->useCurrent();
+            $table->timestamps();
         });
     }
 

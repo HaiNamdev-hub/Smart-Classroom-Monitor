@@ -17,6 +17,15 @@ class MinhChung extends Model
         'chi_tiet_id',
         'ten_file',
         'duong_dan',
-        'trang_thai_ai',
+        'trang_thai',
     ];
+
+    protected $casts = [
+        'created_at' => 'datetime',
+    ];
+
+    public function chiTiet()
+    {
+        return $this->belongsTo(ChiTietDanhGia::class, 'chi_tiet_id');
+    }
 }

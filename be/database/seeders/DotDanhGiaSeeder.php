@@ -16,8 +16,8 @@ class DotDanhGiaSeeder extends Seeder
     public function run(): void
     {
         $periods = [
-            ['nam_hoc' => '2025-2026', 'hoc_ky' => 1, 'ngay_bat_dau' => '2026-05-01 08:00:00', 'ngay_ket_thuc' => '2026-06-15 18:00:00', 'trang_thai' => 'open'],
-            ['nam_hoc' => '2025-2026', 'hoc_ky' => 2, 'ngay_bat_dau' => '2026-11-01 08:00:00', 'ngay_ket_thuc' => '2026-12-15 18:00:00', 'trang_thai' => 'closed'],
+            ['nam_hoc' => '2025-2026', 'hoc_ky' => 1, 'ngay_bat_dau' => '2026-05-01 08:00:00', 'ngay_ket_thuc' => '2026-06-15 18:00:00', 'trang_thai' => 'dang_mo'],
+            ['nam_hoc' => '2025-2026', 'hoc_ky' => 2, 'ngay_bat_dau' => '2026-11-01 08:00:00', 'ngay_ket_thuc' => '2026-12-15 18:00:00', 'trang_thai' => 'da_dong'],
         ];
 
         foreach ($periods as $period) {

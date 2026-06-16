@@ -17,7 +17,8 @@ return new class extends Migration
             $table->unsignedTinyInteger('hoc_ky');
             $table->dateTime('ngay_bat_dau');
             $table->dateTime('ngay_ket_thuc');
-            $table->enum('trang_thai', ['open', 'closed'])->default('open');
+            $table->enum('trang_thai', ['nhap', 'dang_mo', 'da_dong'])->default('nhap');
+            $table->timestamps();
             $table->unique(['nam_hoc', 'hoc_ky']);
         });
     }

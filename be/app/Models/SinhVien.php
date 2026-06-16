@@ -11,12 +11,30 @@ class SinhVien extends Model
 
     protected $table = 'sinh_vien';
 
-    public const UPDATED_AT = null;
-
     protected $fillable = [
         'ma_sinh_vien',
         'nam_trung_tuyen',
         'user_id',
         'lop_id',
     ];
+
+    protected $casts = [
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(NguoiDung::class, 'user_id');
+    }
+
+    public function lop()
+    {
+        return $this->belongsTo(Lop::class, 'lop_id');
+    }
+
+    public function phieuRenLuyens()
+    {
+        return $this->hasMany(PhieuRenLuyen::class, 'sinh_vien_id');
+    }
 }

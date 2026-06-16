@@ -19,7 +19,7 @@ return new class extends Migration
                 ->cascadeOnDelete();
             $table->string('ten_file');
             $table->string('duong_dan');
-            $table->enum('trang_thai_ai', ['pending', 'valid', 'invalid'])->default('pending');
+            $table->enum('trang_thai', ['cho_duyet', 'hop_le', 'khong_hop_le'])->default('cho_duyet');
             $table->timestamp('created_at')->useCurrent();
         });
     }

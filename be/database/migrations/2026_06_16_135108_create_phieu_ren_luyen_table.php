@@ -33,13 +33,13 @@ return new class extends Migration
                 'kem',
             ])->nullable();
             $table->enum('trang_thai', [
-                'draft',
-                'submitted',
-                'class_reviewed',
-                'advisor_reviewed',
-                'approved',
-            ])->default('draft');
-            $table->timestamp('created_at')->useCurrent();
+                'nhap',
+                'da_gui',
+                'lop_da_duyet',
+                'co_van_da_duyet',
+                'hoan_thanh',
+            ])->default('nhap');
+            $table->timestamps();
             $table->unique(['sinh_vien_id', 'dot_danh_gia_id']);
         });
     }

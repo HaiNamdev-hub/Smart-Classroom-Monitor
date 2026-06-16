@@ -11,8 +11,6 @@ class PhieuRenLuyen extends Model
 
     protected $table = 'phieu_ren_luyen';
 
-    public const UPDATED_AT = null;
-
     protected $fillable = [
         'sinh_vien_id',
         'dot_danh_gia_id',
@@ -22,4 +20,29 @@ class PhieuRenLuyen extends Model
         'xep_loai',
         'trang_thai',
     ];
+
+    protected $casts = [
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+
+    public function sinhVien()
+    {
+        return $this->belongsTo(SinhVien::class, 'sinh_vien_id');
+    }
+
+    public function dotDanhGia()
+    {
+        return $this->belongsTo(DotDanhGia::class, 'dot_danh_gia_id');
+    }
+
+    public function chiTietDanhGias()
+    {
+        return $this->hasMany(ChiTietDanhGia::class, 'phieu_id');
+    }
+
+    public function lichSuDuyets()
+    {
+        return $this->hasMany(LichSuDuyet::class, 'phieu_id');
+    }
 }

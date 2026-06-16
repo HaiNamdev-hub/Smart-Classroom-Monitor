@@ -16,14 +16,13 @@ class LichSuDuyetSeeder extends Seeder
     public function run(): void
     {
         $phanHoiIds = DB::table('phieu_ren_luyen')
-            ->where('trang_thai', 'submitted')
+            ->where('trang_thai', 'da_gui')
             ->pluck('id');
 
         $reviewers = [
             'loptruong1@example.com' => 'lop_truong',
             'bithu1@example.com' => 'bi_thu',
             'covan1@example.com' => 'co_van',
-            'phongqldt@example.com' => 'phong_qldt',
         ];
 
         foreach ($phanHoiIds as $phieuId) {

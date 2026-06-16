@@ -26,7 +26,7 @@ class MinhChungSeeder extends Seeder
                 [
                     'ten_file' => "giay_to_{$index}.pdf",
                     'duong_dan' => "uploads/giay_to_{$index}.pdf",
-                    'trang_thai_ai' => $index % 3 === 0 ? 'valid' : 'pending',
+                    'trang_thai' => $index % 3 === 0 ? 'hop_le' : 'cho_duyet',
                 ]
             );
         }

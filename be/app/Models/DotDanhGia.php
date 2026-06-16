@@ -11,8 +11,6 @@ class DotDanhGia extends Model
 
     protected $table = 'dot_danh_gia';
 
-    public $timestamps = false;
-
     protected $fillable = [
         'nam_hoc',
         'hoc_ky',
@@ -21,11 +19,15 @@ class DotDanhGia extends Model
         'trang_thai',
     ];
 
-    protected function casts(): array
+    protected $casts = [
+        'ngay_bat_dau' => 'datetime',
+        'ngay_ket_thuc' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+
+    public function phieuRenLuyens()
     {
-        return [
-            'ngay_bat_dau' => 'datetime',
-            'ngay_ket_thuc' => 'datetime',
-        ];
+        return $this->hasMany(PhieuRenLuyen::class, 'dot_danh_gia_id');
     }
 }
