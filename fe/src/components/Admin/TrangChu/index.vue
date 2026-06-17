@@ -19,6 +19,10 @@ import {
     onUnmounted
 } from "vue"
 
+import "../../../assets/css/admin.css"
+import "../../../assets/css/dashboard.css"
+import "../../../assets/css/user.css"
+
 const currentTheme = ref("light")
 const handleThemeChange = () => {
     currentTheme.value =

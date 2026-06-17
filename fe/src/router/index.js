@@ -33,7 +33,10 @@ const routes = [
         path: "/admin/trang-chu",
         component: () => import("../components/Admin/TrangChu/index.vue"),
       },
-      
+      {
+        path: "/admin/ql-nguoi-dung",
+        component: () => import("../components/Admin/QLNguoiDung/index.vue"),
+      },
     ],
   },
   // {
