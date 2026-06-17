@@ -24,6 +24,18 @@ const routes = [
   },
 
   // ============= Admin ==================
+  {
+    path: "/",
+    component: () => import("../layout/wrapper/admin.vue"),
+    // beforeEnter: checkToken,
+    children: [
+      {
+        path: "/admin/trang-chu",
+        component: () => import("../components/Admin/TrangChu/index.vue"),
+      },
+      
+    ],
+  },
   // {
   //   path: "/admin",
   //   component: () => import("../components/Admin/TrangChu/index.vue"),
@@ -90,13 +102,6 @@ const routes = [
   //   path: "/admin/danh-muc-tour",
   //   component: () => import("../components/Admin/QLTour/DanhMucTour/index.vue"),
   //   beforeEnter: checkToken,
-  // },
-
-  //Staff
-  // {
-  //     path : '/staff/trang-chu',
-  //     component: ()=>import('../components/Staff/TrangChu.vue'),
-  //     meta: { layout: "staff" },
   // },
 
   //============= Customer ==================

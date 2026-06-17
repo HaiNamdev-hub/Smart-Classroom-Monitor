@@ -3,7 +3,7 @@ import App from "./App.vue";
 import router from "./router";
 
 import DefaultLayout from "./layout/wrapper/default.vue";
-import IndexLayout from "./layout/wrapper/index.vue";
+import IndexLayout from "./layout/wrapper/admin.vue";
 
 const app = createApp(App);
 
