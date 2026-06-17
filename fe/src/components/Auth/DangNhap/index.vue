@@ -21,7 +21,7 @@
           <p class="subtitle">Cổng thông tin đánh giá rèn luyện sinh viên</p>
         </div>
 
-        <form class="login-form" @submit.prevent="handleLogin">
+        <form class="login-form" @submit.prevent="dangNhap">
           <!-- Email -->
           <div class="field">
             <label for="email">Email hoặc mã sinh viên</label>
@@ -122,48 +122,122 @@
   </div>
 </template>
 
-<script setup>
-import { ref } from "vue"
+<script>
+import axios from "axios"
 import "../../../assets/css/auth.css";
 
-const email = ref("")
-const password = ref("")
-const captcha = ref("")
-const showPassword = ref(false)
-const error = ref("")
+export default {
+  data() {
+    return {
+      email: "",
+      password: "",
+      showPassword: false,
+      captcha: "",
+      captchaCode: this.generateCaptcha(),
+      error: "",
+    }
+  },
+  mounted() {
+    // Nếu đã có token thì redirect luôn
+    const token = localStorage.getItem("auth_token")
+    if (token) {
+      const user = JSON.parse(localStorage.getItem("auth_user") || "{}")
+      const role = user.vai_tro_id
+      if (role == 1) {
+        this.$router.replace("/admin")
+        return
+      }
+      else if (role == 2) {
+        this.$router.replace("/staff")
+        return
+      }
+      else {
+        this.$router.replace("/")
+        return
+      }
+    }
+  },
+  methods: {
+    generateCaptcha() {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+      let code = ""
+      for (let i = 0; i < 4; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)]
+      }
+      return code
+    },
 
-function generateCaptcha() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-  let code = ""
-  for (let i = 0; i < 4; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return code
-}
+    refreshCaptcha() {
+      this.captchaCode = this.generateCaptcha()
+      this.captcha = ""
+    },
 
-const captchaCode = ref(generateCaptcha())
+    dangNhap() {
+      this.error = ""
 
-function refreshCaptcha() {
-  captchaCode.value = generateCaptcha()
-  captcha.value = ""
-}
+      // Validation
+      if (!this.email) {
+        this.error = "Vui lòng nhập email hoặc mã sinh viên."
+        return
+      }
 
-function handleLogin() {
-  error.value = ""
+      if (!this.password) {
+        this.error = "Vui lòng nhập mật khẩu."
+        return
+      }
 
-  if (!email.value || !password.value || !captcha.value) {
-    error.value = "Vui lòng điền đầy đủ thông tin."
-    return
-  }
+      if (!this.captcha) {
+        this.error = "Vui lòng nhập mã xác nhận."
+        return
+      }
 
-  if (captcha.value.toUpperCase() !== captchaCode.value) {
-    error.value = "Mã xác nhận không đúng."
-    refreshCaptcha()
-    return
-  }
+      if (this.captcha.toUpperCase() !== this.captchaCode) {
+        this.error = "Mã xác nhận không chính xác."
+        this.refreshCaptcha()
+        return
+      }
 
-  // Đăng nhập thành công (xử lý gọi API tại đây)
-  console.log("[v0] Đăng nhập:", { email: email.value })
-  alert("Đăng nhập thành công!")
+      // Gọi API đăng nhập
+      axios
+        .post("http://127.0.0.1:8000/api/dang-nhap", {
+          email: this.email,
+          password: this.password,
+        })
+        .then((res) => {
+          if (!res.data.status) {
+            this.error = res.data.message || "Email hoặc mật khẩu không chính xác."
+            this.refreshCaptcha()
+            return
+          }
+
+          localStorage.setItem("auth_token", res.data.token)
+          localStorage.setItem("auth_user", JSON.stringify(res.data.user))
+
+          if (this.$toast) {
+            this.$toast.success("Đăng nhập thành công")
+          }
+
+          const role = res.data.user.vai_tro_id
+
+          setTimeout(() => {
+            if (role == 1) {
+              this.$router.replace("/admin")
+            } else if (role == 2) {
+              this.$router.replace("/staff")
+            } else {
+              this.$router.replace("/")
+            }
+          }, 500)
+        })
+        .catch((err) => {
+          if (err.response && err.response.data && err.response.data.message) {
+            this.error = err.response.data.message
+          } else {
+            this.error = "Lỗi kết nối tới server API"
+          }
+          this.refreshCaptcha()
+        })
+    },
+  },
 }
 </script>

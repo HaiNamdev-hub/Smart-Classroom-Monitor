@@ -133,6 +133,7 @@
 <script setup>
 import { ref } from "vue"
 import { useRouter } from "vue-router"
+import axios from "axios"
 import "../../../assets/css/auth.css";
 
 const router = useRouter()
@@ -146,7 +147,7 @@ const showPassword = ref(false)
 const error = ref("")
 const success = ref("")
 
-function handleRegister() {
+async function handleRegister() {
   error.value = ""
   success.value = ""
 
@@ -171,10 +172,34 @@ function handleRegister() {
     return
   }
 
-  // Đăng ký thành công (xử lý gọi API tại đây)
-  console.log("[v0] Đăng ký:", { fullname: fullname.value, studentId: studentId.value, email: email.value })
-  success.value = "Đăng ký thành công! Đang chuyển đến trang đăng nhập..."
-  setTimeout(() => router.push("/"), 1500)
+  try {
+    const res = await axios.post("http://127.0.0.1:8000/api/dang-ky", {
+      fullname: fullname.value,
+      student_id: studentId.value,
+      email: email.value,
+      password: password.value,
+      password_confirmation: confirmPassword.value,
+    })
+
+    if (res.data.status) {
+      success.value = res.data.message || "Đăng ký thành công."
+      setTimeout(() => router.push("/dang-nhap"), 1500)
+    } else {
+      error.value = res.data.message || "Đăng ký thất bại."
+    }
+  } catch (err) {
+    if (err.response && err.response.data) {
+      error.value = err.response.data.message || "Đăng ký thất bại."
+    } else {
+      error.value = "Lỗi kết nối tới server."
+    }
+  }
 }
+
+
+
+
+
+
 </script>
 

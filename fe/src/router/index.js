@@ -217,6 +217,10 @@ const routes = [
     path: "/staff",
     redirect: "/admin", // hoặc "/admin/trang-chu"
   },
+  {
+    path: "/",
+    redirect: "/dang-nhap",
+  },
 ];
 
 const router = createRouter({
