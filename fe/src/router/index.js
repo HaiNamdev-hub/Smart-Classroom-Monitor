@@ -9,13 +9,6 @@ const routes = [
     },
   },
   {
-    path: "/dang-ky",
-    component: () => import("../components/Auth/DangKy/index.vue"),
-    meta: {
-      layout: "default",
-    },
-  },
-  {
     path: "/quen-mat-khau",
     component: () => import("../components/Auth/QuenMatKhau/index.vue"),
     meta: {

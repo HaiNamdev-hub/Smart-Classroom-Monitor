@@ -12,9 +12,6 @@ use Illuminate\Support\Facades\Route;
 // Đăng nhập
 Route::post('/dang-nhap', [NguoiDungController::class, 'dangNhap']);
 
-// Đăng ký
-Route::post('/dang-ky', [NguoiDungController::class, 'dangKy']);
-
 // Kích hoạt tài khoản
 Route::post('/kich-hoat', [NguoiDungController::class, 'kichHoat']);
 
