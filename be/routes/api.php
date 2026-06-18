@@ -13,12 +13,12 @@ use Illuminate\Support\Facades\Route;
 Route::post('/dang-nhap', [NguoiDungController::class, 'dangNhap']);
 
 // Kích hoạt tài khoản
-Route::post('/kich-hoat', [NguoiDungController::class, 'kichHoat']);
+Route::get('/kich-hoat/{token}', [NguoiDungController::class, 'kichHoat']);
 
-// Gửi OTP đăng ký
+// Gửi OTP đăng ký (không sử dụng nếu dùng link xác nhận email)
 Route::post('/gui-otp-dang-ky', [NguoiDungController::class, 'guiOTP']);
 
-// Xác nhận OTP đăng ký
+// Xác nhận OTP đăng ký (không sử dụng nếu dùng link xác nhận email)
 Route::post('/xac-nhan-otp', [NguoiDungController::class, 'xacNhanOTP']);
 
 /*

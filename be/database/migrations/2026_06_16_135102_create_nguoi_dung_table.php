@@ -13,17 +13,39 @@ return new class extends Migration
     {
         Schema::create('nguoi_dung', function (Blueprint $table) {
             $table->id();
+
             $table->string('ho_ten');
+
             $table->string('email')->unique();
+
+            // Đã xác thực email chưa
+            $table->timestamp('email_verified_at')->nullable();
+
+            // Token kích hoạt tài khoản
+            $table->string('verification_token')->nullable();
+
             $table->string('password');
+
             $table->string('so_dien_thoai')->nullable();
+
             $table->date('ngay_sinh')->nullable();
+
             $table->string('avatar')->nullable();
+
             $table->foreignId('vai_tro_id')
                 ->constrained('vai_tro')
                 ->cascadeOnUpdate()
                 ->restrictOnDelete();
-            $table->enum('trang_thai', ['hoat_dong', 'khong_hoat_dong', 'bi_khoa'])->default('hoat_dong');
+
+            $table->enum(
+                'trang_thai',
+                [
+                    'hoat_dong',
+                    'khong_hoat_dong',
+                    'bi_khoa'
+                ]
+            )->default('hoat_dong');
+
             $table->timestamps();
         });
     }

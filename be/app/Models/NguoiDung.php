@@ -16,23 +16,30 @@ class NguoiDung extends Authenticatable
     protected $fillable = [
         'ho_ten',
         'email',
+
+        'email_verified_at',
+        'verification_token',
+
         'password',
+
         'so_dien_thoai',
         'ngay_sinh',
         'avatar',
         'vai_tro_id',
         'trang_thai',
     ];
-
     protected $hidden = [
         'password',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'ngay_sinh' => 'date',
-            'password' => 'hashed',
-        ];
-    }
+   protected function casts(): array
+{
+    return [
+        'ngay_sinh' => 'date',
+
+        'email_verified_at' => 'datetime',
+
+        'password' => 'hashed',
+    ];
+}
 }
