@@ -12,7 +12,8 @@
         <!-- Header -->
         <div class="header">
           <div class="logo-box">
-            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
               <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
               <path d="M6 12v5c3 3 9 3 12 0v-5" />
             </svg>
@@ -26,17 +27,12 @@
           <div class="field">
             <label for="email">Email hoặc mã sinh viên</label>
             <div class="input-wrap">
-              <svg class="input-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg class="input-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="2" y="4" width="20" height="16" rx="2" />
                 <path d="m22 7-10 5L2 7" />
               </svg>
-              <input
-                id="email"
-                v-model="email"
-                type="text"
-                placeholder="Nhập email của bạn"
-                autocomplete="username"
-              />
+              <input id="email" v-model="email" type="text" placeholder="Nhập email của bạn" autocomplete="username" />
             </div>
           </div>
 
@@ -44,23 +40,22 @@
           <div class="field">
             <label for="password">Mật khẩu</label>
             <div class="input-wrap">
-              <svg class="input-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg class="input-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="11" width="18" height="11" rx="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
-              <input
-                id="password"
-                v-model="password"
-                :type="showPassword ? 'text' : 'password'"
-                placeholder="Nhập mật khẩu"
-                autocomplete="current-password"
-              />
-              <button type="button" class="toggle-pass" @click="showPassword = !showPassword" :aria-label="showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'">
-                <svg v-if="showPassword" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <input id="password" v-model="password" :type="showPassword ? 'text' : 'password'"
+                placeholder="Nhập mật khẩu" autocomplete="current-password" />
+              <button type="button" class="toggle-pass" @click="showPassword = !showPassword"
+                :aria-label="showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'">
+                <svg v-if="showPassword" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
                   <circle cx="12" cy="12" r="3" />
                 </svg>
-                <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
                   <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
                   <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
@@ -75,20 +70,17 @@
             <label for="captcha">Mã xác nhận</label>
             <div class="captcha-row">
               <div class="input-wrap captcha-input">
-                <svg class="input-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg class="input-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M9 12h6M9 16h6M9 8h6" />
                   <rect x="4" y="3" width="16" height="18" rx="2" />
                 </svg>
-                <input
-                  id="captcha"
-                  v-model="captcha"
-                  type="text"
-                  placeholder="Nhập mã"
-                />
+                <input id="captcha" v-model="captcha" type="text" placeholder="Nhập mã" />
               </div>
               <button type="button" class="captcha-box" @click="refreshCaptcha" title="Bấm để làm mới mã">
                 {{ captchaCode }}
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
                   <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
                   <path d="M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
                   <path d="M8 16H3v5" />
@@ -105,15 +97,11 @@
 
           <button type="submit" class="login-btn">
             <span>Đăng nhập</span>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
               <path d="M5 12h14M12 5l7 7-7 7" />
             </svg>
           </button>
-
-          <p class="register-row">
-            Chưa có tài khoản?
-            <router-link to="/dang-ky" class="register-link">Đăng ký ngay</router-link>
-          </p>
         </form>
 
         <p class="footer">© Hệ thống Đánh giá Rèn luyện Sinh viên</p>
