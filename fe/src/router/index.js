@@ -62,6 +62,18 @@ const routes = [
           query: { tab: "danh-sach-lop" },
         }),
       },
+      {
+        path: "quan-ly-dot-danh-gia",
+        component: () => import("../components/Admin/QLDotDanhGia/index.vue"),
+      },
+      {
+        path: "quan-ly-tieu-chi",
+        component: () => import("../components/Admin/QLTieuChi/index.vue"),
+      },
+      {
+        path: "phan-quyen",
+        component: () => import("../components/Admin/PhanQuyen/index.vue"),
+      },
     ],
   },
   // {

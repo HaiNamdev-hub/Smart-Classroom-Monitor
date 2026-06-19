@@ -26,7 +26,7 @@
 
                 <!-- BUTTON THÊM FILE DANH SÁCH LỚP -->
                 <button v-if="activeTab === 'danh-sach-lop'" class="btn-primary ml-auto" type="button"
-                    data-bs-toggle="modal" data-bs-target="#importClassListModal">
+                    @click="openImport(null)" data-bs-toggle="modal" data-bs-target="#importClassListModal">
                     Tải file Excel/Word
                 </button>
 
@@ -66,8 +66,8 @@
                                         <i class="fa-solid fa-eye"></i>
                                     </button>
 
-                                    <button v-if="activeTab === 'danh-sach-lop'" class="btn-primary ml-auto"
-                                        type="button" @click="openImport()" data-bs-toggle="modal"
+                                    <button class="icon-btn upload" title="Tải lại file" type="button"
+                                        @click="openImport(row)" data-bs-toggle="modal"
                                         data-bs-target="#importClassListModal">
                                         <i class="fa-solid fa-upload"></i>
                                     </button>
@@ -131,7 +131,7 @@
                                             :value="option.value">{{ option.label }}</option>
                                     </select>
                                     <textarea v-else-if="field.type === 'textarea'" v-model="form[field.key]"
-                                        :placeholder="field.placeholder" />
+                                        :placeholder="field.placeholder"></textarea>
                                     <span v-if="errors[field.key]" class="form-error">{{ errors[field.key] }}</span>
                                 </div>
                             </div>
@@ -140,7 +140,7 @@
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
                             <button type="submit" class="btn btn-primary">{{ isEditing ? 'Cập nhật' : 'Thêm mới'
-                            }}</button>
+                                }}</button>
                         </div>
                     </form>
                 </div>
@@ -188,8 +188,9 @@
                                 <label>Khoa <span class="req">*</span></label>
                                 <select v-model="importForm.khoa">
                                     <option value="">Chọn khoa</option>
-                                    <option>Công nghệ thông tin</option>
-                                    <option>Kinh tế</option>
+                                    <option v-for="k in rows.khoa" :key="k.id" :value="k.ten_khoa">
+                                        {{ k.ten_khoa }}
+                                    </option>
                                 </select>
                             </div>
 
@@ -197,8 +198,9 @@
                                 <label>Ngành <span class="req">*</span></label>
                                 <select v-model="importForm.nganh">
                                     <option value="">Chọn ngành</option>
-                                    <option>Kỹ thuật phần mềm</option>
-                                    <option>Hệ thống thông tin</option>
+                                    <option v-for="n in rows.nganh" :key="n.id" :value="n.ten_nganh">
+                                        {{ n.ten_nganh }}
+                                    </option>
                                 </select>
                             </div>
 
@@ -206,8 +208,9 @@
                                 <label>Lớp <span class="req">*</span></label>
                                 <select v-model="importForm.ten_lop">
                                     <option value="">Chọn lớp</option>
-                                    <option>D23CQCN01</option>
-                                    <option>D23CQCN02</option>
+                                    <option v-for="l in rows.lop" :key="l.id" :value="l.ten_lop">
+                                        {{ l.ten_lop }}
+                                    </option>
                                 </select>
                             </div>
 
@@ -240,22 +243,51 @@
                     </div>
 
                     <div class="modal-body">
-                        <table class="data-table w-full">
-                            <thead>
-                                <tr>
-                                    <th>STT</th>
-                                    <th>Mã sinh viên</th>
-                                    <th>Họ tên</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="(sv, index) in importedStudents" :key="sv.ma_sv">
-                                    <td>{{ index + 1 }}</td>
-                                    <td>{{ sv.ma_sv }}</td>
-                                    <td>{{ sv.ho_ten }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                        <div class="student-table-scroll">
+                            <table class="data-table w-full">
+                                <thead>
+                                    <tr>
+                                        <th>STT</th>
+                                        <th>Mã sinh viên</th>
+                                        <th>Họ tên</th>
+                                        <th>Email</th>
+                                        <th>Số điện thoại</th>
+                                        <th>Ngày sinh</th>
+                                        <th>Năm trúng tuyển</th>
+                                        <th>Lớp</th>
+                                        <th>Trạng thái</th>
+                                        <th>Điểm SV</th>
+                                        <th>Xếp loại SV</th>
+                                        <th>Điểm lớp</th>
+                                        <th>Xếp loại lớp</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    <tr v-for="(sv, index) in importedStudents" :key="sv.ma_sinh_vien">
+                                        <td>{{ index + 1 }}</td>
+                                        <td>{{ sv.ma_sinh_vien || '—' }}</td>
+                                        <td>{{ sv.ho_ten || '—' }}</td>
+                                        <td>{{ sv.email || '—' }}</td>
+                                        <td>{{ sv.so_dien_thoai || '—' }}</td>
+                                        <td>{{ sv.ngay_sinh || '—' }}</td>
+                                        <td>{{ sv.nam_trung_tuyen || '—' }}</td>
+                                        <td>{{ sv.ten_lop || selectedClass?.ten_lop || '—' }}</td>
+                                        <td>{{ formatTrangThai(sv.trang_thai) }}</td>
+                                        <td>{{ sv.tong_diem_sv ?? '—' }}</td>
+                                        <td>{{ formatXepLoai(sv.xep_loai_sv) }}</td>
+                                        <td>{{ sv.tong_diem_lop ?? '—' }}</td>
+                                        <td>{{ formatXepLoai(sv.xep_loai_lop) }}</td>
+                                    </tr>
+
+                                    <tr v-if="importedStudents.length === 0">
+                                        <td colspan="13" class="text-center py-4">
+                                            Chưa có sinh viên nào trong lớp này.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     <div class="modal-footer">
@@ -296,7 +328,7 @@ const metaMap = {
             { key: 'ma_khoa', label: 'Mã khoa', type: 'text', required: true, placeholder: 'VD: CNTT' },
             { key: 'ten_khoa', label: 'Tên khoa', type: 'text', required: true, placeholder: 'VD: Công nghệ thông tin' },
         ],
-        blank: () => ({ ma_khoa: '', ten_khoa: '', truong_khoa: '' }),
+        blank: () => ({ ma_khoa: '', ten_khoa: '' }),
     },
     nganh: {
         addLabel: 'ngành',
@@ -433,13 +465,52 @@ const importTarget = ref(null)
 const selectedClass = ref(null)
 
 const importedStudents = ref([
-    { ma_sv: 'SV001', ho_ten: 'Nguyễn Văn An' },
-    { ma_sv: 'SV002', ho_ten: 'Trần Thị Bình' },
-    { ma_sv: 'SV003', ho_ten: 'Lê Văn Cường' },
+    {
+        ma_sinh_vien: 'SV001',
+        ho_ten: 'Nguyễn Văn An',
+        email: 'sv001@example.com',
+        so_dien_thoai: '0901234567',
+        ngay_sinh: '2005-01-15',
+        nam_trung_tuyen: 2023,
+        ten_lop: 'D23CQCN01',
+        trang_thai: 'hoat_dong',
+        tong_diem_sv: null,
+        xep_loai_sv: null,
+        tong_diem_lop: null,
+        xep_loai_lop: null,
+    },
+    {
+        ma_sinh_vien: 'SV002',
+        ho_ten: 'Trần Thị Bình',
+        email: '',
+        so_dien_thoai: '',
+        ngay_sinh: '',
+        nam_trung_tuyen: 2023,
+        ten_lop: 'D23CQCN01',
+        trang_thai: 'hoat_dong',
+        tong_diem_sv: null,
+        xep_loai_sv: null,
+        tong_diem_lop: null,
+        xep_loai_lop: null,
+    },
+    {
+        ma_sinh_vien: 'SV003',
+        ho_ten: 'Lê Văn Cường',
+        email: '',
+        so_dien_thoai: '',
+        ngay_sinh: '',
+        nam_trung_tuyen: 2023,
+        ten_lop: 'D23CQCN01',
+        trang_thai: 'hoat_dong',
+        tong_diem_sv: null,
+        xep_loai_sv: null,
+        tong_diem_lop: null,
+        xep_loai_lop: null,
+    },
 ])
 
 function handleFileChange(event) {
-    importForm.file = event.target.files[0]
+    importForm.file = event.target.files?.[0] || null
 }
 
 function openImport(row = null) {
@@ -461,6 +532,16 @@ function openImport(row = null) {
 function submitImport() {
     if (!importForm.khoa || !importForm.nganh || !importForm.ten_lop || !importForm.file) {
         alert('Vui lòng chọn đầy đủ thông tin và file danh sách.')
+        return
+    }
+
+    // Kiểm tra định dạng file
+    const allowedExtensions = ['xlsx', 'xls', 'doc', 'docx']
+    const fileName = importForm.file.name
+    const extension = fileName.split('.').pop().toLowerCase()
+
+    if (!allowedExtensions.includes(extension)) {
+        alert('Chỉ chấp nhận file Excel hoặc Word.')
         return
     }
 
@@ -524,6 +605,29 @@ function setTab(key) {
 
 function renderCell(row, key) {
     return row[key] ?? '—'
+}
+
+function formatTrangThai(value) {
+    const map = {
+        hoat_dong: 'Hoạt động',
+        khong_hoat_dong: 'Không hoạt động',
+        bi_khoa: 'Bị khóa',
+    }
+
+    return map[value] || '—'
+}
+
+function formatXepLoai(value) {
+    const map = {
+        xuat_sac: 'Xuất sắc',
+        tot: 'Tốt',
+        kha: 'Khá',
+        trung_binh: 'Trung bình',
+        yeu: 'Yếu',
+        kem: 'Kém',
+    }
+
+    return map[value] || '—'
 }
 
 function clearForm() {
@@ -619,5 +723,14 @@ watch(
 
 .action-cell {
     white-space: nowrap;
+}
+
+.student-table-scroll {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.student-table-scroll table {
+    min-width: 1200px;
 }
 </style>
