@@ -18,17 +18,49 @@ const routes = [
 
   // ============= Admin ==================
   {
-    path: "/",
+    path: "/admin",
     component: () => import("../layout/wrapper/admin.vue"),
-    // beforeEnter: checkToken,
+    beforeEnter: checkToken,
     children: [
       {
-        path: "/admin/trang-chu",
+        path: "trang-chu",
         component: () => import("../components/Admin/TrangChu/index.vue"),
       },
       {
-        path: "/admin/ql-nguoi-dung",
+        path: "ql-nguoi-dung",
         component: () => import("../components/Admin/QLNguoiDung/index.vue"),
+      },
+      {
+        path: "quan-ly-dao-tao",
+        component: () => import("../components/Admin/QLDaoTao/index.vue"),
+      },
+      {
+        path: "chuyen-nganh",
+        redirect: () => ({
+          path: "/admin/quan-ly-dao-tao",
+          query: { tab: "nganh" },
+        }),
+      },
+      {
+        path: "khoa",
+        redirect: () => ({
+          path: "/admin/quan-ly-dao-tao",
+          query: { tab: "khoa" },
+        }),
+      },
+      {
+        path: "lop-hoc",
+        redirect: () => ({
+          path: "/admin/quan-ly-dao-tao",
+          query: { tab: "lop" },
+        }),
+      },
+      {
+        path: "ds-lop",
+        redirect: () => ({
+          path: "/admin/quan-ly-dao-tao",
+          query: { tab: "danh-sach-lop" },
+        }),
       },
     ],
   },
@@ -216,7 +248,7 @@ const routes = [
   // },
   {
     path: "/staff",
-    redirect: "/admin", // hoặc "/admin/trang-chu"
+    redirect: "/admin/trang-chu",
   },
   {
     path: "/",

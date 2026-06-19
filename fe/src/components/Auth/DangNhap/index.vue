@@ -75,7 +75,7 @@
                   <path d="M9 12h6M9 16h6M9 8h6" />
                   <rect x="4" y="3" width="16" height="18" rx="2" />
                 </svg>
-                <input id="captcha" v-model="captcha" type="text" placeholder="Nhập mã" />
+                <input class="captcha-text" id="captcha" v-model="captcha" type="text" placeholder="Nhập mã" @input="captcha = captcha.toUpperCase()"/>
               </div>
               <button type="button" class="captcha-box" @click="refreshCaptcha" title="Bấm để làm mới mã">
                 {{ captchaCode }}
@@ -209,7 +209,7 @@ export default {
 
           setTimeout(() => {
             if (role == 1) {
-              this.$router.replace("/admin")
+              this.$router.replace("/admin/trang-chu")
             } else if (role == 2) {
               this.$router.replace("/staff")
             } else {

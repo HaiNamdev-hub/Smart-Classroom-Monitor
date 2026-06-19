@@ -19,7 +19,7 @@
 
     <nav class="sidebar-nav">
       <div class="nav-section">Tổng quan</div>
-      <RouterLink v-for="item in navItems" :key="item.to" :to="item.to" :title="collapsed ? item.label : ''"
+      <RouterLink v-for="item in overviewItems" :key="item.to" :to="item.to" :title="collapsed ? item.label : ''"
         class="nav-item" :class="{ active: route.path === item.to }">
         <svg v-if="item.icon === 'grid'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -62,6 +62,23 @@
           {{ item.label }}
         </span>
       </RouterLink>
+
+      <div class="nav-section">Quản trị</div>
+      <RouterLink v-for="item in managementItems" :key="item.to" :to="item.to" :title="collapsed ? item.label : ''"
+        class="nav-item" :class="{ active: route.path === item.to }">
+        <svg v-if="item.icon === 'users'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+        <svg v-else-if="item.icon === 'book'" width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+        </svg>
+        <span v-if="!collapsed">{{ item.label }}</span>
+      </RouterLink>
     </nav>
 
     <div class="sidebar-footer">
@@ -91,16 +108,17 @@ defineEmits(["toggle-sidebar"])
 const route = useRoute()
 const router = useRouter()
 
-const navItems = [
+const overviewItems = [
   { label: "Dashboard", to: "/admin/trang-chu", icon: "grid" },
-  { label: "Quản lý Người dùng", to: "/admin/ql-nguoi-dung", icon: "users" },
-  { label: "Chuyên ngành", to: "/admin/chuyen-nganh", icon: "book" },
-  { label: "Khoa", to: "/admin/khoa", icon: "building" },
-  { label: "Lớp học", to: "/admin/lop-hoc", icon: "school" },
-  { label: "Danh sách lớp", to: "/admin/ds-lop", icon: "list" },
+]
+
+const managementItems = [
+  { label: "Quản lý người dùng", to: "/admin/ql-nguoi-dung", icon: "users" },
+  { label: "Quản lý đào tạo", to: "/admin/quan-ly-dao-tao", icon: "book" },
 ]
 
 function logout() {
+  localStorage.clear()
   router.push("/dang-nhap")
 }
 </script>

@@ -76,7 +76,7 @@ export default function (to, from, next) {
         (role === "admin" || role === "co_van") &&
         !path.startsWith("/admin")
       ) {
-        return next("/admin");
+        return next("/admin/trang-chu");
       }
 
       next();

@@ -298,12 +298,85 @@ html.dark-theme .btn-light-dark {
 }
 html.dark-theme .modal-content {
 	background-color: #212529;
+	color: #f8fafc;
 }
 html.dark-theme .modal-header {
 	border-bottom: 1px solid rgb(222 226 230 / 16%);
+	color: #f8fafc;
 }
 html.dark-theme .modal-footer {
 	border-top: 1px solid rgb(222 226 230 / 16%);
+	color: #f8fafc;
+}
+
+html.dark-theme .modal-title,
+html.dark-theme .modal-body,
+html.dark-theme .modal-header p,
+html.dark-theme .modal-footer p {
+	color: #f8fafc;
+}
+
+html.dark-theme .admin-layout .modal-content {
+	background-color: #1e293b;
+	color: #f8fafc;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+}
+
+html.dark-theme .admin-layout .modal-header,
+html.dark-theme .admin-layout .modal-footer {
+	border-color: rgba(255, 255, 255, 0.08);
+	color: #f8fafc;
+}
+
+html.dark-theme .admin-layout .modal-body,
+html.dark-theme .admin-layout .modal-title,
+html.dark-theme .admin-layout .modal-header p,
+html.dark-theme .admin-layout .modal-footer p {
+	color: #f8fafc;
+}
+
+html.dark-theme .admin-layout .modal-close,
+html.dark-theme .admin-layout .btn-close {
+	filter: invert(1) grayscale(100%) brightness(200%);
+	opacity: 0.9;
+}
+
+html.dark-theme .admin-layout .form-group label {
+	color: #f8fafc;
+}
+
+html.dark-theme .admin-layout .form-group input,
+html.dark-theme .admin-layout .form-group select,
+html.dark-theme .admin-layout .form-group textarea {
+	background: #0f172a;
+	color: #f8fafc;
+	border-color: rgba(255, 255, 255, 0.12);
+}
+
+html.dark-theme .admin-layout .form-group input::placeholder,
+html.dark-theme .admin-layout .form-group textarea::placeholder {
+	color: #94a3b8;
+}
+
+html.dark-theme .admin-layout .btn-ghost {
+	color: #f8fafc;
+	border-color: rgba(255, 255, 255, 0.12);
+}
+
+html.dark-theme .admin-layout .btn-ghost:hover {
+	background: rgba(255, 255, 255, 0.06);
+}
+
+html.dark-theme .admin-layout .btn-secondary {
+	background: #334155;
+	border-color: #475569;
+	color: #f8fafc;
+}
+
+html.dark-theme .admin-layout .btn-secondary:hover {
+	background: #475569;
+	border-color: #64748b;
 }
 
 
@@ -367,6 +440,39 @@ html.dark-theme .email-navigation a.list-group-item.active {
 }
 html.dark-theme .list-group-flush>.list-group-item {
 	border-width: 0 0 1px;
+}
+html.dark-theme .admin-layout .pagination {
+	background: #1e293b;
+	border-color: rgba(255, 255, 255, 0.08);
+}
+
+html.dark-theme .admin-layout .page-btn,
+html.dark-theme .admin-layout .page-size {
+	background: #0f172a;
+	color: #f8fafc;
+	border-color: rgba(255, 255, 255, 0.12);
+}
+
+html.dark-theme .admin-layout .page-btn:hover {
+	background: rgba(255, 255, 255, 0.08);
+	border-color: rgba(255, 255, 255, 0.2);
+}
+
+html.dark-theme .admin-layout .page-btn[aria-current="page"],
+html.dark-theme .admin-layout .page-btn.is-active {
+	background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%);
+	border-color: transparent;
+	color: #fff;
+}
+
+html.dark-theme .admin-layout .page-btn:disabled {
+	background: #0f172a;
+	color: #94a3b8;
+	border-color: rgba(255, 255, 255, 0.08);
+}
+
+html.dark-theme .admin-layout .pagination .text-gray-600 {
+	color: #cbd5e1 !important;
 }
 html.dark-theme .border-top {
 	border-top: 1px solid rgb(255 255 255 / 13%)!important;
@@ -722,6 +828,48 @@ html.dark-theme .apexcharts-datalabel,
 html.dark-theme .apexcharts-datalabel-label,
 html.dark-theme .apexcharts-datalabel-value {
 	fill: #fff;
+}
+html.dark-theme .admin-layout .modal-content {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+html.dark-theme .admin-layout .modal-header,
+html.dark-theme .admin-layout .modal-footer {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.dark-theme .admin-layout .modal-body,
+html.dark-theme .admin-layout .modal-title,
+html.dark-theme .admin-layout .modal-body p,
+html.dark-theme .admin-layout .modal-body strong,
+html.dark-theme .admin-layout .modal-body label {
+  color: #f8fafc !important;
+}
+
+html.dark-theme .admin-layout .modal-header .text-gray-500,
+html.dark-theme .admin-layout .modal-body .text-gray-500 {
+  color: #94a3b8 !important;
+}
+
+html.dark-theme .admin-layout .form-group input,
+html.dark-theme .admin-layout .form-group select,
+html.dark-theme .admin-layout .form-group textarea {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+html.dark-theme .admin-layout .form-group input::placeholder,
+html.dark-theme .admin-layout .form-group textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+html.dark-theme .admin-layout .btn-close {
+  filter: invert(1) grayscale(100%) brightness(200%);
 }
 /*Responsive*/
 
