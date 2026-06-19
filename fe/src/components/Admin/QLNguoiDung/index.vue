@@ -326,208 +326,395 @@
     </div>
 </template>
 
-<script setup>
-import { ref, computed } from "vue"
-import "../../../assets/css/admin.css"
-import "../../../assets/css/dashboard.css"
-import "../../../assets/css/user.css"
+<script>
+import axios from 'axios'
+
+const ROLE_MAP = {
+  1: 'admin',
+  2: 'phong_qldt',
+  3: 'co_van',
+  4: 'lop_truong',
+  5: 'bi_thu',
+  6: 'sinh_vien',
+}
+
+const ROLE_KEY_TO_ID = {
+  admin: 1,
+  phong_qldt: 2,
+  co_van: 3,
+  lop_truong: 4,
+  bi_thu: 5,
+  sinh_vien: 6,
+}
 
 const ROLE_LABELS = {
-    co_van: "Cố vấn học tập",
-    sinh_vien: "Sinh viên",
-    lop_truong: "Lớp trưởng",
-    bi_thu: "Bí thư",
+  admin: 'Admin',
+  phong_qldt: 'Phòng QLĐT',
+  co_van: 'Cố vấn học tập',
+  lop_truong: 'Lớp trưởng',
+  bi_thu: 'Bí thư',
+  sinh_vien: 'Sinh viên',
 }
 
 const STATUS_LABELS = {
-    hoat_dong: "Hoạt động",
-    khong_hoat_dong: "Không hoạt động",
-    bi_khoa: "Bị khóa",
+  hoat_dong: 'Hoạt động',
+  khong_hoat_dong: 'Không hoạt động',
+  bi_khoa: 'Bị khóa',
 }
 
-let nextId = 9
-const users = ref([
-    { id: 1, ho_ten: "Nguyễn Văn An", email: "an.nv@truong.edu.vn", so_dien_thoai: "0901234567", ngay_sinh: "2003-05-12", vai_tro: "sinh_vien", chuc_vu_lop: "lop_truong", lop: "D23CQCN01", khoa: "Công nghệ thông tin", nganh: "Kỹ thuật phần mềm", ma_sinh_vien: "SV23001", trang_thai: "hoat_dong", ngay_tao: "2025-01-15", ngay_cap_nhat: "2025-01-18" },
-    { id: 2, ho_ten: "Trần Thị Bình", email: "binh.tt@truong.edu.vn", so_dien_thoai: "0912345678", ngay_sinh: "1985-08-20", vai_tro: "co_van", chuc_vu_lop: null, lop: "D23CQCN01, D23CQCN02", khoa: "Công nghệ thông tin", nganh: "—", ma_sinh_vien: null, trang_thai: "hoat_dong", ngay_tao: "2025-01-10", ngay_cap_nhat: "2025-01-12" },
-    { id: 3, ho_ten: "Lê Quản Trị", email: "admin@truong.edu.vn", so_dien_thoai: "0987654321", ngay_sinh: "1980-02-01", vai_tro: "admin", chuc_vu_lop: null, lop: "—", khoa: "—", nganh: "—", ma_sinh_vien: null, trang_thai: "hoat_dong", ngay_tao: "2024-12-01", ngay_cap_nhat: "2025-01-01" },
-    { id: 4, ho_ten: "Phạm Thị Dung", email: "dung.pt@truong.edu.vn", so_dien_thoai: "0934567890", ngay_sinh: "2004-11-30", vai_tro: "sinh_vien", chuc_vu_lop: "bi_thu", lop: "D23CQCN02", khoa: "Công nghệ thông tin", nganh: "Hệ thống thông tin", ma_sinh_vien: "SV23004", trang_thai: "khong_hoat_dong", ngay_tao: "2025-02-03", ngay_cap_nhat: "2025-02-10" },
-    { id: 5, ho_ten: "Hoàng Văn Em", email: "em.hv@truong.edu.vn", so_dien_thoai: "0945678901", ngay_sinh: "2003-07-18", vai_tro: "sinh_vien", chuc_vu_lop: null, lop: "D23CQCN01", khoa: "Công nghệ thông tin", nganh: "Khoa học máy tính", ma_sinh_vien: "SV23005", trang_thai: "bi_khoa", ngay_tao: "2025-02-11", ngay_cap_nhat: "2025-02-12" },
-    { id: 6, ho_ten: "Vũ Thị Giang", email: "giang.vt@truong.edu.vn", so_dien_thoai: "0956789012", ngay_sinh: "1990-03-25", vai_tro: "co_van", chuc_vu_lop: null, lop: "D23CQCN03, D23CQCN04", khoa: "Công nghệ thông tin", nganh: "—", ma_sinh_vien: null, trang_thai: "hoat_dong", ngay_tao: "2025-01-22", ngay_cap_nhat: "2025-01-25" },
-    { id: 7, ho_ten: "Đỗ Văn Hùng", email: "hung.dv@truong.edu.vn", so_dien_thoai: "0967890123", ngay_sinh: "2002-09-09", vai_tro: "sinh_vien", chuc_vu_lop: "lop_truong", lop: "D23CQCN03", khoa: "Công nghệ thông tin", nganh: "Kỹ thuật phần mềm", ma_sinh_vien: "SV23007", trang_thai: "hoat_dong", ngay_tao: "2025-03-01", ngay_cap_nhat: "2025-03-02" },
-    { id: 8, ho_ten: "Bùi Thị Lan", email: "lan.bt@truong.edu.vn", so_dien_thoai: "0978901234", ngay_sinh: "2004-01-14", vai_tro: "sinh_vien", chuc_vu_lop: null, lop: "D23CQCN04", khoa: "Công nghệ thông tin", nganh: "Hệ thống thông tin", ma_sinh_vien: "SV23008", trang_thai: "khong_hoat_dong", ngay_tao: "2025-03-08", ngay_cap_nhat: "2025-03-09" },
-])
-
-// ----- filters -----
-const search = ref("")
-const filterRole = ref("all")
-const filterStatus = ref("all")
-
-const filtered = computed(() => {
-    const q = search.value.trim().toLowerCase()
-    return users.value.filter((u) => {
-        if (u.vai_tro === "admin") return false
-        const matchSearch = !q || u.ho_ten.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.lop || "").toLowerCase().includes(q)
-        const roleDisplay = displayRole(u)
-        const matchRole = filterRole.value === "all" || roleDisplay === filterRole.value
-        const matchStatus = filterStatus.value === "all" || u.trang_thai === filterStatus.value
-        return matchSearch && matchRole && matchStatus
-    })
-})
-
-// ----- pagination -----
-const pageSize = ref(5)
-const currentPage = ref(1)
-
-const totalPages = computed(() => Math.max(1, Math.ceil(filtered.value.length / pageSize.value)))
-const paged = computed(() => {
-    const start = (currentPage.value - 1) * pageSize.value
-    return filtered.value.slice(start, start + pageSize.value)
-})
-
-function goPage(p) {
-    if (p >= 1 && p <= totalPages.value) currentPage.value = p
-}
-function resetPage() { currentPage.value = 1 }
-
-function initials(name) {
-    const parts = name.trim().split(" ")
-    return (parts[0][0] + (parts[parts.length - 1][0] || "")).toUpperCase()
-}
-
-function displayRole(u) {
-    return u.chuc_vu_lop || u.vai_tro
-}
-
-function displayRoleLabel(u) {
-    if (u.vai_tro === "co_van") return "Cố vấn học tập"
-    if (u.vai_tro === "admin") return "Quản trị hệ thống"
-    return u.chuc_vu_lop ? ROLE_LABELS[u.chuc_vu_lop] : "Sinh viên thường"
-}
-
-function formatDate(d) {
-    if (!d) return "—"
-    const [y, m, day] = d.split("-")
-    return `${day}/${m}/${y}`
-}
-
-function hideBootstrapModal(modalId) {
-    const modalEl = document.getElementById(modalId)
-    const ModalCtor = window.bootstrap?.Modal
-    if (!modalEl || !ModalCtor) return
-
-    const instance = ModalCtor.getInstance(modalEl) || ModalCtor.getOrCreateInstance(modalEl)
-    instance.hide()
-}
-
-// ----- add / edit modal -----
-const isEditing = ref(false)
-const errors = ref({})
-const blankForm = () => ({ id: null, ho_ten: "", email: "", so_dien_thoai: "", ngay_sinh: "", vai_tro: "sinh_vien", lop: "", chuc_vu_lop: null, khoa: "", nganh: "", ma_sinh_vien: "", trang_thai: "hoat_dong" })
-const form = ref(blankForm())
-const detailTarget = ref(null)
-
-function openAdd() {
-    isEditing.value = false
-    errors.value = {}
-    form.value = blankForm()
-}
-function openEdit(u) {
-    isEditing.value = true
-    errors.value = {}
-    form.value = {
-        ...u,
-        chuc_vu_lop: u.chuc_vu_lop || null,
-        lop: u.lop || "",
-        khoa: u.khoa || "",
-        nganh: u.nganh || "",
-        ma_sinh_vien: u.ma_sinh_vien || "",
+export default {
+  data() {
+    return {
+      list_chuc_vu: [],
+      list_nguoi_dung: [],
+      them_nguoi_dung: {
+        ho_ten: '',
+        email: '',
+        password: '',
+        so_dien_thoai: '',
+        ngay_sinh: '',
+        avatar: '',
+        vai_tro_id: ROLE_KEY_TO_ID.sinh_vien,
+        lop: '',
+        chuc_vu_lop: null,
+        trang_thai: 'hoat_dong',
+      },
+      xoa_nguoi_dung: {
+        id: null,
+      },
+      chi_tiet_nguoi_dung: {},
+      sua_nguoi_dung: {
+        id: null,
+        ho_ten: '',
+        email: '',
+        password: '',
+        so_dien_thoai: '',
+        ngay_sinh: '',
+        avatar: '',
+        vai_tro_id: ROLE_KEY_TO_ID.sinh_vien,
+        lop: '',
+        chuc_vu_lop: null,
+        trang_thai: 'hoat_dong',
+      },
+      tim_kiem: {
+        tim_nguoi_dung: '',
+      },
+      form: {
+        id: null,
+        ho_ten: '',
+        email: '',
+        password: '',
+        so_dien_thoai: '',
+        ngay_sinh: '',
+        avatar: '',
+        vai_tro: 'sinh_vien',
+        lop: '',
+        chuc_vu_lop: null,
+        trang_thai: 'hoat_dong',
+      },
+      search: '',
+      filterRole: 'all',
+      filterStatus: 'all',
+      currentPage: 1,
+      pageSize: 10,
+      isEditing: false,
+      errors: {},
+      lockTarget: null,
+      deleteTarget: null,
     }
-}
-
-function openDetail(u) {
-    detailTarget.value = u
-}
-
-function handleRoleChange() {
-    if (form.value.vai_tro === "co_van") {
-        form.value.chuc_vu_lop = null
-    }
-}
-
-function validate() {
-    const e = {}
-    if (!form.value.ho_ten.trim()) e.ho_ten = "Vui lòng nhập họ tên"
-    if (!form.value.email.trim()) e.email = "Vui lòng nhập email"
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email)) e.email = "Email không hợp lệ"
-    if (!form.value.lop.trim()) e.lop = "Vui lòng nhập lớp"
-    if (form.value.vai_tro === "sinh_vien" && !form.value.ma_sinh_vien.trim()) e.ma_sinh_vien = "Vui lòng nhập mã sinh viên"
-    errors.value = e
-    return Object.keys(e).length === 0
-}
-
-function saveForm() {
-    if (!validate()) return
-    if (isEditing.value) {
-        const idx = users.value.findIndex((u) => u.id === form.value.id)
-        if (idx !== -1) {
-            users.value[idx] = {
-                ...users.value[idx],
-                ho_ten: form.value.ho_ten,
-                email: form.value.email,
-                so_dien_thoai: form.value.so_dien_thoai,
-                ngay_sinh: form.value.ngay_sinh,
-                vai_tro: form.value.vai_tro,
-                chuc_vu_lop: form.value.vai_tro === "sinh_vien" ? (form.value.chuc_vu_lop || null) : null,
-                lop: form.value.lop,
-                khoa: form.value.khoa,
-                nganh: form.value.nganh,
-                ma_sinh_vien: form.value.vai_tro === "sinh_vien" ? form.value.ma_sinh_vien : null,
-                trang_thai: form.value.trang_thai,
-                ngay_cap_nhat: new Date().toISOString().slice(0, 10),
-            }
+  },
+  mounted() {
+    this.getNguoiDung()
+    this.layDataChucVu()
+  },
+  computed: {
+    filtered() {
+      const keyword = this.search.trim().toLowerCase()
+      return this.list_nguoi_dung.filter((user) => {
+        if (this.filterRole !== 'all') {
+          const roleKey = ROLE_MAP[user.vai_tro_id] || 'sinh_vien'
+          if (roleKey !== this.filterRole) {
+            return false
+          }
         }
-    } else {
-        users.value.unshift({
-            id: nextId++,
-            ho_ten: form.value.ho_ten,
-            email: form.value.email,
-            so_dien_thoai: form.value.so_dien_thoai,
-            ngay_sinh: form.value.ngay_sinh,
-            vai_tro: form.value.vai_tro,
-            chuc_vu_lop: form.value.vai_tro === "sinh_vien" ? (form.value.chuc_vu_lop || null) : null,
-            lop: form.value.lop,
-            khoa: form.value.khoa,
-            nganh: form.value.nganh,
-            ma_sinh_vien: form.value.vai_tro === "sinh_vien" ? form.value.ma_sinh_vien : null,
-            trang_thai: form.value.trang_thai,
-            ngay_tao: new Date().toISOString().slice(0, 10),
-            ngay_cap_nhat: new Date().toISOString().slice(0, 10),
+        if (this.filterStatus !== 'all') {
+          if ((user.trang_thai || '') !== this.filterStatus) {
+            return false
+          }
+        }
+        if (!keyword) {
+          return true
+        }
+        return (
+          (user.ho_ten || '').toLowerCase().includes(keyword) ||
+          (user.email || '').toLowerCase().includes(keyword) ||
+          (user.so_dien_thoai || '').toLowerCase().includes(keyword) ||
+          ((user.lop || '').toLowerCase().includes(keyword))
+        )
+      })
+    },
+    totalPages() {
+      return Math.max(1, Math.ceil(this.filtered.length / this.pageSize))
+    },
+    paged() {
+      const start = (this.currentPage - 1) * this.pageSize
+      return this.filtered.slice(start, start + this.pageSize)
+    },
+  },
+  methods: {
+    layDataChucVu() {
+      axios
+        .get('http://127.0.0.1:8000/api/admin/chuc-vu/get-data', {
+          headers: {
+            Authorization: 'Bearer ' + localStorage.getItem('auth_token'),
+          },
         })
-        resetPage()
-    }
-    hideBootstrapModal("userFormModal")
-}
-
-// ----- lock / unlock -----
-const lockTarget = ref(null)
-function prepareLock(u) { lockTarget.value = u }
-function confirmLock() {
-    if (lockTarget.value) {
-        lockTarget.value.trang_thai = lockTarget.value.trang_thai === "bi_khoa" ? "hoat_dong" : "bi_khoa"
-        lockTarget.value.ngay_cap_nhat = new Date().toISOString().slice(0, 10)
-    }
-    hideBootstrapModal("userLockModal")
-    lockTarget.value = null
-}
-
-// ----- delete -----
-const deleteTarget = ref(null)
-function prepareDelete(u) { deleteTarget.value = u }
-function confirmDelete() {
-    if (!deleteTarget.value) return
-    users.value = users.value.filter((u) => u.id !== deleteTarget.value.id)
-    hideBootstrapModal("userDeleteModal")
-    deleteTarget.value = null
-    if (currentPage.value > totalPages.value) currentPage.value = totalPages.value
+        .then((res) => {
+          this.list_chuc_vu = res.data.data || []
+        })
+        .catch((err) => {
+          console.error('layDataChucVu', err)
+        })
+    },
+    getNguoiDung() {
+      axios
+        .get('http://localhost:8000/api/admin/nguoi-dung', {
+          headers: { Authorization: 'Bearer ' + localStorage.getItem('auth_token') },
+        })
+        .then((res) => {
+          if (res.data.status) {
+            this.list_nguoi_dung = res.data.data || []
+          } else {
+            this.$toast?.error(res.data.message || 'Lấy người dùng thất bại.')
+          }
+        })
+        .catch((err) => {
+          console.error('getNguoiDung', err)
+          this.$toast?.error('Lấy người dùng thất bại.')
+        })
+    },
+    themNguoiDung() {
+      axios
+        .post('http://localhost:8000/api/admin/nguoi-dung/them-nguoi-dung', this.them_nguoi_dung, {
+          headers: { Authorization: 'Bearer ' + localStorage.getItem('auth_token') },
+        })
+        .then((res) => {
+          if (res.data.status) {
+            this.$toast?.success(res.data.message)
+            this.getNguoiDung()
+            this.them_nguoi_dung = {
+              ho_ten: '',
+              email: '',
+              password: '',
+              so_dien_thoai: '',
+              ngay_sinh: '',
+              avatar: '',
+              vai_tro_id: ROLE_KEY_TO_ID.sinh_vien,
+              lop: '',
+              chuc_vu_lop: null,
+              trang_thai: 'hoat_dong',
+            }
+            this.form = {
+              id: null,
+              ho_ten: '',
+              email: '',
+              password: '',
+              so_dien_thoai: '',
+              ngay_sinh: '',
+              avatar: '',
+              vai_tro: 'sinh_vien',
+              lop: '',
+              chuc_vu_lop: null,
+              trang_thai: 'hoat_dong',
+            }
+          } else {
+            this.$toast?.error(res.data.message || 'Thêm người dùng thất bại.')
+          }
+        })
+        .catch(() => {
+          this.$toast?.error('Thêm người dùng thất bại.')
+        })
+    },
+    chiTietNguoiDung() {
+      axios
+        .get('http://localhost:8000/api/admin/nguoi-dung/chi-tiet-nguoi-dung', {
+          headers: { Authorization: 'Bearer ' + localStorage.getItem('auth_token') },
+        })
+        .then((res) => {
+          if (res.data.status) {
+            this.chi_tiet_nguoi_dung = res.data.data
+          } else {
+            this.$toast?.error(res.data.message || 'Lấy chi tiết người dùng thất bại.')
+          }
+        })
+        .catch(() => {
+          this.$toast?.error('Lấy chi tiết người dùng thất bại.')
+        })
+    },
+    xoaNguoiDung() {
+      axios
+        .post('http://127.0.0.1:8000/api/admin/nguoi-dung/xoa-nguoi-dung', this.xoa_nguoi_dung, {
+          headers: { Authorization: 'Bearer ' + localStorage.getItem('auth_token') },
+        })
+        .then((res) => {
+          if (res.data.status) {
+            this.$toast?.success(res.data.message)
+            this.getNguoiDung()
+          } else {
+            this.$toast?.error(res.data.message || 'Xóa người dùng thất bại.')
+          }
+        })
+        .catch(() => {
+          this.$toast?.error('Xóa người dùng thất bại!')
+        })
+    },
+    suaNguoiDung() {
+      axios
+        .post('http://localhost:8000/api/admin/nguoi-dung/sua-nguoi-dung', this.sua_nguoi_dung, {
+          headers: { Authorization: 'Bearer ' + localStorage.getItem('auth_token') },
+        })
+        .then((res) => {
+          if (res.data.status) {
+            this.$toast?.success(res.data.message)
+            this.getNguoiDung()
+          } else {
+            this.$toast?.error(res.data.message || 'Sửa người dùng thất bại.')
+          }
+        })
+        .catch(() => {
+          this.$toast?.error('Sửa người dùng thất bại.')
+        })
+    },
+    timKiem() {
+      axios
+        .post('http://127.0.0.1:8000/api/admin/nguoi-dung/tim-kiem', this.tim_kiem, {
+          headers: { Authorization: 'Bearer ' + localStorage.getItem('auth_token') },
+        })
+        .then((res) => {
+          this.list_nguoi_dung = res.data.data || []
+        })
+        .catch(() => {
+          this.$toast?.error('Tìm kiếm người dùng thất bại.')
+        })
+    },
+    openAdd() {
+      this.isEditing = false
+      this.form = {
+        id: null,
+        ho_ten: '',
+        email: '',
+        password: '',
+        so_dien_thoai: '',
+        ngay_sinh: '',
+        avatar: '',
+        vai_tro: 'sinh_vien',
+        lop: '',
+        chuc_vu_lop: null,
+        trang_thai: 'hoat_dong',
+      }
+    },
+    openEdit(user) {
+      this.isEditing = true
+      this.form = {
+        id: user.id,
+        ho_ten: user.ho_ten || '',
+        email: user.email || '',
+        password: '',
+        so_dien_thoai: user.so_dien_thoai || '',
+        ngay_sinh: user.ngay_sinh || '',
+        avatar: user.avatar || '',
+        vai_tro: ROLE_MAP[user.vai_tro_id] || 'sinh_vien',
+        lop: user.lop || '',
+        chuc_vu_lop: user.chuc_vu_lop || null,
+        trang_thai: user.trang_thai || 'hoat_dong',
+      }
+      this.sua_nguoi_dung = { ...this.form, vai_tro_id: ROLE_KEY_TO_ID[this.form.vai_tro] }
+    },
+    saveForm() {
+      if (this.isEditing) {
+        this.sua_nguoi_dung = {
+          id: this.form.id,
+          ho_ten: this.form.ho_ten,
+          email: this.form.email,
+          password: this.form.password,
+          so_dien_thoai: this.form.so_dien_thoai,
+          ngay_sinh: this.form.ngay_sinh,
+          avatar: this.form.avatar,
+          vai_tro_id: ROLE_KEY_TO_ID[this.form.vai_tro] || ROLE_KEY_TO_ID.sinh_vien,
+          lop: this.form.lop,
+          chuc_vu_lop: this.form.chuc_vu_lop,
+          trang_thai: this.form.trang_thai,
+        }
+        this.suaNguoiDung()
+      } else {
+        this.them_nguoi_dung = {
+          ho_ten: this.form.ho_ten,
+          email: this.form.email,
+          password: this.form.password || '123456',
+          so_dien_thoai: this.form.so_dien_thoai,
+          ngay_sinh: this.form.ngay_sinh,
+          avatar: this.form.avatar,
+          vai_tro_id: ROLE_KEY_TO_ID[this.form.vai_tro] || ROLE_KEY_TO_ID.sinh_vien,
+          lop: this.form.lop,
+          chuc_vu_lop: this.form.chuc_vu_lop,
+          trang_thai: this.form.trang_thai,
+        }
+        this.themNguoiDung()
+      }
+    },
+    prepareLock(user) {
+      this.lockTarget = user
+    },
+    async confirmLock() {
+      if (!this.lockTarget) {
+        return
+      }
+      const newStatus = this.lockTarget.trang_thai === 'bi_khoa' ? 'hoat_dong' : 'bi_khoa'
+      this.sua_nguoi_dung = {
+        id: this.lockTarget.id,
+        ho_ten: this.lockTarget.ho_ten,
+        email: this.lockTarget.email,
+        password: '',
+        so_dien_thoai: this.lockTarget.so_dien_thoai,
+        ngay_sinh: this.lockTarget.ngay_sinh,
+        avatar: this.lockTarget.avatar,
+        vai_tro_id: this.lockTarget.vai_tro_id,
+        lop: this.lockTarget.lop,
+        chuc_vu_lop: this.lockTarget.chuc_vu_lop,
+        trang_thai: newStatus,
+      }
+      this.suaNguoiDung()
+    },
+    prepareDelete(user) {
+      this.deleteTarget = user
+      this.xoa_nguoi_dung = { id: user.id }
+    },
+    confirmDelete() {
+      this.xoaNguoiDung()
+    },
+    initials(name) {
+      if (!name) return ''
+      return name
+        .split(' ')
+        .map((part) => part.charAt(0).toUpperCase())
+        .slice(0, 2)
+        .join('')
+    },
+    displayRole(user) {
+      return ROLE_MAP[user.vai_tro_id] || 'sinh_vien'
+    },
+    goPage(page) {
+      if (page < 1) {
+        page = 1
+      }
+      if (page > this.totalPages) {
+        page = this.totalPages
+      }
+      this.currentPage = page
+    },
+    resetPage() {
+      this.currentPage = 1
+    },
+  },
 }
 </script>
