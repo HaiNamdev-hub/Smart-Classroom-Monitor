@@ -118,7 +118,50 @@
                 </tbody>
             </table>
 
-            <div class="pagination flex items-center justify-between mt-4">
+            <div class="text-end">
+                <div
+                    class="flex items-center justify-end gap-8 px-4 py-4 bg-white border-t border-gray-200 mt-2 mb-2 rounded-b-lg w-full">
+
+                    <div class="flex items-center gap-4 text-base text-gray-600">
+                        <span>Hiển thị <strong>{{ paged.length }}</strong> / <strong>{{ filtered.length }}</strong>
+                            người dùng</span>
+                        <select
+                            class="h-10 px-3 bg-white border border-gray-300 rounded outline-none cursor-pointer focus:border-blue-500 text-base"
+                            v-model.number="pageSize" @change="resetPage">
+                            <option :value="5">5 dòng</option>
+                            <option :value="10">10 dòng</option>
+                            <option :value="20">20 dòng</option>
+                            <option :value="50">50 dòng</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button
+                            class="w-10 h-10 flex items-center justify-center rounded border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            :disabled="currentPage === 1" @click="goPage(currentPage - 1)">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="15 18 9 12 15 6"></polyline>
+                            </svg>
+                        </button>
+
+                        <button v-for="p in totalPages" :key="p"
+                            class="w-10 h-10 flex items-center justify-center rounded border text-base font-medium transition-colors"
+                            :class="p === currentPage ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'"
+                            @click="goPage(p)">
+                            {{ p }}
+                        </button>
+
+                        <button
+                            class="w-10 h-10 flex items-center justify-center rounded border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            :disabled="currentPage === totalPages" @click="goPage(currentPage + 1)">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
