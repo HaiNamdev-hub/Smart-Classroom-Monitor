@@ -131,6 +131,7 @@
 </template>
 
 <script setup>
+import axios from "axios"
 import { ref } from "vue"
 import { useRouter } from "vue-router"
 import "../../../assets/css/auth.css";
@@ -146,7 +147,9 @@ const showPassword = ref(false)
 const error = ref("")
 const success = ref("")
 
-function handleSendCode() {
+const apiBase = "http://127.0.0.1:8000/api"
+
+async function handleSendCode() {
   error.value = ""
   success.value = ""
 
@@ -156,16 +159,24 @@ function handleSendCode() {
     return
   }
 
-  // Gửi mã xác thực (xử lý gọi API tại đây)
-  console.log("[v0] Gửi mã xác thực đến:", email.value)
-  success.value = "Đã gửi mã xác thực đến email của bạn."
-  setTimeout(() => {
-    success.value = ""
-    step.value = 2
-  }, 1200)
+  try {
+    const res = await axios.post(`${apiBase}/quen-mat-khau/gui-otp`, {
+      email: email.value,
+    })
+
+    if (res.data.status) {
+      success.value = res.data.message || "Mã xác thực đã được gửi đến email của bạn."
+      step.value = 2
+      return
+    }
+
+    error.value = res.data.message || "Gửi mã xác thực thất bại."
+  } catch (err) {
+    error.value = err.response?.data?.message || "Lỗi kết nối tới server API."
+  }
 }
 
-function handleReset() {
+async function handleReset() {
   error.value = ""
   success.value = ""
 
@@ -174,8 +185,8 @@ function handleReset() {
     return
   }
 
-  if (newPassword.value.length < 6) {
-    error.value = "Mật khẩu phải có ít nhất 6 ký tự."
+  if (newPassword.value.length < 8) {
+    error.value = "Mật khẩu phải có ít nhất 8 ký tự."
     return
   }
 
@@ -184,9 +195,23 @@ function handleReset() {
     return
   }
 
-  // Đặt lại mật khẩu (xử lý gọi API tại đây)
-  console.log("[v0] Đặt lại mật khẩu cho:", email.value)
-  success.value = "Đặt lại mật khẩu thành công! Đang chuyển đến trang đăng nhập..."
-  setTimeout(() => router.push("/"), 1500)
+  try {
+    const res = await axios.post(`${apiBase}/quen-mat-khau/doi-mat-khau`, {
+      email: email.value,
+      code: code.value,
+      password: newPassword.value,
+      password_confirmation: confirmNewPassword.value,
+    })
+
+    if (res.data.status) {
+      success.value = res.data.message || "Đổi mật khẩu thành công."
+      setTimeout(() => router.push("/dang-nhap"), 1400)
+      return
+    }
+
+    error.value = res.data.message || "Đổi mật khẩu thất bại."
+  } catch (err) {
+    error.value = err.response?.data?.message || "Lỗi kết nối tới server API."
+  }
 }
 </script>
