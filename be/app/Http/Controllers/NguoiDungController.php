@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Mail\MasterMail;
+use App\Models\Lop;
 use App\Models\NguoiDung;
 use App\Models\SinhVien;
 use Illuminate\Http\Request;
@@ -380,6 +381,46 @@ class NguoiDungController extends Controller
 
         $data = NguoiDung::orderByDesc('id')->get();
 
+        foreach ($data as $nguoiDung) {
+            $maLop = null;
+
+            // Cố vấn học tập
+            if ($nguoiDung->vai_tro_id == 3) {
+                $maLop = Lop::where('co_van_id', $nguoiDung->id)
+                    ->pluck('ma_lop')
+                    ->implode(', ');
+            }
+
+            // Lớp trưởng
+            if ($nguoiDung->vai_tro_id == 4) {
+                $maLop = Lop::where('lop_truong_id', $nguoiDung->id)
+                    ->pluck('ma_lop')
+                    ->implode(', ');
+            }
+
+            // Bí thư
+            if ($nguoiDung->vai_tro_id == 5) {
+                $maLop = Lop::where('bi_thu_id', $nguoiDung->id)
+                    ->pluck('ma_lop')
+                    ->implode(', ');
+            }
+
+            // Sinh viên
+            if ($nguoiDung->vai_tro_id == 6) {
+                $sinhVien = SinhVien::where('user_id', $nguoiDung->id)->first();
+
+                if ($sinhVien) {
+                    $lop = Lop::find($sinhVien->lop_id);
+
+                    if ($lop) {
+                        $maLop = $lop->ma_lop;
+                    }
+                }
+            }
+
+            $nguoiDung->lop = $maLop ?: null;
+        }
+
         return response()->json([
             'status' => true,
             'message' => 'Lấy danh sách người dùng thành công',
@@ -481,92 +522,82 @@ class NguoiDungController extends Controller
         ], 201);
     }
     public function suaNguoiDung(Request $request)
-{
-    $user = $request->user();
+    {
+        $user = $request->user();
 
-    if (!$user) {
+        if (!$user) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Token không hợp lệ hoặc đã hết hạn!'
+            ], 401);
+        }
+
+        $nguoiDung = NguoiDung::find($request->id);
+
+        if (!$nguoiDung) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Người dùng không tồn tại'
+            ], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'id'            => ['required', 'exists:nguoi_dung,id'],
+            'ho_ten'        => ['required', 'string', 'max:255'],
+            'email'         => [
+                'required',
+                'email',
+                Rule::unique('nguoi_dung', 'email')->ignore($request->id)
+            ],
+            'so_dien_thoai' => ['nullable', 'string', 'max:20'],
+            'ngay_sinh'     => ['nullable', 'date'],
+            'avatar'        => ['nullable', 'string'],
+            'vai_tro_id'    => ['required', 'integer'],
+            'trang_thai'    => ['required', Rule::in(['hoat_dong', 'khong_hoat_dong', 'bi_khoa'])],
+            'password'      => ['nullable', 'string', 'min:6'],
+        ], [
+            'id.required'          => 'Thiếu ID người dùng',
+            'id.exists'            => 'Người dùng không tồn tại',
+            'ho_ten.required'      => 'Vui lòng nhập họ tên',
+            'email.required'       => 'Vui lòng nhập email',
+            'email.email'          => 'Email không hợp lệ',
+            'email.unique'         => 'Email đã tồn tại',
+            'vai_tro_id.required'  => 'Vui lòng chọn vai trò',
+            'trang_thai.required'  => 'Vui lòng chọn trạng thái',
+            'trang_thai.in'        => 'Trạng thái không hợp lệ',
+            'password.min'         => 'Mật khẩu phải có ít nhất 6 ký tự',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Dữ liệu không hợp lệ',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $dataUpdate = [
+            'ho_ten'        => $request->ho_ten,
+            'email'         => $request->email,
+            'so_dien_thoai' => $request->so_dien_thoai,
+            'ngay_sinh'     => $request->ngay_sinh,
+            'avatar'        => $request->avatar,
+            'vai_tro_id'    => $request->vai_tro_id,
+            'trang_thai'    => $request->trang_thai,
+        ];
+
+        if ($request->filled('password')) {
+            $dataUpdate['password'] = $request->password;
+        }
+
+        $nguoiDung->update($dataUpdate);
+
         return response()->json([
-            'status' => false,
-            'message' => 'Token không hợp lệ hoặc đã hết hạn!'
-        ], 401);
+            'status'  => true,
+            'message' => 'Cập nhật người dùng thành công!',
+            'data'    => $nguoiDung
+        ]);
     }
-
-    $nguoiDung = NguoiDung::find($request->id);
-
-    if (!$nguoiDung) {
-        return response()->json([
-            'status' => false,
-            'message' => 'Người dùng không tồn tại'
-        ], 404);
-    }
-
-    $validator = Validator::make($request->all(), [
-        'id'            => ['required', 'exists:nguoi_dung,id'],
-        'ho_ten'        => ['required', 'string', 'max:255'],
-        'email'         => [
-            'required',
-            'email',
-            Rule::unique('nguoi_dung', 'email')->ignore($request->id)
-        ],
-        'so_dien_thoai' => ['nullable', 'string', 'max:20'],
-        'ngay_sinh'     => ['nullable', 'date'],
-        'cccd'          => [
-            'nullable',
-            'string',
-            'max:20',
-            Rule::unique('nguoi_dung', 'cccd')->ignore($request->id)
-        ],
-        'id_chuc_vu'    => ['required', 'integer'],
-        'trang_thai'    => ['required', Rule::in(['hoat_dong', 'khong_hoat_dong', 'bi_khoa'])],
-        'password'      => ['nullable', 'string', 'min:6'],
-        'avatar'        => ['nullable', 'string'],
-    ], [
-        'id.required'        => 'Thiếu ID người dùng',
-        'id.exists'          => 'Người dùng không tồn tại',
-        'ho_ten.required'    => 'Vui lòng nhập họ tên',
-        'email.required'     => 'Vui lòng nhập email',
-        'email.email'        => 'Email không hợp lệ',
-        'email.unique'       => 'Email đã tồn tại',
-        'cccd.unique'        => 'CCCD đã tồn tại',
-        'id_chuc_vu.required'=> 'Vui lòng chọn chức vụ',
-        'password.min'       => 'Mật khẩu phải có ít nhất 6 ký tự',
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json([
-            'status' => false,
-            'message' => 'Dữ liệu không hợp lệ',
-            'errors' => $validator->errors()
-        ], 422);
-    }
-
-    $dataUpdate = [
-        'ho_ten'        => $request->ho_ten,
-        'email'         => $request->email,
-        'so_dien_thoai' => $request->so_dien_thoai,
-        'ngay_sinh'     => $request->ngay_sinh,
-        'cccd'          => $request->cccd,
-        'id_chuc_vu'    => $request->id_chuc_vu,
-        'trang_thai'    => $request->trang_thai,
-        'avatar'        => $request->avatar,
-    ];
-
-    // Chỉ đổi mật khẩu nếu người dùng có nhập password mới
-    if ($request->filled('password')) {
-        $dataUpdate['password'] = $request->password;
-    }
-
-    $nguoiDung->update($dataUpdate);
-
-    $nguoiDung = NguoiDung::with('chucVu:id,ten_chuc_vu')
-        ->find($request->id);
-
-    return response()->json([
-        'status'  => true,
-        'message' => 'Cập nhật người dùng thành công!',
-        'data'    => $nguoiDung
-    ]);
-}
     public function xoaNguoiDung(Request $request)
     {
         $user = $request->user();
