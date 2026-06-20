@@ -6,7 +6,7 @@ const toaster = createToaster({
 });
 
 export default function (to, from, next) {
-  const token = localStorage.getItem("auth_token");
+  const token = sessionStorage.getItem("auth_token");
 
   if (!token) {
     toaster.error("Bạn cần đăng nhập");
@@ -21,8 +21,8 @@ export default function (to, from, next) {
     })
     .then((res) => {
       if (!res.data.status) {
-        localStorage.removeItem("auth_token");
-        localStorage.removeItem("auth_user");
+        sessionStorage.removeItem("auth_token");
+        sessionStorage.removeItem("auth_user");
 
         toaster.error("Phiên đăng nhập đã hết hạn");
         return next("/dang-nhap");
@@ -67,8 +67,8 @@ export default function (to, from, next) {
       return next();
     })
     .catch(() => {
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("auth_user");
+      sessionStorage.removeItem("auth_token");
+      sessionStorage.removeItem("auth_user");
 
       toaster.error("Lỗi xác thực");
       return next("/dang-nhap");

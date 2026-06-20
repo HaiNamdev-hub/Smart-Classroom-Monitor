@@ -2,7 +2,7 @@
     <header class="admin-topbar">
         <div class="topbar-left">
             <div class="topbar-title">
-                <slot name="title">Bảng điều khiển</slot>
+                <slot name="title">{{ pageTitle }}</slot>
             </div>
         </div>
 
@@ -10,27 +10,98 @@
             <button class="theme-btn" @click="toggleTheme">
                 {{ darkMode ? "☀️" : "🌙" }}
             </button>
-            <button class="topbar-icon-btn" aria-label="Thông báo">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-                <span class="topbar-badge">3</span>
-            </button>
+
             <div class="topbar-user">
-                <div class="topbar-avatar">AD</div>
+                <div class="topbar-avatar">
+                    {{ avatarText }}
+                </div>
+
                 <div class="topbar-user-info">
-                    <strong>Admin</strong>
-                    <span>Quản trị viên</span>
+                    <strong>{{ userName }}</strong>
+                    <span>{{ roleLabel }}</span>
                 </div>
             </div>
         </div>
     </header>
 </template>
+
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
+import { useRoute } from "vue-router";
+
+const route = useRoute();
 
 const darkMode = ref(false);
+
+const currentUser = ref({
+    ho_ten: "Người dùng",
+    vai_tro: {
+        ten_vai_tro: ""
+    }
+});
+
+const ROLE_LABELS = {
+    admin: "Quản trị viên",
+    co_van: "Cố vấn học tập",
+    sinh_vien: "Sinh viên",
+    phong_dao_tao: "Phòng đào tạo",
+    phong_ql_dt: "Phòng QLĐT & KH"
+};
+
+const pageTitle = computed(() => {
+    return route.meta?.title || "Bảng điều khiển";
+});
+
+const roleKey = computed(() => {
+    return (
+        currentUser.value?.vai_tro?.ten_vai_tro ||
+        currentUser.value?.ten_vai_tro ||
+        currentUser.value?.role ||
+        currentUser.value?.vai_tro ||
+        ""
+    );
+});
+
+const roleLabel = computed(() => {
+    return ROLE_LABELS[roleKey.value] || "Người dùng";
+});
+
+const userName = computed(() => {
+    return currentUser.value?.ho_ten || currentUser.value?.name || "Người dùng";
+});
+
+const avatarText = computed(() => {
+    const name = userName.value.trim();
+
+    if (!name) return "ND";
+
+    const parts = name.split(/\s+/);
+
+    if (parts.length === 1) {
+        return parts[0].substring(0, 2).toUpperCase();
+    }
+
+    return (
+        parts[0].charAt(0) + parts[parts.length - 1].charAt(0)
+    ).toUpperCase();
+});
+
+const loadCurrentUser = () => {
+    const rawUser =
+        sessionStorage.getItem("auth_user") ||
+        localStorage.getItem("auth_user") ||
+        localStorage.getItem("user") ||
+        localStorage.getItem("currentUser") ||
+        localStorage.getItem("nguoi_dung");
+
+    if (!rawUser) return;
+
+    try {
+        currentUser.value = JSON.parse(rawUser);
+    } catch (error) {
+        console.error("Không đọc được thông tin người dùng:", error);
+    }
+};
 
 onMounted(() => {
     const savedTheme = localStorage.getItem("theme") || "light";
@@ -41,6 +112,8 @@ onMounted(() => {
         "data-theme",
         darkMode.value ? "dark" : "light"
     );
+
+    loadCurrentUser();
 });
 
 const toggleTheme = () => {
@@ -49,8 +122,8 @@ const toggleTheme = () => {
     const theme = darkMode.value ? "dark" : "light";
 
     document.documentElement.setAttribute("data-theme", theme);
-
     localStorage.setItem("theme", theme);
-    window.dispatchEvent(new Event("theme-changed"))
+
+    window.dispatchEvent(new Event("theme-changed"));
 };
 </script>

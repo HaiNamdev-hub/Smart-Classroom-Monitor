@@ -127,9 +127,9 @@ export default {
   },
   mounted() {
     // Nếu đã có token thì redirect luôn
-    const token = localStorage.getItem("auth_token")
+    const token = sessionStorage.getItem("auth_token")
     if (token) {
-      const user = JSON.parse(localStorage.getItem("auth_user") || "{}")
+      const user = JSON.parse(sessionStorage.getItem("auth_user") || "{}")
       const role = user.vai_tro_id
       if (role == 1) {
         this.$router.replace("/admin")
@@ -198,8 +198,8 @@ export default {
             return
           }
 
-          localStorage.setItem("auth_token", res.data.token)
-          localStorage.setItem("auth_user", JSON.stringify(res.data.user))
+          sessionStorage.setItem("auth_token", res.data.token);
+sessionStorage.setItem("auth_user", JSON.stringify(res.data.user));
 
           if (this.$toast) {
             this.$toast.success("Đăng nhập thành công")
