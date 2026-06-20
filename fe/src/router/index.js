@@ -74,6 +74,22 @@ const routes = [
         path: "phan-quyen",
         component: () => import("../components/Admin/PhanQuyen/index.vue"),
       },
+      {
+        path: "ds-phieu-cho-duyet",
+        name: "AdminDSPhieuChoDuyet",
+        component: () =>
+          import("../components/Admin/DSPhieuChoDuyet/index.vue"),
+      },
+      {
+        path: "chi-tiet-danh-gia/:id",
+        name: "AdminChiTietPhieuDanhGia",
+        component: () =>
+          import("../components/Admin/ChiTietPhieuDanhGia/index.vue"),
+      },
+      {
+        path: "chi-tiet-danh-gia",
+        redirect: "/admin/ds-phieu-cho-duyet",
+      },
     ],
   },
   // {

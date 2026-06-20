@@ -466,7 +466,7 @@ export default {
       axios
         .get('http://127.0.0.1:8000/api/admin/chuc-vu/get-data', {
           headers: {
-            Authorization: 'Bearer ' + localStorage.getItem('auth_token'),
+            Authorization: 'Bearer ' + sessionStorage.getItem('auth_token'),
           },
         })
         .then((res) => {
@@ -476,10 +476,11 @@ export default {
           console.error('layDataChucVu', err)
         })
     },
+
     getNguoiDung() {
       axios
         .get('http://localhost:8000/api/admin/nguoi-dung', {
-          headers: { Authorization: 'Bearer ' + localStorage.getItem('auth_token') },
+          headers: { Authorization: 'Bearer ' + sessionStorage.getItem('auth_token') },
         })
         .then((res) => {
           if (res.data.status) {
@@ -496,7 +497,7 @@ export default {
     themNguoiDung() {
       axios
         .post('http://localhost:8000/api/admin/nguoi-dung/them-nguoi-dung', this.them_nguoi_dung, {
-          headers: { Authorization: 'Bearer ' + localStorage.getItem('auth_token') },
+          headers: { Authorization: 'Bearer ' + sessionStorage.getItem('auth_token') },
         })
         .then((res) => {
           if (res.data.status) {
@@ -538,7 +539,7 @@ export default {
     chiTietNguoiDung() {
       axios
         .get('http://localhost:8000/api/admin/nguoi-dung/chi-tiet-nguoi-dung', {
-          headers: { Authorization: 'Bearer ' + localStorage.getItem('auth_token') },
+          headers: { Authorization: 'Bearer ' + sessionStorage.getItem('auth_token') },
         })
         .then((res) => {
           if (res.data.status) {
@@ -554,7 +555,7 @@ export default {
     xoaNguoiDung() {
       axios
         .post('http://127.0.0.1:8000/api/admin/nguoi-dung/xoa-nguoi-dung', this.xoa_nguoi_dung, {
-          headers: { Authorization: 'Bearer ' + localStorage.getItem('auth_token') },
+          headers: { Authorization: 'Bearer ' + sessionStorage.getItem('auth_token') },
         })
         .then((res) => {
           if (res.data.status) {
@@ -571,7 +572,7 @@ export default {
     suaNguoiDung() {
       axios
         .post('http://localhost:8000/api/admin/nguoi-dung/sua-nguoi-dung', this.sua_nguoi_dung, {
-          headers: { Authorization: 'Bearer ' + localStorage.getItem('auth_token') },
+          headers: { Authorization: 'Bearer ' + sessionStorage.getItem('auth_token') },
         })
         .then((res) => {
           if (res.data.status) {
@@ -588,7 +589,7 @@ export default {
     timKiem() {
       axios
         .post('http://127.0.0.1:8000/api/admin/nguoi-dung/tim-kiem', this.tim_kiem, {
-          headers: { Authorization: 'Bearer ' + localStorage.getItem('auth_token') },
+          headers: { Authorization: 'Bearer ' + sessionStorage.getItem('auth_token') },
         })
         .then((res) => {
           this.list_nguoi_dung = res.data.data || []
