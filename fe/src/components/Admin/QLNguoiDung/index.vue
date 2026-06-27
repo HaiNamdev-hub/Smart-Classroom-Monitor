@@ -255,7 +255,7 @@
 
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-              <button type="submit" class="btn btn-primary">{{ isEditing ? 'Cập nhật' : 'Thêm mới'
+              <button type="submit" class="btn btn-primary" data-bs-dismiss="modal">{{ isEditing ? 'Cập nhật' : 'Thêm mới'
               }}</button>
             </div>
           </form>
@@ -750,7 +750,7 @@ export default {
       axios
         .get('http://127.0.0.1:8000/api/admin/lop', {
           headers: {
-            Authorization: 'Bearer ' + localStorage.getItem('auth_token'),
+            Authorization: 'Bearer ' + sessionStorage.getItem('auth_token'),
           },
         })
         .then((res) => {

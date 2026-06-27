@@ -225,254 +225,364 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
-import "../../../assets/css/admin.css"
-import "../../../assets/css/dashboard.css"
-import "../../../assets/css/user.css"
+import { computed, reactive, ref, onMounted, watch } from "vue";
+import axios from "axios";
+import { createToaster } from "@meforma/vue-toaster";
 
-const periods = ref([
-    {
-        id: 1,
-        nam_hoc: '2025-2026',
-        hoc_ky: 1,
-        ngay_bat_dau: '2025-09-01',
-        ngay_ket_thuc: '2025-12-31',
-        trang_thai: 'dang_mo',
-    },
-    {
-        id: 2,
-        nam_hoc: '2025-2026',
-        hoc_ky: 2,
-        ngay_bat_dau: '2026-01-15',
-        ngay_ket_thuc: '2026-05-30',
-        trang_thai: 'nhap',
-    },
-    {
-        id: 3,
-        nam_hoc: '2024-2025',
-        hoc_ky: 2,
-        ngay_bat_dau: '2025-01-10',
-        ngay_ket_thuc: '2025-05-25',
-        trang_thai: 'da_dong',
-    },
-])
+import "../../../assets/css/admin.css";
+import "../../../assets/css/dashboard.css";
+import "../../../assets/css/user.css";
 
-const search = ref('')
-const isEditing = ref(false)
-const editTarget = ref(null)
-const deleteTarget = ref(null)
+const toaster = createToaster({
+    position: "top-right",
+});
+
+const API = "http://127.0.0.1:8000/api/admin/dotdanhgia";
+
+const token =
+    sessionStorage.getItem("auth_token") ||
+    localStorage.getItem("auth_token") ||
+    localStorage.getItem("key_admin");
+
+const config = {
+    headers: {
+        Authorization: "Bearer " + token,
+    },
+};
+
+const periods = ref([]);
+const search = ref("");
+
+const isEditing = ref(false);
+const editTarget = ref(null);
+const deleteTarget = ref(null);
 
 const form = reactive({
-    nam_hoc: '',
+    id: "",
+    nam_hoc: "",
     hoc_ky: 1,
-    ngay_bat_dau: '',
-    ngay_ket_thuc: '',
-    trang_thai: 'nhap',
-})
+    ngay_bat_dau: "",
+    ngay_ket_thuc: "",
+    trang_thai: "nhap",
+});
 
-const errors = reactive({})
+const errors = reactive({});
 
 const filteredPeriods = computed(() => {
-    const q = search.value.trim().toLowerCase()
+    return periods.value;
+});
 
-    if (!q) return periods.value
+onMounted(() => {
+    getData();
+});
 
-    return periods.value.filter((row) => {
-        const text = [
-            row.nam_hoc,
-            formatHocKy(row.hoc_ky),
-            formatTrangThai(row.trang_thai),
-            row.ngay_bat_dau,
-            row.ngay_ket_thuc,
-        ].join(' ').toLowerCase()
+function getData() {
+    axios
+        .get(API, config)
+        .then((res) => {
+            periods.value = res.data.data;
+        })
+        .catch(() => {
+            toaster.error("Không thể tải danh sách đợt đánh giá");
+        });
+}
 
-        return text.includes(q)
-    })
-})
+function timKiem() {
+    axios
+        .post(
+            API + "/tim-dotdanhgia",
+            {
+                noi_dung: search.value,
+            },
+            config
+        )
+        .then((res) => {
+            periods.value = res.data.data;
+        })
+        .catch(() => {
+            toaster.error("Tìm kiếm thất bại");
+        });
+}
+
+watch(search, () => {
+    if (search.value.trim() === "") {
+        getData();
+    } else {
+        timKiem();
+    }
+});
 
 function blankForm() {
     return {
-        nam_hoc: '',
+        id: "",
+        nam_hoc: "",
         hoc_ky: 1,
-        ngay_bat_dau: '',
-        ngay_ket_thuc: '',
-        trang_thai: 'nhap',
-    }
+        ngay_bat_dau: "",
+        ngay_ket_thuc: "",
+        trang_thai: "nhap",
+    };
 }
 
 function clearErrors() {
-    Object.keys(errors).forEach((key) => delete errors[key])
+    Object.keys(errors).forEach((key) => delete errors[key]);
 }
 
 function clearForm() {
-    Object.assign(form, blankForm())
-    clearErrors()
-    isEditing.value = false
-    editTarget.value = null
+    Object.assign(form, blankForm());
+    clearErrors();
+    isEditing.value = false;
+    editTarget.value = null;
 }
 
 function openAdd() {
-    clearForm()
+    clearForm();
 }
 
 function openEdit(row) {
-    clearForm()
-    isEditing.value = true
-    editTarget.value = row
-    Object.assign(form, JSON.parse(JSON.stringify(row)))
+    clearForm();
+
+    isEditing.value = true;
+    editTarget.value = row;
+
+    Object.assign(form, {
+        id: row.id,
+        nam_hoc: row.nam_hoc,
+        hoc_ky: Number(row.hoc_ky),
+        ngay_bat_dau: formatDateInput(row.ngay_bat_dau),
+        ngay_ket_thuc: formatDateInput(row.ngay_ket_thuc),
+        trang_thai: row.trang_thai,
+    });
 }
 
 function openDelete(row) {
-    deleteTarget.value = row
+    deleteTarget.value = row;
 }
 
 function validate() {
-    clearErrors()
-    let ok = true
+    clearErrors();
 
-    if (!String(form.nam_hoc || '').trim()) {
-        errors.nam_hoc = 'Vui lòng nhập năm học'
-        ok = false
+    let ok = true;
+
+    if (!String(form.nam_hoc || "").trim()) {
+        errors.nam_hoc = "Vui lòng nhập năm học";
+        ok = false;
     }
 
     if (!form.hoc_ky) {
-        errors.hoc_ky = 'Vui lòng chọn học kỳ'
-        ok = false
+        errors.hoc_ky = "Vui lòng chọn học kỳ";
+        ok = false;
     }
 
     if (!form.ngay_bat_dau) {
-        errors.ngay_bat_dau = 'Vui lòng chọn ngày bắt đầu'
-        ok = false
+        errors.ngay_bat_dau = "Vui lòng chọn ngày bắt đầu";
+        ok = false;
     }
 
     if (!form.ngay_ket_thuc) {
-        errors.ngay_ket_thuc = 'Vui lòng chọn ngày kết thúc'
-        ok = false
+        errors.ngay_ket_thuc = "Vui lòng chọn ngày kết thúc";
+        ok = false;
     }
 
     if (!form.trang_thai) {
-        errors.trang_thai = 'Vui lòng chọn trạng thái'
-        ok = false
+        errors.trang_thai = "Vui lòng chọn trạng thái";
+        ok = false;
     }
 
     if (form.ngay_bat_dau && form.ngay_ket_thuc) {
-        const start = new Date(form.ngay_bat_dau)
-        const end = new Date(form.ngay_ket_thuc)
+        const start = new Date(form.ngay_bat_dau);
+        const end = new Date(form.ngay_ket_thuc);
 
         if (start > end) {
-            errors.ngay_ket_thuc = 'Ngày kết thúc phải sau ngày bắt đầu'
-            ok = false
+            errors.ngay_ket_thuc = "Ngày kết thúc phải sau hoặc bằng ngày bắt đầu";
+            ok = false;
         }
     }
 
-    const duplicated = periods.value.some((row) => {
-        const sameId = isEditing.value && editTarget.value && row.id === editTarget.value.id
-
-        return !sameId
-            && String(row.nam_hoc).trim() === String(form.nam_hoc).trim()
-            && Number(row.hoc_ky) === Number(form.hoc_ky)
-    })
-
-    if (duplicated) {
-        errors.nam_hoc = 'Năm học và học kỳ này đã tồn tại'
-        errors.hoc_ky = 'Năm học và học kỳ này đã tồn tại'
-        ok = false
-    }
-
-    return ok
+    return ok;
 }
 
 function savePeriod() {
-    if (!validate()) return
+    if (!validate()) return;
 
-    const data = {
-        nam_hoc: String(form.nam_hoc).trim(),
-        hoc_ky: Number(form.hoc_ky),
-        ngay_bat_dau: form.ngay_bat_dau,
-        ngay_ket_thuc: form.ngay_ket_thuc,
-        trang_thai: form.trang_thai,
-    }
-
-    if (isEditing.value && editTarget.value) {
-        Object.assign(editTarget.value, data)
+    if (isEditing.value) {
+        suaDotDanhGia();
     } else {
-        periods.value.unshift({
-            id: Date.now(),
-            ...data,
-        })
+        themDotDanhGia();
     }
+}
 
-    hideModal('periodFormModal')
-    clearForm()
+function themDotDanhGia() {
+    axios
+        .post(API + "/them-dotdanhgia", form, config)
+        .then((res) => {
+            if (res.data.status) {
+                toaster.success(res.data.message);
+                getData();
+                hideModal("periodFormModal");
+                clearForm();
+            } else {
+                toaster.error(res.data.message);
+            }
+        })
+        .catch((err) => {
+            handleError(err);
+        });
+}
+
+function suaDotDanhGia() {
+    axios
+        .post(API + "/sua-dotdanhgia", form, config)
+        .then((res) => {
+            if (res.data.status) {
+                toaster.success(res.data.message);
+                getData();
+                hideModal("periodFormModal");
+                clearForm();
+            } else {
+                toaster.error(res.data.message);
+            }
+        })
+        .catch((err) => {
+            handleError(err);
+        });
 }
 
 function confirmDelete() {
-    if (!deleteTarget.value) return
+    if (!deleteTarget.value) return;
 
-    periods.value = periods.value.filter((row) => row.id !== deleteTarget.value.id)
+    axios
+        .post(
+            API + "/xoa-dotdanhgia",
+            {
+                id: deleteTarget.value.id,
+            },
+            config
+        )
+        .then((res) => {
+            if (res.data.status) {
+                toaster.success(res.data.message);
+                getData();
+                hideModal("periodDeleteModal");
+                deleteTarget.value = null;
+            } else {
+                toaster.error(res.data.message);
+            }
+        })
+        .catch(() => {
+            toaster.error("Xóa thất bại");
+        });
+}
 
-    deleteTarget.value = null
-    hideModal('periodDeleteModal')
+function khoaDotDanhGia(row) {
+    axios
+        .post(
+            API + "/khoa-dotdanhgia",
+            {
+                id: row.id,
+            },
+            config
+        )
+        .then((res) => {
+            if (res.data.status) {
+                toaster.success(res.data.message);
+                getData();
+            } else {
+                toaster.error(res.data.message);
+            }
+        })
+        .catch(() => {
+            toaster.error("Cập nhật trạng thái thất bại");
+        });
 }
 
 function openPeriod(row) {
-    const ok = confirm(`Bạn có chắc muốn mở đợt đánh giá ${row.nam_hoc} - ${formatHocKy(row.hoc_ky)} không?`)
-    if (!ok) return
+    const ok = confirm(
+        `Bạn có chắc muốn mở đợt đánh giá ${row.nam_hoc} - ${formatHocKy(row.hoc_ky)} không?`
+    );
 
-    row.trang_thai = 'dang_mo'
+    if (!ok) return;
+
+    khoaDotDanhGia(row);
 }
 
 function closePeriod(row) {
-    const ok = confirm(`Bạn có chắc muốn đóng đợt đánh giá ${row.nam_hoc} - ${formatHocKy(row.hoc_ky)} không?`)
-    if (!ok) return
+    const ok = confirm(
+        `Bạn có chắc muốn đóng đợt đánh giá ${row.nam_hoc} - ${formatHocKy(row.hoc_ky)} không?`
+    );
 
-    row.trang_thai = 'da_dong'
+    if (!ok) return;
+
+    khoaDotDanhGia(row);
+}
+
+function handleError(err) {
+    clearErrors();
+
+    if (err.response && err.response.status === 422) {
+        const backendErrors = err.response.data.errors;
+
+        Object.keys(backendErrors).forEach((key) => {
+            errors[key] = backendErrors[key][0];
+        });
+
+        toaster.error("Vui lòng kiểm tra lại dữ liệu");
+    } else {
+        toaster.error("Có lỗi xảy ra");
+    }
 }
 
 function formatHocKy(value) {
-    if (Number(value) === 1) return 'Học kỳ 1'
-    if (Number(value) === 2) return 'Học kỳ 2'
+    if (Number(value) === 1) return "Học kỳ 1";
+    if (Number(value) === 2) return "Học kỳ 2";
 
-    return '—'
+    return "—";
 }
 
 function formatTrangThai(value) {
     const map = {
-        nhap: 'Nháp',
-        dang_mo: 'Đang mở',
-        da_dong: 'Đã đóng',
-    }
+        nhap: "Nháp",
+        dang_mo: "Đang mở",
+        da_dong: "Đã đóng",
+    };
 
-    return map[value] || '—'
+    return map[value] || "—";
 }
 
 function statusClass(value) {
     const map = {
-        nhap: 'st-draft',
-        dang_mo: 'st-open',
-        da_dong: 'st-closed',
-    }
+        nhap: "st-draft",
+        dang_mo: "st-open",
+        da_dong: "st-closed",
+    };
 
-    return map[value] || ''
+    return map[value] || "";
 }
 
 function formatDate(value) {
-    if (!value) return '—'
+    if (!value) return "—";
 
-    const [year, month, day] = String(value).split('-')
-    if (!year || !month || !day) return value
+    const date = formatDateInput(value);
+    const [year, month, day] = String(date).split("-");
 
-    return `${day}/${month}/${year}`
+    if (!year || !month || !day) return value;
+
+    return `${day}/${month}/${year}`;
+}
+
+function formatDateInput(value) {
+    if (!value) return "";
+
+    return String(value).slice(0, 10);
 }
 
 function hideModal(id) {
-    const el = document.getElementById(id)
-    const ModalCtor = window.bootstrap?.Modal
+    const el = document.getElementById(id);
+    const ModalCtor = window.bootstrap?.Modal;
 
-    if (!el || !ModalCtor) return
+    if (!el || !ModalCtor) return;
 
-    const instance = ModalCtor.getInstance(el) || ModalCtor.getOrCreateInstance(el)
-    instance.hide()
+    const instance = ModalCtor.getInstance(el) || ModalCtor.getOrCreateInstance(el);
+    instance.hide();
 }
 </script>
 

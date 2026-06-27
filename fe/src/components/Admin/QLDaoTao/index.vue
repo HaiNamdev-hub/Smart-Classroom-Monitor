@@ -301,407 +301,492 @@
     </div>
 </template>
 
-<script setup>
-import { computed, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+<script>
+import axios from 'axios'
 import "../../../assets/css/admin.css"
 import "../../../assets/css/dashboard.css"
 import "../../../assets/css/user.css"
 
-const tabs = [
-    { key: 'khoa', label: 'Khoa' },
-    { key: 'nganh', label: 'Ngành' },
-    { key: 'lop', label: 'Lớp' },
-    { key: 'danh-sach-lop', label: 'Danh sách lớp' },
-]
+export default {
+  data() {
+    return {
+      tabs: [
+        { key: 'khoa', label: 'Khoa' },
+        { key: 'nganh', label: 'Ngành' },
+        { key: 'lop', label: 'Lớp' },
+        { key: 'danh-sach-lop', label: 'Danh sách lớp' },
+      ],
 
-const metaMap = {
-    khoa: {
-        addLabel: 'khoa',
-        description: 'Quản lý danh mục khoa của nhà trường.',
-        searchPlaceholder: 'Tìm theo mã hoặc tên khoa...',
-        columns: [
+      activeTab: 'khoa',
+      search: '',
+      isEditing: false,
+      editTarget: null,
+      deleteTarget: null,
+      errors: {},
+
+      rows: {
+        khoa: [],
+        nganh: [],
+        lop: [],
+        'danh-sach-lop': [],
+      },
+
+      form: {},
+
+      importForm: {
+        khoa: '',
+        nganh: '',
+        ten_lop: '',
+        file: null,
+      },
+
+      importTarget: null,
+      selectedClass: null,
+      importedStudents: [],
+
+      metaMap: {
+        khoa: {
+          addLabel: 'khoa',
+          description: 'Quản lý danh mục khoa của nhà trường.',
+          searchPlaceholder: 'Tìm theo mã hoặc tên khoa...',
+          columns: [
             { key: 'ma_khoa', label: 'Mã khoa' },
             { key: 'ten_khoa', label: 'Tên khoa' },
-        ],
-        fields: [
+          ],
+          fields: [
             { key: 'ma_khoa', label: 'Mã khoa', type: 'text', required: true, placeholder: 'VD: CNTT' },
             { key: 'ten_khoa', label: 'Tên khoa', type: 'text', required: true, placeholder: 'VD: Công nghệ thông tin' },
-        ],
-        blank: () => ({ ma_khoa: '', ten_khoa: '' }),
-    },
-    nganh: {
-        addLabel: 'ngành',
-        description: 'Quản lý danh mục ngành theo từng khoa.',
-        searchPlaceholder: 'Tìm theo mã hoặc tên ngành...',
-        columns: [
+          ],
+          blank: () => ({ ma_khoa: '', ten_khoa: '' }),
+        },
+
+        nganh: {
+          addLabel: 'ngành',
+          description: 'Quản lý danh mục ngành.',
+          searchPlaceholder: 'Tìm theo mã hoặc tên ngành...',
+          columns: [
             { key: 'ma_nganh', label: 'Mã ngành' },
             { key: 'ten_nganh', label: 'Tên ngành' },
-            { key: 'khoa', label: 'Khoa' },
-        ],
-        fields: [
+          ],
+          fields: [
             { key: 'ma_nganh', label: 'Mã ngành', type: 'text', required: true, placeholder: 'VD: KTPM' },
             { key: 'ten_nganh', label: 'Tên ngành', type: 'text', required: true, placeholder: 'VD: Kỹ thuật phần mềm' },
-            { key: 'khoa', label: 'Khoa', type: 'text', required: true, placeholder: 'VD: Công nghệ thông tin' },
-        ],
-        blank: () => ({ ma_nganh: '', ten_nganh: '', khoa: '' }),
-    },
-    lop: {
-        addLabel: 'lớp',
-        description: 'Quản lý lớp học, lớp trưởng và bí thư.',
-        searchPlaceholder: 'Tìm theo mã, tên lớp hoặc ngành...',
-        columns: [
+          ],
+          blank: () => ({ ma_nganh: '', ten_nganh: '' }),
+        },
+
+        lop: {
+          addLabel: 'lớp',
+          description: 'Quản lý lớp học.',
+          searchPlaceholder: 'Tìm theo mã hoặc tên lớp...',
+          columns: [
             { key: 'ma_lop', label: 'Mã lớp' },
             { key: 'ten_lop', label: 'Tên lớp' },
-            { key: 'khoa', label: 'Khoa' },
-            { key: 'nganh', label: 'Ngành' },
-            { key: 'co_van_hoc_tap', label: 'Cố vấn học tập' },
-            { key: 'lop_truong', label: 'Lớp trưởng' },
-            { key: 'bi_thu', label: 'Bí thư' },
-        ],
-        fields: [
+            { key: 'khoa_id', label: 'Khoa' },
+            { key: 'nganh_id', label: 'Ngành' },
+            { key: 'co_van_id', label: 'Cố vấn' },
+            { key: 'lop_truong_id', label: 'Lớp trưởng' },
+            { key: 'bi_thu_id', label: 'Bí thư' },
+          ],
+          fields: [
             { key: 'ma_lop', label: 'Mã lớp', type: 'text', required: true, placeholder: 'VD: D23CQCN01' },
             { key: 'ten_lop', label: 'Tên lớp', type: 'text', required: true, placeholder: 'VD: D23CQCN01' },
-            { key: 'khoa', label: 'Khoa', type: 'text', required: true, placeholder: 'VD: Công nghệ thông tin' },
-            { key: 'nganh', label: 'Ngành', type: 'text', required: true, placeholder: 'VD: Kỹ thuật phần mềm' },
-            { key: 'co_van_hoc_tap', label: 'Cố vấn học tập', type: 'text', required: false, placeholder: 'VD: ThS. Nguyễn Văn A' },
-            { key: 'lop_truong', label: 'Lớp trưởng', type: 'text', required: false, placeholder: 'VD: Nguyễn Văn An' },
-            { key: 'bi_thu', label: 'Bí thư', type: 'text', required: false, placeholder: 'VD: Phạm Thị Dung' },
-        ],
-        blank: () => ({
+            { key: 'khoa_id', label: 'Khoa ID', type: 'text', required: true, placeholder: 'VD: 1' },
+            { key: 'nganh_id', label: 'Ngành ID', type: 'text', required: true, placeholder: 'VD: 1' },
+            { key: 'co_van_id', label: 'Cố vấn ID', type: 'text', required: false, placeholder: 'Có thể bỏ trống' },
+            { key: 'lop_truong_id', label: 'Lớp trưởng ID', type: 'text', required: false, placeholder: 'Có thể bỏ trống' },
+            { key: 'bi_thu_id', label: 'Bí thư ID', type: 'text', required: false, placeholder: 'Có thể bỏ trống' },
+          ],
+          blank: () => ({
             ma_lop: '',
             ten_lop: '',
-            khoa: '',
-            nganh: '',
-            co_van_hoc_tap: '',
-            lop_truong: '',
-            bi_thu: ''
-        }),
-    },
-    'danh-sach-lop': {
-        addLabel: 'danh sách lớp',
-        description: 'Quản lý danh sách sinh viên theo lớp và import từ file.',
-        searchPlaceholder: 'Tìm theo khoa, ngành hoặc lớp...',
-        columns: [
+            khoa_id: '',
+            nganh_id: '',
+            co_van_id: '',
+            lop_truong_id: '',
+            bi_thu_id: '',
+          }),
+        },
+
+        'danh-sach-lop': {
+          addLabel: 'danh sách lớp',
+          description: 'Quản lý danh sách sinh viên theo lớp và import từ file.',
+          searchPlaceholder: 'Tìm theo khoa, ngành hoặc lớp...',
+          columns: [
             { key: 'khoa', label: 'Khoa' },
             { key: 'nganh', label: 'Ngành' },
             { key: 'ten_lop', label: 'Lớp' },
             { key: 'ten_file', label: 'File danh sách' },
             { key: 'so_sv', label: 'Số SV' },
-        ],
-        fields: [
-            { key: 'khoa', label: 'Khoa', type: 'text', required: true, placeholder: 'VD: Công nghệ thông tin' },
-            { key: 'nganh', label: 'Ngành', type: 'text', required: true, placeholder: 'VD: Kỹ thuật phần mềm' },
-            { key: 'ten_lop', label: 'Lớp', type: 'text', required: true, placeholder: 'VD: D23CQCN01' },
-            { key: 'ten_file', label: 'Tên file danh sách', type: 'text', required: true, placeholder: 'VD: danh_sach_D23CQCN01.xlsx' },
-            { key: 'so_sv', label: 'Số sinh viên', type: 'text', required: false, placeholder: 'VD: 42' },
-        ],
-        blank: () => ({ khoa: '', nganh: '', ten_lop: '', ten_file: '', so_sv: '' }),
-    },
-}
-
-const rows = reactive({
-    khoa: [
-        { id: 1, ma_khoa: 'CNTT', ten_khoa: 'Công nghệ thông tin' },
-        { id: 2, ma_khoa: 'KT', ten_khoa: 'Kinh tế' },
-    ],
-    nganh: [
-        { id: 1, ma_nganh: 'KTPM', ten_nganh: 'Kỹ thuật phần mềm', khoa: 'Công nghệ thông tin' },
-        { id: 2, ma_nganh: 'HTTT', ten_nganh: 'Hệ thống thông tin', khoa: 'Công nghệ thông tin' },
-    ],
-    lop: [
-        {
-            id: 1,
-            ma_lop: 'D23CQCN01',
-            ten_lop: 'D23CQCN01',
-            khoa: 'Công nghệ thông tin',
-            nganh: 'Kỹ thuật phần mềm',
-            co_van_hoc_tap: 'ThS. Nguyễn Văn Minh',
-            lop_truong: 'Nguyễn Văn An',
-            bi_thu: 'Phạm Thị Dung'
+          ],
+          fields: [],
+          blank: () => ({ khoa: '', nganh: '', ten_lop: '', ten_file: '', so_sv: '' }),
         },
-        {
-            id: 2,
-            ma_lop: 'D23CQCN02',
-            ten_lop: 'D23CQCN02',
-            khoa: 'Công nghệ thông tin',
-            nganh: 'Hệ thống thông tin',
-            co_van_hoc_tap: 'ThS. Trần Thị Hoa',
-            lop_truong: 'Đỗ Văn Hùng',
-            bi_thu: '—'
-        },
-    ],
-    'danh-sach-lop': [
-        {
-            id: 1,
-            khoa: 'Công nghệ thông tin',
-            nganh: 'Kỹ thuật phần mềm',
-            ten_lop: 'D23CQCN01',
-            ten_file: 'danh_sach_D23CQCN01.xlsx',
-            so_sv: '42',
-        },
-        {
-            id: 2,
-            khoa: 'Công nghệ thông tin',
-            nganh: 'Hệ thống thông tin',
-            ten_lop: 'D23CQCN02',
-            ten_file: 'danh_sach_D23CQCN02.docx',
-            so_sv: '40',
-        },
-    ],
+      },
+    }
+  },
 
+  mounted() {
+    this.clearForm()
+    this.getKhoa()
+    this.getNganh()
+    this.getLop()
+  },
 
-})
-
-const importForm = reactive({
-    khoa: '',
-    nganh: '',
-    ten_lop: '',
-    file: null,
-})
-
-const importTarget = ref(null)
-
-const selectedClass = ref(null)
-
-const importedStudents = ref([
-    {
-        ma_sinh_vien: 'SV001',
-        ho_ten: 'Nguyễn Văn An',
-        email: 'sv001@example.com',
-        so_dien_thoai: '0901234567',
-        ngay_sinh: '2005-01-15',
-        nam_trung_tuyen: 2023,
-        ten_lop: 'D23CQCN01',
-        trang_thai: 'hoat_dong',
-        tong_diem_sv: null,
-        xep_loai_sv: null,
-        tong_diem_lop: null,
-        xep_loai_lop: null,
+  computed: {
+    currentMeta() {
+      return this.metaMap[this.activeTab]
     },
-    {
-        ma_sinh_vien: 'SV002',
-        ho_ten: 'Trần Thị Bình',
-        email: '',
-        so_dien_thoai: '',
-        ngay_sinh: '',
-        nam_trung_tuyen: 2023,
-        ten_lop: 'D23CQCN01',
-        trang_thai: 'hoat_dong',
-        tong_diem_sv: null,
-        xep_loai_sv: null,
-        tong_diem_lop: null,
-        xep_loai_lop: null,
+
+    searchPlaceholder() {
+      return this.currentMeta.searchPlaceholder
     },
-    {
-        ma_sinh_vien: 'SV003',
-        ho_ten: 'Lê Văn Cường',
-        email: '',
-        so_dien_thoai: '',
-        ngay_sinh: '',
-        nam_trung_tuyen: 2023,
-        ten_lop: 'D23CQCN01',
-        trang_thai: 'hoat_dong',
-        tong_diem_sv: null,
-        xep_loai_sv: null,
-        tong_diem_lop: null,
-        xep_loai_lop: null,
+
+    filteredRows() {
+      const keyword = this.search.trim().toLowerCase()
+
+      return this.rows[this.activeTab].filter((row) => {
+        if (!keyword) return true
+
+        return Object.values(row).some((value) =>
+          String(value || '').toLowerCase().includes(keyword)
+        )
+      })
     },
-])
+  },
 
-function handleFileChange(event) {
-    importForm.file = event.target.files?.[0] || null
-}
+  methods: {
+    authHeader() {
+      return {
+        Authorization: 'Bearer ' + sessionStorage.getItem('auth_token'),
+      }
+    },
 
-function openImport(row = null) {
-    importTarget.value = row
-
-    if (row) {
-        importForm.khoa = row.khoa
-        importForm.nganh = row.nganh
-        importForm.ten_lop = row.ten_lop
-    } else {
-        importForm.khoa = ''
-        importForm.nganh = ''
-        importForm.ten_lop = ''
-    }
-
-    importForm.file = null
-}
-
-function submitImport() {
-    if (!importForm.khoa || !importForm.nganh || !importForm.ten_lop || !importForm.file) {
-        alert('Vui lòng chọn đầy đủ thông tin và file danh sách.')
-        return
-    }
-
-    // Kiểm tra định dạng file
-    const allowedExtensions = ['xlsx', 'xls', 'doc', 'docx']
-    const fileName = importForm.file.name
-    const extension = fileName.split('.').pop().toLowerCase()
-
-    if (!allowedExtensions.includes(extension)) {
-        alert('Chỉ chấp nhận file Excel hoặc Word.')
-        return
-    }
-
-    const data = {
-        khoa: importForm.khoa,
-        nganh: importForm.nganh,
-        ten_lop: importForm.ten_lop,
-        ten_file: importForm.file.name,
-        so_sv: 'Đang chờ BE',
-        ngay_import: new Date().toLocaleDateString('vi-VN'),
-    }
-
-    if (importTarget.value) {
-        Object.assign(importTarget.value, data)
-    } else {
-        rows['danh-sach-lop'].unshift({
-            id: Date.now(),
-            ...data,
+    getKhoa() {
+      axios
+        .get('http://localhost:8000/api/admin/khoa', {
+          headers: this.authHeader(),
         })
-    }
+        .then((res) => {
+          this.rows.khoa = res.data.data || []
+        })
+        .catch((err) => {
+          console.error('GET KHOA ERROR:', err.response?.data || err)
+          this.$toast?.error('Lấy danh sách khoa thất bại.')
+        })
+    },
 
-    importTarget.value = null
-    hideModal('importClassListModal')
-}
+    getNganh() {
+      axios
+        .get('http://localhost:8000/api/admin/nganh', {
+          headers: this.authHeader(),
+        })
+        .then((res) => {
+          this.rows.nganh = res.data.data || []
+        })
+        .catch((err) => {
+          console.error('GET NGANH ERROR:', err.response?.data || err)
+          this.$toast?.error('Lấy danh sách ngành thất bại.')
+        })
+    },
 
-function openStudents(row) {
-    selectedClass.value = row
-}
+    getLop() {
+      axios
+        .get('http://localhost:8000/api/admin/lop', {
+          headers: this.authHeader(),
+        })
+        .then((res) => {
+          this.rows.lop = res.data.data || []
+        })
+        .catch((err) => {
+          console.error('GET LOP ERROR:', err.response?.data || err)
+          this.$toast?.error('Lấy danh sách lớp thất bại.')
+        })
+    },
 
-function exportExcel(row) {
-    alert(`Xuất Excel danh sách lớp ${row?.ten_lop || ''}`)
-}
+    setTab(key) {
+      this.activeTab = key
+      this.search = ''
+      this.clearForm()
+    },
 
-const route = useRoute()
-const router = useRouter()
-const activeTab = ref('khoa')
-const search = ref('')
-const form = reactive({})
-const errors = reactive({})
-const isEditing = ref(false)
-const editTarget = ref(null)
-const deleteTarget = ref(null)
+    renderCell(row, key) {
+      if (key === 'khoa_id') {
+        const khoa = this.rows.khoa.find((item) => Number(item.id) === Number(row.khoa_id))
+        return khoa ? khoa.ten_khoa : row.khoa_id || '—'
+      }
 
-const currentMeta = computed(() => metaMap[activeTab.value])
-const searchPlaceholder = computed(() => currentMeta.value.searchPlaceholder)
+      if (key === 'nganh_id') {
+        const nganh = this.rows.nganh.find((item) => Number(item.id) === Number(row.nganh_id))
+        return nganh ? nganh.ten_nganh : row.nganh_id || '—'
+      }
 
-const filteredRows = computed(() => {
-    const q = search.value.trim().toLowerCase()
-    return rows[activeTab.value].filter((row) => {
-        if (!q) return true
-        return Object.values(row).some((value) => String(value || '').toLowerCase().includes(q))
-    })
-})
+      return row[key] ?? '—'
+    },
 
-function setTab(key) {
-    activeTab.value = key
-    search.value = ''
-    clearForm()
-    router.replace({ query: { ...route.query, tab: key } })
-}
+    clearForm() {
+      this.form = this.currentMeta.blank()
+      this.errors = {}
+      this.isEditing = false
+      this.editTarget = null
+    },
 
-function renderCell(row, key) {
-    return row[key] ?? '—'
-}
+    openAdd() {
+      this.clearForm()
+    },
 
-function formatTrangThai(value) {
-    const map = {
+    openEdit(row) {
+      this.isEditing = true
+      this.editTarget = row
+      this.form = JSON.parse(JSON.stringify(row))
+    },
+
+    openDelete(row) {
+      this.deleteTarget = row
+    },
+
+    validate() {
+      this.errors = {}
+      let ok = true
+
+      this.currentMeta.fields.forEach((field) => {
+        if (field.required && !String(this.form[field.key] || '').trim()) {
+          this.errors[field.key] = `Vui lòng nhập ${field.label.toLowerCase()}`
+          ok = false
+        }
+      })
+
+      return ok
+    },
+
+    saveRow() {
+      if (!this.validate()) return
+
+      if (this.activeTab === 'khoa') {
+        this.saveKhoa()
+      }
+
+      if (this.activeTab === 'nganh') {
+        this.saveNganh()
+      }
+
+      if (this.activeTab === 'lop') {
+        this.saveLop()
+      }
+    },
+
+    saveKhoa() {
+      const url = this.isEditing
+        ? 'http://localhost:8000/api/admin/khoa/sua-khoa'
+        : 'http://localhost:8000/api/admin/khoa/them-khoa'
+
+      axios
+        .post(url, this.form, {
+          headers: this.authHeader(),
+        })
+        .then((res) => {
+          this.$toast?.success(res.data.message || 'Lưu khoa thành công.')
+          this.getKhoa()
+          this.hideModal('trainingFormModal')
+          this.clearForm()
+        })
+        .catch((err) => {
+          this.showError(err, 'Lưu khoa thất bại.')
+        })
+    },
+
+    saveNganh() {
+      const url = this.isEditing
+        ? 'http://localhost:8000/api/admin/nganh/sua-nganh'
+        : 'http://localhost:8000/api/admin/nganh/them-nganh'
+
+      axios
+        .post(url, this.form, {
+          headers: this.authHeader(),
+        })
+        .then((res) => {
+          this.$toast?.success(res.data.message || 'Lưu ngành thành công.')
+          this.getNganh()
+          this.hideModal('trainingFormModal')
+          this.clearForm()
+        })
+        .catch((err) => {
+          this.showError(err, 'Lưu ngành thất bại.')
+        })
+    },
+
+    saveLop() {
+      const payload = {
+        ...this.form,
+        co_van_id: this.form.co_van_id || null,
+        lop_truong_id: this.form.lop_truong_id || null,
+        bi_thu_id: this.form.bi_thu_id || null,
+      }
+
+      const url = this.isEditing
+        ? 'http://localhost:8000/api/admin/lop/sua-lop'
+        : 'http://localhost:8000/api/admin/lop/them-lop'
+
+      axios
+        .post(url, payload, {
+          headers: this.authHeader(),
+        })
+        .then((res) => {
+          this.$toast?.success(res.data.message || 'Lưu lớp thành công.')
+          this.getLop()
+          this.hideModal('trainingFormModal')
+          this.clearForm()
+        })
+        .catch((err) => {
+          this.showError(err, 'Lưu lớp thất bại.')
+        })
+    },
+
+    confirmDelete() {
+      if (!this.deleteTarget) return
+
+      if (this.activeTab === 'khoa') {
+        this.deleteKhoa()
+      }
+
+      if (this.activeTab === 'nganh') {
+        this.deleteNganh()
+      }
+
+      if (this.activeTab === 'lop') {
+        this.deleteLop()
+      }
+    },
+
+    deleteKhoa() {
+      axios
+        .post('http://localhost:8000/api/admin/khoa/xoa-khoa', { id: this.deleteTarget.id }, {
+          headers: this.authHeader(),
+        })
+        .then((res) => {
+          this.$toast?.success(res.data.message || 'Xóa khoa thành công.')
+          this.getKhoa()
+          this.hideModal('trainingDeleteModal')
+          this.deleteTarget = null
+        })
+        .catch((err) => {
+          this.showError(err, 'Xóa khoa thất bại.')
+        })
+    },
+
+    deleteNganh() {
+      axios
+        .post('http://localhost:8000/api/admin/nganh/xoa-nganh', { id: this.deleteTarget.id }, {
+          headers: this.authHeader(),
+        })
+        .then((res) => {
+          this.$toast?.success(res.data.message || 'Xóa ngành thành công.')
+          this.getNganh()
+          this.hideModal('trainingDeleteModal')
+          this.deleteTarget = null
+        })
+        .catch((err) => {
+          this.showError(err, 'Xóa ngành thất bại.')
+        })
+    },
+
+    deleteLop() {
+      axios
+        .post('http://localhost:8000/api/admin/lop/xoa-lop', { id: this.deleteTarget.id }, {
+          headers: this.authHeader(),
+        })
+        .then((res) => {
+          this.$toast?.success(res.data.message || 'Xóa lớp thành công.')
+          this.getLop()
+          this.hideModal('trainingDeleteModal')
+          this.deleteTarget = null
+        })
+        .catch((err) => {
+          this.showError(err, 'Xóa lớp thất bại.')
+        })
+    },
+
+    handleFileChange(event) {
+      this.importForm.file = event.target.files?.[0] || null
+    },
+
+    openImport(row = null) {
+      this.importTarget = row
+
+      if (row) {
+        this.importForm.khoa = row.khoa
+        this.importForm.nganh = row.nganh
+        this.importForm.ten_lop = row.ten_lop
+      } else {
+        this.importForm.khoa = ''
+        this.importForm.nganh = ''
+        this.importForm.ten_lop = ''
+      }
+
+      this.importForm.file = null
+    },
+
+    submitImport() {
+      this.$toast?.error('Chức năng import file làm sau.')
+    },
+
+    openStudents(row) {
+      this.selectedClass = row
+    },
+
+    exportExcel(row) {
+      alert(`Xuất Excel danh sách lớp ${row?.ten_lop || ''}`)
+    },
+
+    formatTrangThai(value) {
+      const map = {
         hoat_dong: 'Hoạt động',
         khong_hoat_dong: 'Không hoạt động',
         bi_khoa: 'Bị khóa',
-    }
+      }
 
-    return map[value] || '—'
-}
+      return map[value] || '—'
+    },
 
-function formatXepLoai(value) {
-    const map = {
+    formatXepLoai(value) {
+      const map = {
         xuat_sac: 'Xuất sắc',
         tot: 'Tốt',
         kha: 'Khá',
         trung_binh: 'Trung bình',
         yeu: 'Yếu',
         kem: 'Kém',
-    }
+      }
 
-    return map[value] || '—'
-}
-
-function clearForm() {
-    Object.keys(form).forEach((key) => delete form[key])
-    Object.assign(form, currentMeta.value.blank())
-    Object.keys(errors).forEach((key) => delete errors[key])
-    isEditing.value = false
-    editTarget.value = null
-}
-
-function openAdd() {
-    clearForm()
-}
-
-function openEdit(row) {
-    clearForm()
-    isEditing.value = true
-    editTarget.value = row
-    Object.assign(form, JSON.parse(JSON.stringify(row)))
-}
-
-function openDelete(row) {
-    deleteTarget.value = row
-}
-
-function validate() {
-    Object.keys(errors).forEach((key) => delete errors[key])
-    let ok = true
-    for (const field of currentMeta.value.fields) {
-        if (field.required && !String(form[field.key] || '').trim()) {
-            errors[field.key] = `Vui lòng nhập ${field.label.toLowerCase()}`
-            ok = false
-        }
-    }
-    return ok
-}
-
-function saveRow() {
-    if (!validate()) return
-    const key = activeTab.value
-    if (isEditing.value && editTarget.value) {
-        Object.assign(editTarget.value, form)
-    } else {
-        rows[key].unshift({ id: Date.now(), ...JSON.parse(JSON.stringify(form)) })
-    }
-    hideModal('trainingFormModal')
-    clearForm()
-}
-
-function confirmDelete() {
-    if (!deleteTarget.value) return
-    rows[activeTab.value] = rows[activeTab.value].filter((row) => row.id !== deleteTarget.value.id)
-    deleteTarget.value = null
-    hideModal('trainingDeleteModal')
-}
-
-function hideModal(id) {
-    const el = document.getElementById(id)
-    const ModalCtor = window.bootstrap?.Modal
-    if (!el || !ModalCtor) return
-    const instance = ModalCtor.getInstance(el) || ModalCtor.getOrCreateInstance(el)
-    instance.hide()
-}
-
-watch(
-    () => route.query.tab,
-    (value) => {
-        const nextTab = typeof value === 'string' && metaMap[value] ? value : 'khoa'
-        activeTab.value = nextTab
+      return map[value] || '—'
     },
-    { immediate: true }
-)
 
+    hideModal(id) {
+      const el = document.getElementById(id)
+      const ModalCtor = window.bootstrap?.Modal
 
+      if (!el || !ModalCtor) return
+
+      const instance = ModalCtor.getInstance(el) || ModalCtor.getOrCreateInstance(el)
+      instance.hide()
+    },
+
+    showError(err, defaultMessage) {
+      console.error(err.response?.data || err)
+
+      if (err.response?.data?.errors) {
+        const errors = err.response.data.errors
+        const firstKey = Object.keys(errors)[0]
+        const firstMessage = errors[firstKey][0]
+
+        this.$toast?.error(firstMessage || 'Dữ liệu không hợp lệ.')
+        return
+      }
+
+      this.$toast?.error(err.response?.data?.message || defaultMessage)
+    },
+  },
+}
 </script>
 <style scoped>
 .row-actions {
