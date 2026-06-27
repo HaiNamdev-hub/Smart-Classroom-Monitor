@@ -11,37 +11,18 @@
                 <div class="rbac-header">
                     <div>
                         <h2>Vai trò</h2>
-                        <p>Chọn vai trò để cấp quyền.</p>
+                        <p>Chọn vai trò cố định để cấp quyền.</p>
                     </div>
-
-                    <button
-                        class="btn-primary"
-                        type="button"
-                        @click="openAddRole"
-                        data-bs-toggle="modal"
-                        data-bs-target="#roleFormModal"
-                    >
-                        Thêm
-                    </button>
                 </div>
 
                 <div class="search-box mb-3">
-                    <input
-                        v-model="roleSearch"
-                        type="text"
-                        placeholder="Tìm vai trò..."
-                        class="outline-none bg-transparent w-full"
-                    />
+                    <input v-model="roleSearch" type="text" placeholder="Tìm vai trò..."
+                        class="outline-none bg-transparent w-full" />
                 </div>
 
                 <div class="role-list">
-                    <div
-                        v-for="role in filteredRoles"
-                        :key="role.id"
-                        class="role-item"
-                        :class="{ active: selectedRole?.id === role.id }"
-                        @click="selectRole(role)"
-                    >
+                    <div v-for="role in filteredRoles" :key="role.id" class="role-item"
+                        :class="{ active: selectedRole?.id === role.id }" @click="selectRole(role)">
                         <div class="role-avatar">
                             {{ getRoleShortName(role.ten_vai_tro) }}
                         </div>
@@ -49,30 +30,6 @@
                         <div class="role-info">
                             <strong>{{ formatRoleName(role.ten_vai_tro) }}</strong>
                             <span>{{ role.mo_ta || '—' }}</span>
-                        </div>
-
-                        <div class="role-actions">
-                            <button
-                                class="mini-icon edit"
-                                title="Sửa vai trò"
-                                type="button"
-                                @click.stop="openEditRole(role)"
-                                data-bs-toggle="modal"
-                                data-bs-target="#roleFormModal"
-                            >
-                                <i class="fa-solid fa-pen"></i>
-                            </button>
-
-                            <button
-                                class="mini-icon del"
-                                title="Xóa vai trò"
-                                type="button"
-                                @click.stop="openDeleteRole(role)"
-                                data-bs-toggle="modal"
-                                data-bs-target="#roleDeleteModal"
-                            >
-                                <i class="fa-solid fa-trash-can"></i>
-                            </button>
                         </div>
                     </div>
 
@@ -111,37 +68,22 @@
                         <div class="section-title-row">
                             <h3>Kho chức năng</h3>
 
-                            <button
-                                class="btn-light-red"
-                                type="button"
-                                @click="openAddFunction"
-                                data-bs-toggle="modal"
-                                data-bs-target="#functionFormModal"
-                            >
+                            <button class="btn-light-red" type="button" @click="openAddFunction" data-bs-toggle="modal"
+                                data-bs-target="#functionFormModal">
                                 Thêm chức năng
                             </button>
                         </div>
 
                         <div class="search-box mb-3">
-                            <input
-                                v-model="functionSearch"
-                                type="text"
-                                placeholder="Tìm chức năng..."
-                                class="outline-none bg-transparent w-full"
-                            />
+                            <input v-model="functionSearch" type="text" placeholder="Tìm chức năng..."
+                                class="outline-none bg-transparent w-full" />
                         </div>
 
                         <div class="function-list">
-                            <div
-                                v-for="fn in filteredFunctions"
-                                :key="fn.id"
-                                class="function-item"
-                                :class="{
-                                    granted: isGranted(fn.id),
-                                    paused: fn.trang_thai === 'tam_dung'
-                                }"
-                                @click="grantPermission(fn)"
-                            >
+                            <div v-for="fn in filteredFunctions" :key="fn.id" class="function-item" :class="{
+                                granted: isGranted(fn.id),
+                                paused: fn.trang_thai === 'tam_dung'
+                            }" @click="grantPermission(fn)">
                                 <div class="function-icon">
                                     <i class="fa-solid fa-layer-group"></i>
                                 </div>
@@ -157,40 +99,23 @@
                                     </span>
 
                                     <div class="function-actions">
-                                        <button
-                                            class="mini-icon edit"
-                                            title="Sửa chức năng"
-                                            type="button"
-                                            @click.stop="openEditFunction(fn)"
-                                            data-bs-toggle="modal"
-                                            data-bs-target="#functionFormModal"
-                                        >
+                                        <button class="mini-icon edit" title="Sửa chức năng" type="button"
+                                            @click.stop="openEditFunction(fn)" data-bs-toggle="modal"
+                                            data-bs-target="#functionFormModal">
                                             <i class="fa-solid fa-pen"></i>
                                         </button>
 
-                                        <button
-                                            class="mini-icon del"
-                                            title="Xóa chức năng"
-                                            type="button"
-                                            @click.stop="openDeleteFunction(fn)"
-                                            data-bs-toggle="modal"
-                                            data-bs-target="#functionDeleteModal"
-                                        >
+                                        <button class="mini-icon del" title="Xóa chức năng" type="button"
+                                            @click.stop="openDeleteFunction(fn)" data-bs-toggle="modal"
+                                            data-bs-target="#functionDeleteModal">
                                             <i class="fa-solid fa-trash-can"></i>
                                         </button>
                                     </div>
 
-                                    <i
-                                        v-if="isGranted(fn.id)"
-                                        class="fa-solid fa-circle-check granted-icon"
-                                        title="Đã cấp quyền"
-                                    ></i>
+                                    <i v-if="isGranted(fn.id)" class="fa-solid fa-circle-check granted-icon"
+                                        title="Đã cấp quyền"></i>
 
-                                    <i
-                                        v-else
-                                        class="fa-solid fa-circle-plus add-icon"
-                                        title="Cấp quyền"
-                                    ></i>
+                                    <i v-else class="fa-solid fa-circle-plus add-icon" title="Cấp quyền"></i>
                                 </div>
                             </div>
 
@@ -205,22 +130,14 @@
                         <h3 class="mb-3">Quyền đang kích hoạt</h3>
 
                         <div class="granted-list">
-                            <div
-                                v-for="item in activePermissions"
-                                :key="item.permission.id"
-                                class="granted-item"
-                            >
+                            <div v-for="item in activePermissions" :key="item.permission.id" class="granted-item">
                                 <div>
                                     <strong>{{ item.function.ten_chuc_nang }}</strong>
                                     <span>{{ item.function.ma_chuc_nang }}</span>
                                 </div>
 
-                                <button
-                                    class="mini-icon del"
-                                    title="Gỡ quyền"
-                                    type="button"
-                                    @click="revokePermission(item.permission)"
-                                >
+                                <button v-if="!isSelectedAdmin" class="mini-icon del" title="Gỡ quyền" type="button"
+                                    @click="revokePermission(item.permission)">
                                     <i class="fa-solid fa-trash-arrow-up"></i>
                                 </button>
                             </div>
@@ -229,92 +146,6 @@
                                 Vai trò này chưa được cấp chức năng nào.
                             </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- MODAL ROLE FORM -->
-        <div class="modal fade" id="roleFormModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <form @submit.prevent="saveRole">
-                        <div class="modal-header">
-                            <div>
-                                <h1 class="modal-title fs-5">
-                                    {{ isEditingRole ? 'Sửa' : 'Thêm' }} vai trò
-                                </h1>
-                                <p class="text-sm text-gray-500 mb-0">
-                                    Vai trò dùng để phân nhóm người dùng.
-                                </p>
-                            </div>
-
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-
-                        <div class="modal-body">
-                            <div class="form-group mb-3">
-                                <label>Tên vai trò <span class="req">*</span></label>
-                                <input
-                                    v-model="roleForm.ten_vai_tro"
-                                    type="text"
-                                    placeholder="VD: admin, co_van, sinh_vien"
-                                />
-                                <span v-if="roleErrors.ten_vai_tro" class="form-error">
-                                    {{ roleErrors.ten_vai_tro }}
-                                </span>
-                            </div>
-
-                            <div class="form-group">
-                                <label>Mô tả</label>
-                                <textarea
-                                    v-model="roleForm.mo_ta"
-                                    placeholder="Nhập mô tả vai trò..."
-                                ></textarea>
-                            </div>
-                        </div>
-
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                Hủy
-                            </button>
-                            <button type="submit" class="btn btn-primary">
-                                {{ isEditingRole ? 'Cập nhật' : 'Thêm mới' }}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- MODAL ROLE DELETE -->
-        <div class="modal fade" id="roleDeleteModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <div>
-                            <h1 class="modal-title fs-5">Xóa vai trò</h1>
-                            <p class="text-sm text-gray-500 mb-0">Hành động này không thể hoàn tác.</p>
-                        </div>
-
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-
-                    <div class="modal-body">
-                        <p>
-                            Bạn có chắc muốn xóa vai trò
-                            <strong>{{ roleDeleteTarget ? formatRoleName(roleDeleteTarget.ten_vai_tro) : '' }}</strong>
-                            không?
-                        </p>
-                    </div>
-
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                            Hủy
-                        </button>
-                        <button type="button" class="btn btn-primary" @click="confirmDeleteRole">
-                            Xóa
-                        </button>
                     </div>
                 </div>
             </div>
@@ -342,11 +173,8 @@
                             <div class="form-grid">
                                 <div class="form-group">
                                     <label>Mã chức năng <span class="req">*</span></label>
-                                    <input
-                                        v-model="functionForm.ma_chuc_nang"
-                                        type="text"
-                                        placeholder="VD: quan_ly_user"
-                                    />
+                                    <input v-model="functionForm.ma_chuc_nang" type="text"
+                                        placeholder="VD: quan_ly_user" />
                                     <span v-if="functionErrors.ma_chuc_nang" class="form-error">
                                         {{ functionErrors.ma_chuc_nang }}
                                     </span>
@@ -354,11 +182,8 @@
 
                                 <div class="form-group">
                                     <label>Tên chức năng <span class="req">*</span></label>
-                                    <input
-                                        v-model="functionForm.ten_chuc_nang"
-                                        type="text"
-                                        placeholder="VD: Quản lý người dùng"
-                                    />
+                                    <input v-model="functionForm.ten_chuc_nang" type="text"
+                                        placeholder="VD: Quản lý người dùng" />
                                     <span v-if="functionErrors.ten_chuc_nang" class="form-error">
                                         {{ functionErrors.ten_chuc_nang }}
                                     </span>
@@ -374,10 +199,8 @@
 
                                 <div class="form-group">
                                     <label>Mô tả</label>
-                                    <textarea
-                                        v-model="functionForm.mo_ta"
-                                        placeholder="Nhập mô tả chức năng..."
-                                    ></textarea>
+                                    <textarea v-model="functionForm.mo_ta"
+                                        placeholder="Nhập mô tả chức năng..."></textarea>
                                 </div>
                             </div>
                         </div>
@@ -444,11 +267,26 @@ const roles = ref([
     },
     {
         id: 2,
+        ten_vai_tro: 'phong_qldt',
+        mo_ta: 'Phòng Quản lý đào tạo',
+    },
+    {
+        id: 3,
         ten_vai_tro: 'co_van',
         mo_ta: 'Cố vấn học tập',
     },
     {
-        id: 3,
+        id: 4,
+        ten_vai_tro: 'lop_truong',
+        mo_ta: 'Lớp trưởng',
+    },
+    {
+        id: 5,
+        ten_vai_tro: 'bi_thu',
+        mo_ta: 'Bí thư',
+    },
+    {
+        id: 6,
         ten_vai_tro: 'sinh_vien',
         mo_ta: 'Sinh viên',
     },
@@ -507,19 +345,42 @@ const functions = ref([
 ])
 
 const permissions = ref([
-    { id: 1, vai_tro_id: 2, chuc_nang_id: 7 },
-    { id: 2, vai_tro_id: 3, chuc_nang_id: 5 },
+    // Admin: toàn quyền
+    { id: 1, vai_tro_id: 1, chuc_nang_id: 1 },
+    { id: 2, vai_tro_id: 1, chuc_nang_id: 2 },
+    { id: 3, vai_tro_id: 1, chuc_nang_id: 3 },
+    { id: 4, vai_tro_id: 1, chuc_nang_id: 4 },
+    { id: 5, vai_tro_id: 1, chuc_nang_id: 5 },
+    { id: 6, vai_tro_id: 1, chuc_nang_id: 6 },
+    { id: 7, vai_tro_id: 1, chuc_nang_id: 7 },
+
+    // Phòng QLĐT
+    { id: 8, vai_tro_id: 2, chuc_nang_id: 2 },
+    { id: 9, vai_tro_id: 2, chuc_nang_id: 3 },
+    { id: 10, vai_tro_id: 2, chuc_nang_id: 4 },
+    { id: 11, vai_tro_id: 2, chuc_nang_id: 7 },
+
+    // Cố vấn học tập
+    { id: 12, vai_tro_id: 3, chuc_nang_id: 7 },
+
+    // Lớp trưởng
+    { id: 13, vai_tro_id: 4, chuc_nang_id: 5 },
+    { id: 14, vai_tro_id: 4, chuc_nang_id: 6 },
+
+    // Bí thư
+    { id: 15, vai_tro_id: 5, chuc_nang_id: 5 },
+    { id: 16, vai_tro_id: 5, chuc_nang_id: 6 },
+
+    // Sinh viên
+    { id: 17, vai_tro_id: 6, chuc_nang_id: 5 },
 ])
 
-const selectedRole = ref(roles.value.find(role => role.ten_vai_tro !== 'admin') || null)
+const selectedRole = ref(
+    roles.value.find(role => role.ten_vai_tro === 'phong_qldt') || roles.value[0]
+)
 
 const roleSearch = ref('')
 const functionSearch = ref('')
-
-const roleForm = reactive({
-    ten_vai_tro: '',
-    mo_ta: '',
-})
 
 const functionForm = reactive({
     ma_chuc_nang: '',
@@ -528,28 +389,26 @@ const functionForm = reactive({
     trang_thai: 'hoat_dong',
 })
 
-const roleErrors = reactive({})
 const functionErrors = reactive({})
-
-const isEditingRole = ref(false)
-const roleEditTarget = ref(null)
-const roleDeleteTarget = ref(null)
 
 const isEditingFunction = ref(false)
 const functionEditTarget = ref(null)
 const functionDeleteTarget = ref(null)
 
+const isSelectedAdmin = computed(() => {
+    return selectedRole.value?.ten_vai_tro === 'admin'
+})
+
 const filteredRoles = computed(() => {
     const q = roleSearch.value.trim().toLowerCase()
 
-    const list = roles.value.filter((role) => role.ten_vai_tro !== 'admin')
+    if (!q) return roles.value
 
-    if (!q) return list
-
-    return list.filter((role) => {
+    return roles.value.filter((role) => {
         return [
             role.ten_vai_tro,
             role.mo_ta,
+            formatRoleName(role.ten_vai_tro),
         ].join(' ').toLowerCase().includes(q)
     })
 })
@@ -609,6 +468,11 @@ function grantPermission(fn) {
         return
     }
 
+    if (isSelectedAdmin.value) {
+        alert('Admin mặc định có toàn quyền, không cần cấp thêm.')
+        return
+    }
+
     if (fn.trang_thai !== 'hoat_dong') {
         alert('Chức năng đang tạm dừng, không thể cấp quyền.')
         return
@@ -627,103 +491,12 @@ function grantPermission(fn) {
 }
 
 function revokePermission(permission) {
+    if (isSelectedAdmin.value) {
+        alert('Admin mặc định có toàn quyền, không thể gỡ quyền.')
+        return
+    }
+
     permissions.value = permissions.value.filter((item) => item.id !== permission.id)
-}
-
-function openAddRole() {
-    clearRoleForm()
-}
-
-function openEditRole(role) {
-    clearRoleForm()
-    isEditingRole.value = true
-    roleEditTarget.value = role
-
-    roleForm.ten_vai_tro = role.ten_vai_tro
-    roleForm.mo_ta = role.mo_ta || ''
-}
-
-function openDeleteRole(role) {
-    roleDeleteTarget.value = role
-}
-
-function saveRole() {
-    if (!validateRole()) return
-
-    const data = {
-        ten_vai_tro: roleForm.ten_vai_tro.trim(),
-        mo_ta: roleForm.mo_ta.trim() || null,
-    }
-
-    if (isEditingRole.value && roleEditTarget.value) {
-        Object.assign(roleEditTarget.value, data)
-
-        if (selectedRole.value?.id === roleEditTarget.value.id) {
-            selectedRole.value = roleEditTarget.value
-        }
-    } else {
-        const newRole = {
-            id: Date.now(),
-            ...data,
-        }
-
-        roles.value.unshift(newRole)
-        selectedRole.value = newRole
-    }
-
-    hideModal('roleFormModal')
-    clearRoleForm()
-}
-
-function confirmDeleteRole() {
-    if (!roleDeleteTarget.value) return
-
-    const id = roleDeleteTarget.value.id
-
-    roles.value = roles.value.filter((role) => role.id !== id)
-    permissions.value = permissions.value.filter((item) => item.vai_tro_id !== id)
-
-    if (selectedRole.value?.id === id) {
-        selectedRole.value = roles.value[0] || null
-    }
-
-    roleDeleteTarget.value = null
-    hideModal('roleDeleteModal')
-}
-
-function validateRole() {
-    clearObject(roleErrors)
-
-    let ok = true
-
-    if (!roleForm.ten_vai_tro.trim()) {
-        roleErrors.ten_vai_tro = 'Vui lòng nhập tên vai trò'
-        ok = false
-    }
-
-    const duplicated = roles.value.some((role) => {
-        const sameId = isEditingRole.value && roleEditTarget.value && role.id === roleEditTarget.value.id
-
-        return !sameId
-            && role.ten_vai_tro.trim().toLowerCase() === roleForm.ten_vai_tro.trim().toLowerCase()
-    })
-
-    if (duplicated) {
-        roleErrors.ten_vai_tro = 'Tên vai trò đã tồn tại'
-        ok = false
-    }
-
-    return ok
-}
-
-function clearRoleForm() {
-    roleForm.ten_vai_tro = ''
-    roleForm.mo_ta = ''
-
-    clearObject(roleErrors)
-
-    isEditingRole.value = false
-    roleEditTarget.value = null
 }
 
 function openAddFunction() {
@@ -797,10 +570,14 @@ function validateFunction() {
     }
 
     const duplicated = functions.value.some((fn) => {
-        const sameId = isEditingFunction.value && functionEditTarget.value && fn.id === functionEditTarget.value.id
+        const sameId =
+            isEditingFunction.value &&
+            functionEditTarget.value &&
+            fn.id === functionEditTarget.value.id
 
-        return !sameId
-            && fn.ma_chuc_nang.trim().toLowerCase() === functionForm.ma_chuc_nang.trim().toLowerCase()
+        return !sameId &&
+            fn.ma_chuc_nang.trim().toLowerCase() ===
+            functionForm.ma_chuc_nang.trim().toLowerCase()
     })
 
     if (duplicated) {
@@ -826,7 +603,10 @@ function clearFunctionForm() {
 function formatRoleName(value) {
     const map = {
         admin: 'Admin',
+        phong_qldt: 'Phòng QLĐT',
         co_van: 'Cố vấn học tập',
+        lop_truong: 'Lớp trưởng',
+        bi_thu: 'Bí thư',
         sinh_vien: 'Sinh viên',
     }
 
@@ -834,15 +614,16 @@ function formatRoleName(value) {
 }
 
 function getRoleShortName(value) {
-    if (!value) return '?'
-
     const map = {
         admin: 'AD',
+        phong_qldt: 'QL',
         co_van: 'CV',
+        lop_truong: 'LT',
+        bi_thu: 'BT',
         sinh_vien: 'SV',
     }
 
-    return map[value] || String(value).charAt(0).toUpperCase()
+    return map[value] || '?'
 }
 
 function formatFunctionStatus(value) {

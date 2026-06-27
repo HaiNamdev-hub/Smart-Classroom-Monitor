@@ -180,9 +180,9 @@ const menuSections = [
     title: "Tổng quan",
     items: [
       {
-        label: "Dashboard",
+        label: "Trang chủ",
         to: "/admin/trang-chu",
-        icon: "fa-solid fa-table-cells-large",
+        icon: "fa-solid fa-house",
         ma_chuc_nang: "dashboard",
       }
     ]

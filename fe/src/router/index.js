@@ -1,6 +1,12 @@
 import { createRouter, createWebHistory } from "vue-router"; // cài vue-router: npm install vue-router@next --save
-import checkToken from "./checkToken";
+import checkToken, { redirectByRole } from "./checkToken";
 const routes = [
+  {
+    path: "/",
+    beforeEnter: redirectByRole,
+  },
+
+  // ============= Auth ==================
   {
     path: "/dang-nhap",
     component: () => import("../components/Auth/DangNhap/index.vue"),
@@ -16,12 +22,16 @@ const routes = [
     },
   },
 
-  // ============= Admin ==================
+  // ============= Admin/GVCV ==================
   {
     path: "/admin",
     component: () => import("../layout/wrapper/admin.vue"),
     beforeEnter: checkToken,
     children: [
+      {
+        path: "",
+        redirect: "/admin/trang-chu",
+      },
       {
         path: "trang-chu",
         component: () => import("../components/Admin/TrangChu/index.vue"),
@@ -92,195 +102,44 @@ const routes = [
       },
     ],
   },
-  // {
-  //   path: "/admin",
-  //   component: () => import("../components/Admin/TrangChu/index.vue"),
-  //   beforeEnter: checkToken,
-  // },
-  // {
-  //   path: "/admin/them-tour",
-  //   component: () => import("../components/Admin/QLTour/ThemTour/index.vue"),
-  //   beforeEnter: checkToken,
-  // },
-  // {
-  //   path: "/admin/danh-sach-tour",
-  //   component: () =>
-  //     import("../components/Admin/QLTour/DanhSachTour/index.vue"),
-  //   beforeEnter: checkToken,
-  // },
-  // {
-  //   path: "/admin/quan-ly-booking",
-  //   component: () => import("../components/Admin/QLBooking/index.vue"),
-  //   beforeEnter: checkToken,
-  // },
-  // {
-  //   path: "/admin/phan-quyen",
-  //   component: () => import("../components/Admin/PhanQuyen/index.vue"),
-  //   beforeEnter: checkToken,
-  // },
-  // {
-  //   path: "/admin/lien-he",
-  //   component: () => import("../components/Admin/LienHe/index.vue"),
-  //   beforeEnter: checkToken,
-  // },
-  // {
-  //   path: "/admin/binh-luan",
-  //   component: () => import("../components/Admin/BinhLuan/index.vue"),
-  //   beforeEnter: checkToken,
-  // },
-  // {
-  //   path: "/admin/dang-nhap",
-  //   component: () => import("../components/Admin/DangNhap/index.vue"),
-  //   meta: { layout: "blank" },
-  // },
-  // {
-  //   path: "/admin/phuong-tien",
-  //   component: () => import("../components/Admin/PhuongTien/index.vue"),
-  //   beforeEnter: checkToken,
-  // },
-  // {
-  //   path: "/admin/voucher",
-  //   component: () => import("../components/Admin/Voucher/index.vue"),
-  //   beforeEnter: checkToken,
-  // },
-  // {
-  //   path: "/admin/thong-ke/khach-hang-dang-ky",
-  //   component: () =>
-  //     import("../components/Admin/ThongKe/TKKhachHangDangKy/index.vue"),
-  //   beforeEnter: checkToken,
-  // },
-  // {
-  //   path: "/admin/nguoi-dung",
-  //   component: () => import("../components/Admin/NguoiDung/index.vue"),
-  //   beforeEnter: checkToken,
-  // },
-  // {
-  //   path: "/admin/danh-muc-tour",
-  //   component: () => import("../components/Admin/QLTour/DanhMucTour/index.vue"),
-  //   beforeEnter: checkToken,
-  // },
 
-  //============= Customer ==================
-  // {
-  //   path: "/",
-  //   component: () => import("../components/Customer/TrangChu/TrangChu.vue"),
-  //   meta: { layout: "customer" },
-  //   //beforeEnter: checkToken, // them guard
-  // },
-  // {
-  //   path: "/lien-he",
-  //   component: () => import("../components/Customer/LienHe/LienHe.vue"),
-  //   meta: { layout: "customer" },
-  // },
-  // {
-  //   path: "/gioi-thieu",
-  //   component: () => import("../components/Customer/GioiThieu/GioiThieu.vue"),
-  //   meta: { layout: "customer" },
-  // },
-  // {
-  //   path: "/faqs",
-  //   component: () => import("../components/Customer/Faqs/Faqs.vue"),
-  //   meta: { layout: "customer" },
-  // },
-  // {
-  //   path: "/chi-tiet-bai-viet/:id",
-  //   component: () =>
-  //     import("../components/Customer/ChiTietBV/ChiTietBaiViet.vue"),
-  //   meta: { layout: "customer" },
-  //   props: true,
-  // },
-  // {
-  //   path: "/bai-viet",
-  //   component: () => import("../components/Customer/BaiViet/BaiViet.vue"),
-  //   meta: { layout: "customer" },
-  //   props: true,
-  // },
-  // {
-  //   path: "/tour-bac",
-  //   component: () => import("../components/Customer/Tour/TourBac.vue"),
-  //   meta: { layout: "customer" },
-  //   //beforeEnter: checkToken,
-  // },
-  // {
-  //   path: "/tour-nam",
-  //   component: () => import("../components/Customer/Tour/TourNam.vue"),
-  //   meta: { layout: "customer" },
-  // },
-  // {
-  //   path: "/tour-trung",
-  //   component: () => import("../components/Customer/Tour/TourTrung.vue"),
-  //   meta: { layout: "customer" },
-  // },
-  // {
-  //   path: "/tour-all",
-  //   component: () => import("../components/Customer/Tour/AllTour.vue"),
-  //   meta: { layout: "customer" },
-  // },
-  // {
-  //   path: "/chi-tiet-tour/:id_tour",
-  //   component: () =>
-  //     import("../components/Customer/ChiTietTour/ChiTietTour.vue"),
-  //   meta: { layout: "customer" },
-  //   props: true,
-  // },
-  // {
-  //   path: "/dat-tour/:id_tour",
-  //   component: () => import("../components/Customer/Dattour/Dattour.vue"),
-  //   meta: { layout: "customer" },
-  //   props: true,
-  // },
-  // {
-  //   path: "/lich-su-don-hang",
-  //   component: () => import("../components/Customer/LichSuDonHang/LSDH.vue"),
-  //   meta: { layout: "customer" },
-  //   props: true,
-  // },
-  // {
-  //   path: "/vnpay_return",
-  //   component: () => import("../components/Customer/ThanhToan/index.vue"),
-  //   meta: { layout: "customer" },
-  // },
-  // {
-  //   path: "/chinh-sach-bao-mat",
-  //   component: () =>
-  //     import("../components/Customer/ChinhSachBaoMat/ChinhSachBaoMat.vue"),
-  //   meta: { layout: "customer" },
-  // },
-  // {
-  //   path: "/dieu-khoan-su-dung",
-  //   component: () =>
-  //     import("../components/Customer/DieuKhoanSD/DieuKhoanSD.vue"),
-  //   meta: { layout: "customer" },
-  // },
-  // {
-  //   path: "/dang-ky",
-  //   component: () => import("../components/Customer/DangKy/index.vue"),
-  //   meta: { layout: "customer" },
-  // },
-  // {
-  //   path: "/kich-hoat/:hash_active",
-  //   component: () => import("../components/Customer//KichHoat/index.vue"),
-  //   meta: { layout: "blank" },
-  //   props: true,
-  // },
-
-  // {
-  //   path: "/dang-nhap",
-  //   component: () => import("../components/Customer/DangNhap/index.vue"),
-  //   meta: { layout: "customer" },
-  // },
-  // {
-  //   path: "/quen-mat-khau",
-  //   component: () => import("../components/Customer/QuenMatKhau/index.vue"),
-  //   meta: { layout: "customer" },
-  // },
+  // ============= SV/Lớp trưởng/Bí thư ==================
   {
-    path: "/staff",
-    redirect: "/admin/trang-chu",
-  },
-  {
-    path: "/",
-    redirect: "/dang-nhap",
+    path: "/sinh-vien",
+    component: () => import("../layout/wrapper/students.vue"),
+    beforeEnter: checkToken,
+    children: [
+      {
+        path: "",
+        redirect: "/sinh-vien/trang-chu",
+      },
+      {
+        path: "phieu-lop/:phieuId",
+        component: () =>
+          import("../components/Students/DanhGiaPhieuLop/index.vue"),
+        name: "SinhVienDanhGiaPhieuLop",
+      },
+      {
+        path: "trang-chu",
+        component: () => import("../components/Students/TrangChu/index.vue"),
+      },
+      {
+        path: "phieu-ren-luyen",
+        component: () =>
+          import("../components/Students/PhieuRenLuyen/index.vue"),
+      },
+      {
+        path: "danh-sach-phieu-lop",
+        name: "SinhVienDanhSachPhieuLop",
+        component: () =>
+          import("../components/Students/DanhSachPhieuLop/index.vue"),
+      },
+      {
+        path: "ket-qua-ren-luyen",
+        component: () =>
+          import("../components/Students/KetQuaRenLuyen/index.vue"),
+      },
+    ],
   },
 ];
 

@@ -10,20 +10,228 @@ class TieuChiSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
         $groupIds = DB::table('nhom_tieu_chi')->pluck('id', 'ma_nhom');
 
         $criteria = [
-            ['nhom_id' => $groupIds['P1'], 'ma_tieu_chi' => 'TC01', 'ten_tieu_chi' => 'Chuyên cần tham gia học tập', 'diem_toi_da' => 15, 'loai_tieu_chi' => 'thuong', 'loai_nhap' => 'combobox'],
-            ['nhom_id' => $groupIds['P1'], 'ma_tieu_chi' => 'TC02', 'ten_tieu_chi' => 'Hoàn thành bài tập cá nhân', 'diem_toi_da' => 15, 'loai_tieu_chi' => 'thuong', 'loai_nhap' => 'checkbox'],
-            ['nhom_id' => $groupIds['P2'], 'ma_tieu_chi' => 'TC03', 'ten_tieu_chi' => 'Chấp hành nội quy lớp', 'diem_toi_da' => 10, 'loai_tieu_chi' => 'thuong', 'loai_nhap' => 'textbox'],
-            ['nhom_id' => $groupIds['P2'], 'ma_tieu_chi' => 'TC04', 'ten_tieu_chi' => 'Không vi phạm kỷ luật', 'diem_toi_da' => 10, 'loai_tieu_chi' => 'thuong', 'loai_nhap' => 'checkbox'],
-            ['nhom_id' => $groupIds['P3'], 'ma_tieu_chi' => 'TC05', 'ten_tieu_chi' => 'Tham gia hoạt động ngoại khóa', 'diem_toi_da' => 15, 'loai_tieu_chi' => 'thuong', 'loai_nhap' => 'combobox'],
-            ['nhom_id' => $groupIds['P3'], 'ma_tieu_chi' => 'TC06', 'ten_tieu_chi' => 'Vi phạm quy tắc an toàn', 'diem_toi_da' => 20, 'loai_tieu_chi' => 'phat', 'loai_nhap' => 'checkbox'],
+            // ===================== I. Ý thức tham gia học tập - 20 điểm =====================
+            [
+                'nhom_id' => $groupIds['P1'],
+                'ma_tieu_chi' => 'TC01',
+                'ten_tieu_chi' => 'Ý thức và thái độ học tập, ý thức chuyên cần',
+                'diem_toi_da' => 6,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'combobox',
+            ],
+            [
+                'nhom_id' => $groupIds['P1'],
+                'ma_tieu_chi' => 'TC02',
+                'ten_tieu_chi' => 'Ý thức và thái độ tham gia các hoạt động học thuật, NCKH, Olympic, cuộc thi chuyên môn nghiệp vụ từ cấp Khoa trở lên',
+                'diem_toi_da' => 6,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'checkbox',
+            ],
+            [
+                'nhom_id' => $groupIds['P1'],
+                'ma_tieu_chi' => 'TC03',
+                'ten_tieu_chi' => 'Xếp loại học tập học kỳ, căn cứ vào điểm trung bình chung học tập lần 1',
+                'diem_toi_da' => 8,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'combobox',
+            ],
+
+            // ===================== II. Nội quy, quy chế - 25 điểm =====================
+            [
+                'nhom_id' => $groupIds['P2'],
+                'ma_tieu_chi' => 'TC04',
+                'ten_tieu_chi' => 'Chấp hành tốt, không vi phạm',
+                'diem_toi_da' => 25,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'textbox',
+            ],
+            [
+                'nhom_id' => $groupIds['P2'],
+                'ma_tieu_chi' => 'TC05',
+                'ten_tieu_chi' => 'Không tham gia học tập đầy đủ, nghiêm túc nghị quyết, nội quy, quy chế, tuần sinh hoạt công dân - sinh viên hoặc bài thu hoạch không đạt',
+                'diem_toi_da' => 10,
+                'loai_tieu_chi' => 'phat',
+                'loai_nhap' => 'textbox',
+            ],
+            [
+                'nhom_id' => $groupIds['P2'],
+                'ma_tieu_chi' => 'TC06',
+                'ten_tieu_chi' => 'Nghỉ không lý do các chuyên đề tuần sinh hoạt công dân - sinh viên đầu khóa, đầu năm, cuối khóa',
+                'diem_toi_da' => 3,
+                'loai_tieu_chi' => 'phat',
+                'loai_nhap' => 'textbox',
+            ],
+            [
+                'nhom_id' => $groupIds['P2'],
+                'ma_tieu_chi' => 'TC07',
+                'ten_tieu_chi' => 'Không tham gia các buổi sinh hoạt lớp, họp, hội nghị, giao ban, tập huấn và các hoạt động khác do Học viện yêu cầu',
+                'diem_toi_da' => 5,
+                'loai_tieu_chi' => 'phat',
+                'loai_nhap' => 'textbox',
+            ],
+            [
+                'nhom_id' => $groupIds['P2'],
+                'ma_tieu_chi' => 'TC08',
+                'ten_tieu_chi' => 'Không đeo thẻ sinh viên, không mặc đồng phục thể thao trong giờ GDTC, hút thuốc, xả rác bừa bãi nơi công cộng hoặc vi phạm điều sinh viên không được làm',
+                'diem_toi_da' => 5,
+                'loai_tieu_chi' => 'phat',
+                'loai_nhap' => 'textbox',
+            ],
+            [
+                'nhom_id' => $groupIds['P2'],
+                'ma_tieu_chi' => 'TC09',
+                'ten_tieu_chi' => 'Vi phạm quy định khu giảng đường, thư viện, nơi cư trú hoặc không làm thủ tục khi thay đổi chỗ ở theo quy định',
+                'diem_toi_da' => 5,
+                'loai_tieu_chi' => 'phat',
+                'loai_nhap' => 'textbox',
+            ],
+            [
+                'nhom_id' => $groupIds['P2'],
+                'ma_tieu_chi' => 'TC10',
+                'ten_tieu_chi' => 'Chậm đóng học phí, lệ phí, bảo hiểm y tế, tiền nội trú, các khoản thu hoặc chậm nộp giấy tờ, hồ sơ, văn bằng, chứng chỉ',
+                'diem_toi_da' => 5,
+                'loai_tieu_chi' => 'phat',
+                'loai_nhap' => 'textbox',
+            ],
+            [
+                'nhom_id' => $groupIds['P2'],
+                'ma_tieu_chi' => 'TC11',
+                'ten_tieu_chi' => 'Bị khiển trách, nhắc nhở trong phòng thi',
+                'diem_toi_da' => 5,
+                'loai_tieu_chi' => 'phat',
+                'loai_nhap' => 'textbox',
+            ],
+            [
+                'nhom_id' => $groupIds['P2'],
+                'ma_tieu_chi' => 'TC12',
+                'ten_tieu_chi' => 'Vi phạm quy chế thi ở mức cảnh cáo hoặc trừ điểm thi nhưng chưa đến mức bị đình chỉ thi',
+                'diem_toi_da' => 10,
+                'loai_tieu_chi' => 'phat',
+                'loai_nhap' => 'textbox',
+            ],
+            [
+                'nhom_id' => $groupIds['P2'],
+                'ma_tieu_chi' => 'TC13',
+                'ten_tieu_chi' => 'Vi phạm quy chế thi bị lập biên bản đình chỉ thi',
+                'diem_toi_da' => 20,
+                'loai_tieu_chi' => 'phat',
+                'loai_nhap' => 'textbox',
+            ],
+
+            // ===================== III. Hoạt động chính trị, xã hội, văn hóa, thể thao - 20 điểm =====================
+            [
+                'nhom_id' => $groupIds['P3'],
+                'ma_tieu_chi' => 'TC14',
+                'ten_tieu_chi' => 'Tham gia đầy đủ, tích cực các hoạt động chính trị, xã hội, các hoạt động tại giảng đường',
+                'diem_toi_da' => 5,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'combobox',
+            ],
+            [
+                'nhom_id' => $groupIds['P3'],
+                'ma_tieu_chi' => 'TC15',
+                'ten_tieu_chi' => 'Ý thức tham gia các hoạt động văn hóa, văn nghệ, thể thao do Học viện, Phân viện, các tổ chức đoàn thể phát động',
+                'diem_toi_da' => 5,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'combobox',
+            ],
+            [
+                'nhom_id' => $groupIds['P3'],
+                'ma_tieu_chi' => 'TC16',
+                'ten_tieu_chi' => 'Tham gia các câu lạc bộ, Đội, Nhóm được tổ chức theo quy định ngoài học thuật, NCKH',
+                'diem_toi_da' => 5,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'combobox',
+            ],
+            [
+                'nhom_id' => $groupIds['P3'],
+                'ma_tieu_chi' => 'TC17',
+                'ten_tieu_chi' => 'Tham gia tuyên truyền, phòng chống tội phạm và các tệ nạn xã hội',
+                'diem_toi_da' => 3,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'combobox',
+            ],
+            [
+                'nhom_id' => $groupIds['P3'],
+                'ma_tieu_chi' => 'TC18',
+                'ten_tieu_chi' => 'Được khen thưởng, biểu dương trong các hoạt động tại mục III',
+                'diem_toi_da' => 2,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'textbox',
+            ],
+
+            // ===================== IV. Ý thức công dân trong quan hệ cộng đồng - 25 điểm =====================
+            [
+                'nhom_id' => $groupIds['P4'],
+                'ma_tieu_chi' => 'TC19',
+                'ten_tieu_chi' => 'Ý thức chấp hành và tham gia tuyên truyền chủ trương, đường lối của Đảng, chính sách pháp luật của Nhà nước, quy định nơi cư trú, an ninh trật tự, an toàn giao thông',
+                'diem_toi_da' => 10,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'combobox',
+            ],
+            [
+                'nhom_id' => $groupIds['P4'],
+                'ma_tieu_chi' => 'TC20',
+                'ten_tieu_chi' => 'Tham gia các hoạt động nhân đạo, từ thiện vì cộng đồng, phong trào thanh niên tình nguyện, giúp đỡ nhân dân và bạn bè',
+                'diem_toi_da' => 10,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'combobox',
+            ],
+            [
+                'nhom_id' => $groupIds['P4'],
+                'ma_tieu_chi' => 'TC21',
+                'ten_tieu_chi' => 'Ý thức xây dựng mối quan hệ đoàn kết với bạn bè và tập thể, xây dựng, bảo vệ cảnh quan giảng đường, nơi cư trú văn minh, sạch đẹp, văn hóa học đường',
+                'diem_toi_da' => 5,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'combobox',
+            ],
+
+            // ===================== V. Ban cán sự, BCH Đoàn, CLB, Đội, Hội, Nhóm - 10 điểm =====================
+            [
+                'nhom_id' => $groupIds['P5'],
+                'ma_tieu_chi' => 'TC22',
+                'ten_tieu_chi' => 'BCS, BCH, CLB, Đội, Hội, Nhóm - Hoàn thành nhiệm vụ nhóm chức vụ cấp trưởng, cấp phó, bí thư, lớp trưởng, chủ nhiệm',
+                'diem_toi_da' => 7,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'combobox',
+            ],
+            [
+                'nhom_id' => $groupIds['P5'],
+                'ma_tieu_chi' => 'TC23',
+                'ten_tieu_chi' => 'BCS, BCH, CLB, Đội, Hội, Nhóm - Hoàn thành nhiệm vụ nhóm ủy viên, tổ trưởng, tổ phó, thành viên đội/ban/CLB',
+                'diem_toi_da' => 7,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'combobox',
+            ],
+            [
+                'nhom_id' => $groupIds['P5'],
+                'ma_tieu_chi' => 'TC24',
+                'ten_tieu_chi' => 'Kỹ năng tổ chức, quản lý lớp, quản lý các tổ chức Đảng, Đoàn thanh niên, Hội sinh viên, CLB, Đội, Hội, Nhóm',
+                'diem_toi_da' => 3,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'combobox',
+            ],
+            [
+                'nhom_id' => $groupIds['P5'],
+                'ma_tieu_chi' => 'TC25',
+                'ten_tieu_chi' => 'Tất cả sinh viên: tham gia đầy đủ hoạt động, sinh hoạt của lớp, khoa, Học viện, có ý kiến xây dựng tập thể vững mạnh',
+                'diem_toi_da' => 3,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'textbox',
+            ],
+            [
+                'nhom_id' => $groupIds['P5'],
+                'ma_tieu_chi' => 'TC26',
+                'ten_tieu_chi' => 'Tất cả sinh viên: đạt thành tích đặc biệt trong học tập, rèn luyện, dũng cảm cứu người, được cấp giấy chứng nhận hoặc giấy khen',
+                'diem_toi_da' => 7,
+                'loai_tieu_chi' => 'thuong',
+                'loai_nhap' => 'combobox',
+            ],
         ];
 
         foreach ($criteria as $criterion) {

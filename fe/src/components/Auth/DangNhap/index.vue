@@ -75,7 +75,8 @@
                   <path d="M9 12h6M9 16h6M9 8h6" />
                   <rect x="4" y="3" width="16" height="18" rx="2" />
                 </svg>
-                <input class="captcha-text" id="captcha" v-model="captcha" type="text" placeholder="Nhập mã" @input="captcha = captcha.toUpperCase()"/>
+                <input class="captcha-text" id="captcha" v-model="captcha" type="text" placeholder="Nhập mã"
+                  @input="captcha = captcha.toUpperCase()" />
               </div>
               <button type="button" class="captcha-box" @click="refreshCaptcha" title="Bấm để làm mới mã">
                 {{ captchaCode }}
@@ -125,33 +126,38 @@ export default {
       error: "",
     }
   },
+
   mounted() {
-    // Nếu đã có token thì redirect luôn
     const token = sessionStorage.getItem("auth_token")
-    if (token) {
-      const user = JSON.parse(sessionStorage.getItem("auth_user") || "{}")
-      const role = user.vai_tro_id
-      if (role == 1) {
-        this.$router.replace("/admin")
-        return
+    const rawUser = sessionStorage.getItem("auth_user")
+
+    if (!token || !rawUser) return
+
+    try {
+      const user = JSON.parse(rawUser)
+      const homePath = this.getHomePathByRole(user.vai_tro_id)
+
+      if (homePath) {
+        this.$router.replace(homePath)
+      } else {
+        sessionStorage.removeItem("auth_token")
+        sessionStorage.removeItem("auth_user")
       }
-      else if (role == 2) {
-        this.$router.replace("/staff")
-        return
-      }
-      else {
-        this.$router.replace("/")
-        return
-      }
+    } catch (error) {
+      sessionStorage.removeItem("auth_token")
+      sessionStorage.removeItem("auth_user")
     }
   },
+
   methods: {
     generateCaptcha() {
       const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
       let code = ""
+
       for (let i = 0; i < 4; i++) {
         code += chars[Math.floor(Math.random() * chars.length)]
       }
+
       return code
     },
 
@@ -160,10 +166,26 @@ export default {
       this.captcha = ""
     },
 
+    getHomePathByRole(vaiTroId) {
+      const roleId = Number(vaiTroId)
+
+      const adminRoles = [1, 2, 3]
+      const studentRoles = [4, 5, 6]
+
+      if (adminRoles.includes(roleId)) {
+        return "/admin/trang-chu"
+      }
+
+      if (studentRoles.includes(roleId)) {
+        return "/sinh-vien/trang-chu"
+      }
+
+      return null
+    },
+
     dangNhap() {
       this.error = ""
 
-      // Validation
       if (!this.email) {
         this.error = "Vui lòng nhập email hoặc mã sinh viên."
         return
@@ -185,7 +207,6 @@ export default {
         return
       }
 
-      // Gọi API đăng nhập
       axios
         .post("http://127.0.0.1:8000/api/dang-nhap", {
           email: this.email,
@@ -198,23 +219,32 @@ export default {
             return
           }
 
-          sessionStorage.setItem("auth_token", res.data.token);
-sessionStorage.setItem("auth_user", JSON.stringify(res.data.user));
+          const token = res.data.token
+          const user = res.data.user
+
+          if (!token || !user) {
+            this.error = "Dữ liệu đăng nhập không hợp lệ."
+            this.refreshCaptcha()
+            return
+          }
+
+          const homePath = this.getHomePathByRole(user.vai_tro_id)
+
+          if (!homePath) {
+            this.error = "Vai trò tài khoản không hợp lệ."
+            this.refreshCaptcha()
+            return
+          }
+
+          sessionStorage.setItem("auth_token", token)
+          sessionStorage.setItem("auth_user", JSON.stringify(user))
 
           if (this.$toast) {
             this.$toast.success("Đăng nhập thành công")
           }
 
-          const role = res.data.user.vai_tro_id
-
           setTimeout(() => {
-            if (role == 1) {
-              this.$router.replace("/admin/trang-chu")
-            } else if (role == 2) {
-              this.$router.replace("/staff")
-            } else {
-              this.$router.replace("/")
-            }
+            this.$router.replace(homePath)
           }, 500)
         })
         .catch((err) => {
@@ -223,6 +253,7 @@ sessionStorage.setItem("auth_user", JSON.stringify(res.data.user));
           } else {
             this.error = "Lỗi kết nối tới server API"
           }
+
           this.refreshCaptcha()
         })
     },
