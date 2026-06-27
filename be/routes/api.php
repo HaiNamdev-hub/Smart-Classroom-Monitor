@@ -3,6 +3,7 @@
 use App\Http\Controllers\NguoiDungController;
 use App\Http\Controllers\FileDanhSachLopController;
 use App\Http\Controllers\LichSuKiemTraController;
+use App\Http\Controllers\LopController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -77,6 +78,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/nguoi-dung/sua-nguoi-dung', [NguoiDungController::class, 'suaNguoiDung']);
     Route::post('/admin/nguoi-dung/xoa-nguoi-dung', [NguoiDungController::class, 'xoaNguoiDung']);
     Route::post('/admin/nguoi-dung/tim-kiem', [NguoiDungController::class, 'timKiem']);
+
+    //api lop
+    Route::get('/admin/lop', [LopController::class, 'getLop']);
+
+
 
     Route::apiResource('/admin/file-danh-sach-lop', FileDanhSachLopController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::apiResource('/admin/lich-su-kiem-tra', LichSuKiemTraController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
