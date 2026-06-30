@@ -8,11 +8,9 @@
         </div>
 
         <!-- Quay lại ds -->
-        <div class="detail-toolbar">
-            <button type="button" class="btn btn-primary" @click="router.push({ name: 'AdminDSPhieuChoDuyet' })">
-                Quay lại danh sách
-            </button>
-        </div>
+        <button type="button" class="btn btn-primary" @click="router.push('/sinh-vien/danh-sach-phieu-lop')">
+            Quay lại danh sách
+        </button>
 
         <!-- THỐNG KÊ NHANH -->
         <div class="detail-status-row">

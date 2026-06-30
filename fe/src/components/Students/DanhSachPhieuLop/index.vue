@@ -85,7 +85,7 @@
                             <th class="text-center">Điểm SV</th>
                             <th class="text-center">Điểm lớp</th>
                             <th class="text-center">Trạng thái</th>
-                            <th style="width: 150px;" class="text-center">Thao tác</th>
+                            <!-- <th style="width: 150px;" class="text-center">Thao tác</th> -->
                         </tr>
                     </thead>
 
@@ -142,11 +142,11 @@
                                         <span>Đánh giá</span>
                                     </button>
 
-                                    <button v-else type="button" class="action-btn ghost" title="Xem phiếu"
+                                    <!-- <button v-else type="button" class="action-btn ghost" title="Xem phiếu"
                                         @click="goToEvaluation(row, 'view')">
                                         <i class="fa-solid fa-eye"></i>
                                         <span>Xem</span>
-                                    </button>
+                                    </button> -->
                                 </div>
                             </td>
                         </tr>

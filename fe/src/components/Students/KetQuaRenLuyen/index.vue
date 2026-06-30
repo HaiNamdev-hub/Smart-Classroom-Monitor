@@ -86,7 +86,6 @@
                             <th class="text-center">Điểm cuối</th>
                             <th class="text-center">Xếp loại</th>
                             <th class="text-center">Trạng thái</th>
-                            <th style="width: 120px;" class="text-center">Thao tác</th>
                         </tr>
                     </thead>
 
@@ -133,15 +132,6 @@
                                 <span class="status-badge" :class="'status-' + row.trang_thai">
                                     {{ formatTrangThai(row.trang_thai) }}
                                 </span>
-                            </td>
-
-                            <td class="action-cell">
-                                <div class="row-actions row-actions-center">
-                                    <button type="button" class="action-btn ghost" @click="viewDetail(row)">
-                                        <i class="fa-solid fa-eye"></i>
-                                        <span>Xem</span>
-                                    </button>
-                                </div>
                             </td>
                         </tr>
 
@@ -446,16 +436,6 @@ function getInitials(name) {
         .slice(-2)
         .join('')
         .toUpperCase()
-}
-
-function viewDetail(row) {
-    router.push({
-        path: '/sinh-vien/phieu-cua-toi',
-        query: {
-            phieuId: row.id,
-            mode: 'view',
-        },
-    })
 }
 </script>
 <style scoped>
