@@ -8,8 +8,17 @@ use App\Http\Controllers\LichSuKiemTraController;
 use App\Http\Controllers\LopController;
 use App\Http\Controllers\NganhController;
 use App\Http\Controllers\NhomTieuChiController;
+use App\Http\Controllers\PhieuRenLuyenController;
 use App\Http\Controllers\TieuChiController;
 use App\Http\Controllers\TieuChiLuaChonController;
+use App\Http\Controllers\PhanQuyenController;
+use App\Http\Controllers\ChucNangController;
+use App\Http\Controllers\MinhChungController;
+use App\Http\Controllers\SinhVienController;
+use App\Http\Controllers\SinhVienTrangChuController;
+use App\Http\Controllers\TrangChuController;
+use App\Http\Controllers\VaiTroController;
+use App\Models\SinhVien;
 use Illuminate\Support\Facades\Route;
 
 
@@ -85,7 +94,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/khoa/xoa-khoa', [KhoaController::class, 'xoaKhoa']);
     Route::post('/admin/khoa/tim-kiem', [KhoaController::class, 'timKiem']);
 
-     
+
 
     //api QLDT Ngành
     Route::get('/admin/nganh', [NganhController::class, 'getNganh']);
@@ -114,7 +123,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/dotdanhgia/xoa-dotdanhgia', [DotDanhGiaController::class, 'xoaDotDanhGia']);
     Route::post('/admin/dotdanhgia/tim-dotdanhgia', [DotDanhGiaController::class, 'timKiemDotDanhGia']);
     Route::post('/admin/dotdanhgia/khoa-dotdanhgia', [DotDanhGiaController::class, 'khoaDotDanhGia']);
-    
+
     //api Ql tiêu chí
     //nhom tieu chi
     Route::get('/admin/quanlytieuchi/nhomtieuchi', [NhomTieuChiController::class, 'getnhomtieuchi']);
@@ -123,7 +132,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/quanlytieuchi/sua-nhomtieuchi', [NhomTieuChiController::class, 'suaNhomTieuChi']);
     Route::post('/admin/quanlytieuchi/xoa-nhomtieuchi', [NhomTieuChiController::class, 'xoaNhomTieuChi']);
     Route::post('/admin/quanlytieuchi/tim-nhomtieuchi', [NhomTieuChiController::class, 'timKiemNhomTieuChi']);
-    
+
 
     //tieu chi
     Route::get('/admin/quanlytieuchi/tieuchi', [TieuChiController::class, 'gettieuchi']);
@@ -136,14 +145,35 @@ Route::middleware('auth:sanctum')->group(function () {
 
     //lua chon
     Route::get('/admin/quanlytieuchi/luachon', [TieuChiLuaChonController::class, 'getluachon']);
-    Route::get('/admin/quanlytieuchi/chi-tiet-luachon', [TieuChiLuaChonController::class, 'chiTietTieuChi']);
-    Route::post('/admin/quanlytieuchi/them-luachon', [TieuChiLuaChonController::class, 'themTieuChi']);
-    Route::post('/admin/quanlytieuchi/sua-luachon', [TieuChiLuaChonController::class, 'suaTieuChi']);
-    Route::post('/admin/quanlytieuchi/xoa-luachon', [TieuChiLuaChonController::class, 'xoaTieuChi']);
-    Route::post('/admin/quanlytieuchi/tim-luachon', [TieuChiLuaChonController::class, 'timKiemTieuChi']);
+    Route::get('/admin/quanlytieuchi/chi-tiet-luachon', [TieuChiLuaChonController::class, 'chiTietLuaChon']);
+    Route::post('/admin/quanlytieuchi/them-luachon', [TieuChiLuaChonController::class, 'themLuaChon']);
+    Route::post('/admin/quanlytieuchi/sua-luachon', [TieuChiLuaChonController::class, 'suaLuaChon']);
+    Route::post('/admin/quanlytieuchi/xoa-luachon', [TieuChiLuaChonController::class, 'xoaLuaChon']);
+    Route::post('/admin/quanlytieuchi/tim-luachon', [TieuChiLuaChonController::class, 'timKiemLuaChon']);
 
 
+    //api phiếu chờ duyệt
+    Route::get('/admin/phieu-cho-duyet', [PhieuRenLuyenController::class, 'getPhieuChoDuyet']);
+    Route::get('/admin/phieu-cho-duyet/chi-tiet', [PhieuRenLuyenController::class, 'chiTietPhieu']);
+    Route::post('/admin/phieu-cho-duyet/duyet', [PhieuRenLuyenController::class, 'duyetPhieu']);
+    Route::post('/admin/phieu-cho-duyet/tra-lai', [PhieuRenLuyenController::class, 'traLaiPhieu']);
+    Route::post('/admin/phieu-cho-duyet/tim-kiem', [PhieuRenLuyenController::class, 'timkiem']);
 
+
+    // PHAN QUYEN :
+    Route::get('/admin/vai-tro/get-data', [VaiTroController::class, 'getData']);
+
+    Route::get('/admin/phan-quyen/chuc-nang/get-data', [ChucNangController::class, 'getData']);
+    Route::post('/admin/phan-quyen/chi-tiet-phan-quyen/add-data', [PhanQuyenController::class, 'themPhanQuyen']);
+    Route::post('/admin/phan-quyen/chi-tiet-phan-quyen/delete', [PhanQuyenController::class, 'xoaPhanQuyen']);
+    Route::post('/admin/phan-quyen/chi-tiet-phan-quyen/get-data', [PhanQuyenController::class, 'getChiTietPhanQuyen']);
+    Route::post('/admin/check-quyen', [PhanQuyenController::class, 'checkQuyen']);
+
+
+    //chức năng
+    Route::post('/admin/phan-quyen/chuc-nang/add-data', [ChucNangController::class, 'themChucNang']);
+    Route::post('/admin/phan-quyen/chuc-nang/update', [ChucNangController::class, 'suaChucNang']);
+    Route::post('/admin/phan-quyen/chuc-nang/delete', [ChucNangController::class, 'xoaChucNang']);
 
 
     //api  người dùng
@@ -155,7 +185,39 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/nguoi-dung/tim-kiem', [NguoiDungController::class, 'timKiem']);
 
 
+    // api minh chứng
+    Route::get('/admin/minh-chung/xem/{id}', [MinhChungController::class, 'xem']);
+    Route::get('/admin/minh-chung/tai/{id}', [MinhChungController::class, 'tai']);
+
+
+    //api trang chu admin
+    Route::get('/admin/trang-chu/get-data', [TrangChuController::class, 'getData']);
+
+
+
+
+    //api trang chu sinh vien
+    Route::get('/sinh-vien/trang-chu/get-data', [SinhVienTrangChuController::class, 'getData']);
+
+    //api phieu ren luyen sinh vien
+    Route::get('/sinh-vien/phieu-ren-luyen/get-data', [SinhVienController::class, 'getData']);
+    Route::post('/sinh-vien/phieu-ren-luyen/luu-nhap', [SinhVienController::class, 'luuNhap']);
+    Route::post('/sinh-vien/phieu-ren-luyen/gui-phieu', [SinhVienController::class, 'guiPhieu']);
+    Route::post('/sinh-vien/phieu-ren-luyen/upload-minh-chung', [SinhVienController::class, 'uploadMinhChung']);
+    Route::post('/sinh-vien/phieu-ren-luyen/xoa-minh-chung', [SinhVienController::class, 'xoaMinhChung']);
+
+
+
+    //api kết quả rèn luyện 
+    Route::get('/sinh-vien/ket-qua-ren-luyen/get-data', [SinhVienController::class, 'getKetQuaRenLuyen']);
+
+    //api Phiếu lớp chờ đánh giá cho cán sự lớp 
+    //api Phiếu lớp chờ đánh giá dành cho lớp trưởng / bí thư
+    Route::get('/can-su-lop/phieu-ren-luyen/get-data', [SinhVienController::class, 'getPhieuCanSuLop']);
+    Route::get('/can-su-lop/phieu-ren-luyen/chi-tiet', [SinhVienController::class, 'chiTietPhieuCanSuLop']);
+    Route::post('/can-su-lop/phieu-ren-luyen/danh-gia', [SinhVienController::class, 'danhGiaPhieuCanSuLop']);
+
+
     Route::apiResource('/admin/file-danh-sach-lop', FileDanhSachLopController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::apiResource('/admin/lich-su-kiem-tra', LichSuKiemTraController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
-
 });

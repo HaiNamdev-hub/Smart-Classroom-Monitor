@@ -11,7 +11,7 @@
         <div class="review-stat-grid">
             <div class="review-stat-card">
                 <span>Tổng phiếu</span>
-                <strong>{{ evaluationForms.length }}</strong>
+                <strong>{{ thongKe.tong_phieu }}</strong>
             </div>
 
             <div class="review-stat-card warning">
@@ -20,13 +20,13 @@
             </div>
 
             <div class="review-stat-card draft">
-                <span>Lớp đã đánh giá</span>
-                <strong>{{ countByStatus('lop_da_danh_gia') }}</strong>
+                <span>Lớp đã duyệt</span>
+                <strong>{{ countByStatus('lop_da_duyet') }}</strong>
             </div>
 
             <div class="review-stat-card success">
-                <span>CVHT đã kiểm tra</span>
-                <strong>{{ countByStatus('co_van_da_kiem_tra') }}</strong>
+                <span>Cố vấn đã duyệt</span>
+                <strong>{{ countByStatus('co_van_da_duyet') }}</strong>
             </div>
         </div>
 
@@ -45,10 +45,9 @@
                         <option value="all">Tất cả trạng thái</option>
                         <option value="nhap">Nháp</option>
                         <option value="da_gui">Đã gửi</option>
-                        <option value="lop_da_danh_gia">Lớp đã đánh giá</option>
-                        <option value="co_van_da_kiem_tra">CVHT đã kiểm tra</option>
+                        <option value="lop_da_duyet">Lớp đã duyệt</option>
+                        <option value="co_van_da_duyet">Cố vấn đã duyệt</option>
                         <option value="hoan_thanh">Hoàn thành</option>
-                        <option value="tra_lai">Trả lại</option>
                     </select>
                 </div>
 
@@ -100,11 +99,11 @@
                                     <p>{{ row.khoa }}</p>
                                 </div>
                             </td>
-                            <td class="action-cell">{{ row.lop }}</td>
-                            <td>{{ row.nganh }}</td>
-                            <td class="action-cell">{{ row.hoc_ky }}</td>
+                            <td class="action-cell">{{ row.ten_lop }}</td>
+                            <td>{{ row.ten_nganh }}</td>
+                            <td class="action-cell">{{ formatHocKyRaw(row.hoc_ky) }}</td>
                             <td class="action-cell">{{ row.nam_hoc }}</td>
-                            <td class="action-cell">{{ row.ngay_nop }}</td>
+                            <td class="action-cell">{{ formatNgay(row.ngay_nop) }}</td>
                             <td class="action-cell">
                                 <strong>{{ row.tong_diem_sv ?? '—' }}</strong>
                             </td>
@@ -118,15 +117,15 @@
                             </td>
                             <td class="action-cell">
                                 <div class="row-actions">
-                                        <button v-if="canReview(row)" class="icon-btn edit" type="button"
-                                            title="Kiểm tra phiếu" @click="goToDetail(row, 'edit')">
-                                            <i class="fa-solid fa-pen-to-square"></i>
-                                        </button>
+                                    <button v-if="canReview(row)" class="icon-btn edit" type="button"
+                                        title="Kiểm tra phiếu" @click="goToDetail(row, 'edit')">
+                                        <i class="fa-solid fa-pen-to-square"></i>
+                                    </button>
 
-                                        <button v-else class="icon-btn view" type="button" title="Xem chi tiết"
-                                            @click="goToDetail(row, 'view')">
-                                            <i class="fa-solid fa-eye"></i>
-                                        </button>
+                                    <button v-else class="icon-btn view" type="button" title="Xem chi tiết"
+                                        @click="goToDetail(row, 'view')">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -145,106 +144,103 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import axios from 'axios'
+
 import "../../../assets/css/admin.css"
 import "../../../assets/css/dashboard.css"
 import "../../../assets/css/user.css"
 
 const router = useRouter()
 
+const API = 'http://127.0.0.1:8000/api/admin/phieu-cho-duyet'
+
 const search = ref('')
 const filterStatus = ref('all')
 const filterSemester = ref('all')
 const filterClass = ref('all')
 
-const evaluationForms = ref([
-    {
-        id: 1, // id này là phieu_ren_luyen.id
-        ma_sinh_vien: 'SV001',
-        ho_ten: 'Nguyễn Văn A',
-        khoa: 'Công nghệ thông tin',
-        nganh: 'Kỹ thuật phần mềm',
-        lop: 'D23CQCN01',
-        hoc_ky: 'Kỳ I',
-        nam_hoc: '2025 - 2026',
-        ngay_nop: '12/06/2026',
-        tong_diem_sv: 90,
-        tong_diem_lop: null,
-        trang_thai: 'lop_da_danh_gia',
-    },
-    {
-        id: 2,
-        ma_sinh_vien: 'SV002',
-        ho_ten: 'Trần Thị Bình',
-        khoa: 'Công nghệ thông tin',
-        nganh: 'Kỹ thuật phần mềm',
-        lop: 'D23CQCN01',
-        hoc_ky: 'Kỳ I',
-        nam_hoc: '2025 - 2026',
-        ngay_nop: '13/06/2026',
-        tong_diem_sv: 85,
-        tong_diem_lop: null,
-        trang_thai: 'da_gui',
-    },
-    {
-        id: 3,
-        ma_sinh_vien: 'SV003',
-        ho_ten: 'Lê Văn Cường',
-        khoa: 'Công nghệ thông tin',
-        nganh: 'Hệ thống thông tin',
-        lop: 'D23CQCN02',
-        hoc_ky: 'Kỳ I',
-        nam_hoc: '2025 - 2026',
-        ngay_nop: '13/06/2026',
-        tong_diem_sv: 78,
-        tong_diem_lop: null,
-        trang_thai: 'lop_da_danh_gia',
-    },
-    {
-        id: 4,
-        ma_sinh_vien: 'SV004',
-        ho_ten: 'Phạm Thị Dung',
-        khoa: 'Công nghệ thông tin',
-        nganh: 'Hệ thống thông tin',
-        lop: 'D23CQCN02',
-        hoc_ky: 'Kỳ I',
-        nam_hoc: '2025 - 2026',
-        ngay_nop: '11/06/2026',
-        tong_diem_sv: 92,
-        tong_diem_lop: 90,
-        trang_thai: 'co_van_da_kiem_tra',
-    },
-    {
-        id: 5,
-        ma_sinh_vien: 'SV005',
-        ho_ten: 'Đỗ Văn Hùng',
-        khoa: 'Công nghệ thông tin',
-        nganh: 'Kỹ thuật phần mềm',
-        lop: 'D23CQCN01',
-        hoc_ky: 'Kỳ I',
-        nam_hoc: '2025 - 2026',
-        ngay_nop: '10/06/2026',
-        tong_diem_sv: 70,
-        tong_diem_lop: 65,
-        trang_thai: 'tra_lai',
-    },
-])
+const evaluationForms = ref([])
+
+const thongKe = ref({
+    tong_phieu: 0,
+    da_gui: 0,
+    lop_da_duyet: 0,
+    co_van_da_duyet: 0,
+})
+
+function authHeader() {
+    return {
+        headers: {
+            Authorization: 'Bearer ' + sessionStorage.getItem('auth_token'),
+        },
+    }
+}
+
+onMounted(() => {
+    getDanhSachPhieu()
+})
+
+function getDanhSachPhieu() {
+    axios
+        .get(API, authHeader())
+        .then((res) => {
+            if (res.data.status) {
+                evaluationForms.value = res.data.data || []
+                thongKe.value = res.data.thong_ke || {
+                    tong_phieu: 0,
+                    da_gui: 0,
+                    lop_da_duyet: 0,
+                    co_van_da_duyet: 0,
+                }
+            }
+        })
+        .catch((err) => {
+            console.log('Lỗi lấy danh sách phiếu:', err.response?.data || err)
+        })
+}
+
+function timKiem() {
+    const q = search.value.trim()
+
+    if (q === '') {
+        getDanhSachPhieu()
+        return
+    }
+
+    axios
+        .post(
+            API + '/tim-kiem',
+            {
+                noi_dung: q,
+            },
+            authHeader()
+        )
+        .then((res) => {
+            if (res.data.status) {
+                evaluationForms.value = res.data.data || []
+                thongKe.value = res.data.thong_ke || thongKe.value
+            }
+        })
+        .catch((err) => {
+            console.log('Lỗi tìm kiếm phiếu:', err.response?.data || err)
+        })
+}
+
+watch(search, () => {
+    timKiem()
+})
 
 const classOptions = computed(() => {
-    return [...new Set(evaluationForms.value.map((item) => item.lop))]
+    return [...new Set(evaluationForms.value.map((item) => item.ten_lop || item.lop))]
+        .filter(Boolean)
 })
 
 const filteredForms = computed(() => {
-    const q = search.value.trim().toLowerCase()
-
     return evaluationForms.value.filter((item) => {
-        const matchSearch =
-            !q ||
-            item.ma_sinh_vien.toLowerCase().includes(q) ||
-            item.ho_ten.toLowerCase().includes(q) ||
-            item.lop.toLowerCase().includes(q) ||
-            item.nganh.toLowerCase().includes(q)
+        const lop = item.ten_lop || item.lop
+        const hocKy = formatHocKyRaw(item.hoc_ky)
 
         const matchStatus =
             filterStatus.value === 'all' ||
@@ -252,35 +248,56 @@ const filteredForms = computed(() => {
 
         const matchSemester =
             filterSemester.value === 'all' ||
-            item.hoc_ky === filterSemester.value
+            hocKy === filterSemester.value
 
         const matchClass =
             filterClass.value === 'all' ||
-            item.lop === filterClass.value
+            lop === filterClass.value
 
-        return matchSearch && matchStatus && matchSemester && matchClass
+        return matchStatus && matchSemester && matchClass
     })
 })
 
 function countByStatus(status) {
+    if (status === 'da_gui') return thongKe.value.da_gui || 0
+    if (status === 'lop_da_duyet') return thongKe.value.lop_da_duyet || 0
+    if (status === 'co_van_da_duyet') return thongKe.value.co_van_da_duyet || 0
+
     return evaluationForms.value.filter((item) => item.trang_thai === status).length
+}
+
+function formatHocKyRaw(value) {
+    if (value === 1 || value === '1') return 'Kỳ I'
+    if (value === 2 || value === '2') return 'Kỳ II'
+    return value || '—'
+}
+
+function formatNgay(value) {
+    if (!value) return '—'
+
+    const date = new Date(value)
+
+    if (Number.isNaN(date.getTime())) {
+        return value
+    }
+
+    return date.toLocaleDateString('vi-VN')
 }
 
 function formatTrangThai(value) {
     const map = {
         nhap: 'Nháp',
         da_gui: 'Đã gửi',
-        lop_da_danh_gia: 'Lớp đã đánh giá',
-        co_van_da_kiem_tra: 'CVHT đã kiểm tra',
+        lop_da_duyet: 'Lớp đã duyệt',
+        co_van_da_duyet: 'Cố vấn đã duyệt',
         hoan_thanh: 'Hoàn thành',
-        tra_lai: 'Trả lại',
     }
 
     return map[value] || '—'
 }
 
 function canReview(row) {
-    return row.trang_thai === 'da_gui' || row.trang_thai === 'lop_da_danh_gia'
+    return row.trang_thai === 'da_gui' || row.trang_thai === 'lop_da_duyet'
 }
 
 function goToDetail(row, mode = 'view') {
@@ -406,16 +423,16 @@ function goToDetail(row, mode = 'view') {
     border-color: #c7d2fe !important;
 }
 
-.status-dot.st-da_gui {
-    background: #fff7ed !important;
-    color: #c2410c !important;
-    border-color: #fed7aa !important;
-}
-
-.status-dot.st-lop_da_danh_gia {
+.status-dot.st-lop_da_duyet {
     background: #eff6ff !important;
     color: #1d4ed8 !important;
     border-color: #bfdbfe !important;
+}
+
+.status-dot.st-co_van_da_duyet {
+    background: #ecfdf5 !important;
+    color: #047857 !important;
+    border-color: #bbf7d0 !important;
 }
 
 .status-dot.st-co_van_da_kiem_tra {
@@ -429,13 +446,11 @@ function goToDetail(row, mode = 'view') {
     color: #0f766e !important;
     border-color: #99f6e4 !important;
 }
-
-.status-dot.st-tra_lai {
-    background: #fef2f2 !important;
-    color: #b91c1c !important;
-    border-color: #fecaca !important;
+.status-dot.st-da_gui {
+    background: #fff7ed !important;
+    color: #c2410c !important;
+    border-color: #fed7aa !important;
 }
-
 /* DARK MODE - dùng selector mạnh theo page */
 :global(html.dark-theme) .evaluation-list-page .status-dot.st-nhap,
 :global(html[data-theme="dark"]) .evaluation-list-page .status-dot.st-nhap,
@@ -455,18 +470,18 @@ function goToDetail(row, mode = 'view') {
     box-shadow: inset 0 0 0 1px rgba(253, 230, 138, 0.06);
 }
 
-:global(html.dark-theme) .evaluation-list-page .status-dot.st-lop_da_danh_gia,
-:global(html[data-theme="dark"]) .evaluation-list-page .status-dot.st-lop_da_danh_gia,
-:global(body.dark-theme) .evaluation-list-page .status-dot.st-lop_da_danh_gia {
+:global(html.dark-theme) .evaluation-list-page .status-dot.st-lop_da_duyet,
+:global(html[data-theme="dark"]) .evaluation-list-page .status-dot.st-lop_da_duyet,
+:global(body.dark-theme) .evaluation-list-page .status-dot.st-lop_da_duyet {
     background: rgba(37, 99, 235, 0.28) !important;
     color: #bfdbfe !important;
     border-color: rgba(96, 165, 250, 0.45) !important;
     box-shadow: inset 0 0 0 1px rgba(191, 219, 254, 0.06);
 }
 
-:global(html.dark-theme) .evaluation-list-page .status-dot.st-co_van_da_kiem_tra,
-:global(html[data-theme="dark"]) .evaluation-list-page .status-dot.st-co_van_da_kiem_tra,
-:global(body.dark-theme) .evaluation-list-page .status-dot.st-co_van_da_kiem_tra {
+:global(html.dark-theme) .evaluation-list-page .status-dot.st-co_van_da_duyet,
+:global(html[data-theme="dark"]) .evaluation-list-page .status-dot.st-co_van_da_duyet,
+:global(body.dark-theme) .evaluation-list-page .status-dot.st-co_van_da_duyet {
     background: rgba(22, 163, 74, 0.28) !important;
     color: #bbf7d0 !important;
     border-color: rgba(74, 222, 128, 0.42) !important;

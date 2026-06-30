@@ -3,13 +3,44 @@
 namespace App\Http\Controllers;
 
 use App\Models\DotDanhGia;
+use App\Models\PhanQuyen;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 class DotDanhGiaController extends Controller
 {
+
+    private function kiemTraQuyen($ma_chuc_nang)
+    {
+        $user = Auth::guard('sanctum')->user();
+
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->vai_tro_id == 1) {
+            return true;
+        }
+
+        return PhanQuyen::join('chuc_nang', 'chuc_nang.id', '=', 'phan_quyen.chuc_nang_id')
+            ->where('phan_quyen.vai_tro_id', $user->vai_tro_id)
+            ->where('chuc_nang.ma_chuc_nang', $ma_chuc_nang)
+            ->exists();
+    }
+
+    private function khongCoQuyen()
+    {
+        return response()->json([
+            'status'  => false,
+            'message' => 'Bạn không có quyền thực hiện chức năng này!'
+        ], 403);
+    }
     public function getdotdanhga()
     {
+        if (!$this->kiemTraQuyen('quan_ly_tieu_chi')) {
+            return $this->khongCoQuyen();
+        }
         $data = DotDanhGia::orderByDESC('id')->get();
 
         return response()->json([
@@ -20,6 +51,9 @@ class DotDanhGiaController extends Controller
 
     public function chiTietDotDanhGia(Request $request)
     {
+        if (!$this->kiemTraQuyen('quan_ly_tieu_chi')) {
+            return $this->khongCoQuyen();
+        }
         $data = DotDanhGia::find($request->id);
 
         if (!$data) {
@@ -37,6 +71,9 @@ class DotDanhGiaController extends Controller
 
     public function themDotDanhGia(Request $request)
     {
+        if (!$this->kiemTraQuyen('quan_ly_tieu_chi')) {
+            return $this->khongCoQuyen();
+        }
         $validator = Validator::make($request->all(), [
             'nam_hoc'       => 'required|string|max:20',
             'hoc_ky'        => 'required|integer|in:1,2',
@@ -63,6 +100,9 @@ class DotDanhGiaController extends Controller
 
     public function suaDotDanhGia(Request $request)
     {
+        if (!$this->kiemTraQuyen('quan_ly_tieu_chi')) {
+            return $this->khongCoQuyen();
+        }
         $data = DotDanhGia::find($request->id);
 
         if (!$data) {
@@ -111,6 +151,9 @@ class DotDanhGiaController extends Controller
 
     public function xoaDotDanhGia(Request $request)
     {
+        if (!$this->kiemTraQuyen('quan_ly_tieu_chi')) {
+            return $this->khongCoQuyen();
+        }
         $data = DotDanhGia::find($request->id);
 
         if (!$data) {
@@ -130,6 +173,9 @@ class DotDanhGiaController extends Controller
 
     public function timKiemDotDanhGia(Request $request)
     {
+        if (!$this->kiemTraQuyen('quan_ly_tieu_chi')) {
+            return $this->khongCoQuyen();
+        }
         $noi_dung = $request->noi_dung;
 
         $data = DotDanhGia::where('nam_hoc', 'like', '%' . $noi_dung . '%')
@@ -145,6 +191,9 @@ class DotDanhGiaController extends Controller
 
     public function khoaDotDanhGia(Request $request)
     {
+        if (!$this->kiemTraQuyen('quan_ly_tieu_chi')) {
+            return $this->khongCoQuyen();
+        }
         $data = DotDanhGia::find($request->id);
 
         if (!$data) {

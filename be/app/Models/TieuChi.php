@@ -15,10 +15,16 @@ class TieuChi extends Model
 
     protected $fillable = [
         'nhom_id',
+        'parent_id',
         'ma_tieu_chi',
         'ten_tieu_chi',
         'diem_toi_da',
         'loai_tieu_chi',
         'loai_nhap',
+        'bat_buoc_minh_chung',
+        'thu_tu',
     ];
+
+    
+   
 }

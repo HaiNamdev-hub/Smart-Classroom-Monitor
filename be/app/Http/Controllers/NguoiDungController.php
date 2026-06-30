@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\MasterMail;
 use App\Models\Lop;
 use App\Models\NguoiDung;
+use App\Models\PhanQuyen;
 use App\Models\SinhVien;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -12,10 +13,13 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class NguoiDungController extends Controller
 {
+
+
     public function dangNhap(Request $request)
     {
         $request->validate([
@@ -367,16 +371,36 @@ class NguoiDungController extends Controller
             'message' => 'Đổi mật khẩu thành công.',
         ]);
     }
+    private function kiemTraQuyen($ma_chuc_nang)
+    {
+        $user = Auth::guard('sanctum')->user();
+
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->vai_tro_id == 1) {
+            return true;
+        }
+
+        return PhanQuyen::join('chuc_nang', 'chuc_nang.id', '=', 'phan_quyen.chuc_nang_id')
+            ->where('phan_quyen.vai_tro_id', $user->vai_tro_id)
+            ->where('chuc_nang.ma_chuc_nang', $ma_chuc_nang)
+            ->exists();
+    }
+
+    private function khongCoQuyen()
+    {
+        return response()->json([
+            'status'  => false,
+            'message' => 'Bạn không có quyền thực hiện chức năng này!'
+        ], 403);
+    }
 
     public function getNguoiDung(Request $request)
     {
-        $user = $request->user();
-
-        if (!$user) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Token không hợp lệ hoặc đã hết hạn!'
-            ], 401);
+        if (!$this->kiemTraQuyen('quan_ly_nguoi_dung')) {
+            return $this->khongCoQuyen();
         }
 
         $data = NguoiDung::orderByDesc('id')->get();
@@ -384,37 +408,24 @@ class NguoiDungController extends Controller
         foreach ($data as $nguoiDung) {
             $maLop = null;
 
-            // Cố vấn học tập
             if ($nguoiDung->vai_tro_id == 3) {
-                $maLop = Lop::where('co_van_id', $nguoiDung->id)
-                    ->pluck('ma_lop')
-                    ->implode(', ');
+                $maLop = Lop::where('co_van_id', $nguoiDung->id)->pluck('ma_lop')->implode(', ');
             }
 
-            // Lớp trưởng
             if ($nguoiDung->vai_tro_id == 4) {
-                $maLop = Lop::where('lop_truong_id', $nguoiDung->id)
-                    ->pluck('ma_lop')
-                    ->implode(', ');
+                $maLop = Lop::where('lop_truong_id', $nguoiDung->id)->pluck('ma_lop')->implode(', ');
             }
 
-            // Bí thư
             if ($nguoiDung->vai_tro_id == 5) {
-                $maLop = Lop::where('bi_thu_id', $nguoiDung->id)
-                    ->pluck('ma_lop')
-                    ->implode(', ');
+                $maLop = Lop::where('bi_thu_id', $nguoiDung->id)->pluck('ma_lop')->implode(', ');
             }
 
-            // Sinh viên
             if ($nguoiDung->vai_tro_id == 6) {
                 $sinhVien = SinhVien::where('user_id', $nguoiDung->id)->first();
 
                 if ($sinhVien) {
                     $lop = Lop::find($sinhVien->lop_id);
-
-                    if ($lop) {
-                        $maLop = $lop->ma_lop;
-                    }
+                    $maLop = $lop?->ma_lop;
                 }
             }
 
@@ -430,20 +441,12 @@ class NguoiDungController extends Controller
 
     public function chiTietNguoiDung(Request $request)
     {
-        $user = $request->user();
-
-        if (!$user) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Token không hợp lệ hoặc đã hết hạn!'
-            ], 401);
+        if (!$this->kiemTraQuyen('quan_ly_nguoi_dung')) {
+            return $this->khongCoQuyen();
         }
 
         $validator = Validator::make($request->all(), [
             'id' => ['required', 'exists:nguoi_dung,id'],
-        ], [
-            'id.required' => 'Vui lòng truyền ID người dùng',
-            'id.exists' => 'Người dùng không tồn tại',
         ]);
 
         if ($validator->fails()) {
@@ -462,15 +465,11 @@ class NguoiDungController extends Controller
             'data' => $data
         ]);
     }
+
     public function themNguoiDung(Request $request)
     {
-        $user = $request->user();
-
-        if (!$user) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Token không hợp lệ hoặc đã hết hạn!'
-            ], 401);
+        if (!$this->kiemTraQuyen('quan_ly_nguoi_dung')) {
+            return $this->khongCoQuyen();
         }
 
         $validator = Validator::make($request->all(), [
@@ -482,16 +481,6 @@ class NguoiDungController extends Controller
             'avatar'        => ['nullable', 'string'],
             'vai_tro_id'    => ['required', 'integer'],
             'trang_thai'    => ['required', Rule::in(['hoat_dong', 'khong_hoat_dong', 'bi_khoa'])],
-        ], [
-            'ho_ten.required'     => 'Vui lòng nhập họ tên',
-            'email.required'      => 'Vui lòng nhập email',
-            'email.email'         => 'Email không hợp lệ',
-            'email.unique'        => 'Email đã tồn tại',
-            'password.required'   => 'Vui lòng nhập mật khẩu',
-            'password.min'        => 'Mật khẩu phải có ít nhất 6 ký tự',
-            'vai_tro_id.required' => 'Vui lòng chọn vai trò',
-            'trang_thai.required' => 'Vui lòng chọn trạng thái',
-            'trang_thai.in'       => 'Trạng thái không hợp lệ',
         ]);
 
         if ($validator->fails()) {
@@ -505,7 +494,7 @@ class NguoiDungController extends Controller
         $nguoiDung = NguoiDung::create([
             'ho_ten'             => $request->ho_ten,
             'email'              => $request->email,
-            'password'           => $request->password,
+            'password'           => Hash::make($request->password),
             'so_dien_thoai'      => $request->so_dien_thoai,
             'ngay_sinh'          => $request->ngay_sinh,
             'avatar'             => $request->avatar,
@@ -521,15 +510,11 @@ class NguoiDungController extends Controller
             'data' => $nguoiDung
         ], 201);
     }
+
     public function suaNguoiDung(Request $request)
     {
-        $user = $request->user();
-
-        if (!$user) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Token không hợp lệ hoặc đã hết hạn!'
-            ], 401);
+        if (!$this->kiemTraQuyen('quan_ly_nguoi_dung')) {
+            return $this->khongCoQuyen();
         }
 
         $nguoiDung = NguoiDung::find($request->id);
@@ -544,28 +529,13 @@ class NguoiDungController extends Controller
         $validator = Validator::make($request->all(), [
             'id'            => ['required', 'exists:nguoi_dung,id'],
             'ho_ten'        => ['required', 'string', 'max:255'],
-            'email'         => [
-                'required',
-                'email',
-                Rule::unique('nguoi_dung', 'email')->ignore($request->id)
-            ],
+            'email'         => ['required', 'email', Rule::unique('nguoi_dung', 'email')->ignore($request->id)],
             'so_dien_thoai' => ['nullable', 'string', 'max:20'],
             'ngay_sinh'     => ['nullable', 'date'],
             'avatar'        => ['nullable', 'string'],
             'vai_tro_id'    => ['required', 'integer'],
             'trang_thai'    => ['required', Rule::in(['hoat_dong', 'khong_hoat_dong', 'bi_khoa'])],
             'password'      => ['nullable', 'string', 'min:6'],
-        ], [
-            'id.required'          => 'Thiếu ID người dùng',
-            'id.exists'            => 'Người dùng không tồn tại',
-            'ho_ten.required'      => 'Vui lòng nhập họ tên',
-            'email.required'       => 'Vui lòng nhập email',
-            'email.email'          => 'Email không hợp lệ',
-            'email.unique'         => 'Email đã tồn tại',
-            'vai_tro_id.required'  => 'Vui lòng chọn vai trò',
-            'trang_thai.required'  => 'Vui lòng chọn trạng thái',
-            'trang_thai.in'        => 'Trạng thái không hợp lệ',
-            'password.min'         => 'Mật khẩu phải có ít nhất 6 ký tự',
         ]);
 
         if ($validator->fails()) {
@@ -587,7 +557,7 @@ class NguoiDungController extends Controller
         ];
 
         if ($request->filled('password')) {
-            $dataUpdate['password'] = $request->password;
+            $dataUpdate['password'] = Hash::make($request->password);
         }
 
         $nguoiDung->update($dataUpdate);
@@ -598,22 +568,15 @@ class NguoiDungController extends Controller
             'data'    => $nguoiDung
         ]);
     }
+
     public function xoaNguoiDung(Request $request)
     {
-        $user = $request->user();
-
-        if (!$user) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Token không hợp lệ hoặc đã hết hạn!'
-            ], 401);
+        if (!$this->kiemTraQuyen('quan_ly_nguoi_dung')) {
+            return $this->khongCoQuyen();
         }
 
         $validator = Validator::make($request->all(), [
             'id' => ['required', 'exists:nguoi_dung,id'],
-        ], [
-            'id.required' => 'Vui lòng truyền ID người dùng',
-            'id.exists'   => 'Người dùng không tồn tại',
         ]);
 
         if ($validator->fails()) {
@@ -625,11 +588,19 @@ class NguoiDungController extends Controller
         }
 
         $nguoiDung = NguoiDung::find($request->id);
+        $user = $request->user();
 
         if ($user->id == $nguoiDung->id) {
             return response()->json([
                 'status' => false,
                 'message' => 'Không thể tự xóa tài khoản đang đăng nhập'
+            ], 400);
+        }
+
+        if (SinhVien::where('user_id', $request->id)->exists()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Không thể xóa vì người dùng này đang liên kết với sinh viên'
             ], 400);
         }
 
@@ -643,15 +614,11 @@ class NguoiDungController extends Controller
             'message' => 'Xóa người dùng ' . $hoTen . ' thành công',
         ]);
     }
+
     public function timKiem(Request $request)
     {
-        $user = $request->user();
-
-        if (!$user) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Token không hợp lệ hoặc đã hết hạn!'
-            ], 401);
+        if (!$this->kiemTraQuyen('quan_ly_nguoi_dung')) {
+            return $this->khongCoQuyen();
         }
 
         $keyword = $request->input('tim_nguoi_dung', '');

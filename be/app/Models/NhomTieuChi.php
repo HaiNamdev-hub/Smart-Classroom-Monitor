@@ -17,5 +17,6 @@ class NhomTieuChi extends Model
         'ma_nhom',
         'ten_nhom',
         'diem_toi_da',
+        'thu_tu',
     ];
 }

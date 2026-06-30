@@ -24,85 +24,75 @@ const routes = [
 
   // ============= Admin/GVCV ==================
   {
-    path: "/admin",
-    component: () => import("../layout/wrapper/admin.vue"),
-    beforeEnter: checkToken,
-    children: [
-      {
-        path: "",
-        redirect: "/admin/trang-chu",
+  path: "/admin",
+  component: () => import("../layout/wrapper/admin.vue"),
+  beforeEnter: checkToken,
+  children: [
+    {
+      path: "",
+      redirect: "/admin/trang-chu",
+    },
+    {
+      path: "trang-chu",
+      component: () => import("../components/Admin/TrangChu/index.vue"),
+    },
+    {
+      path: "ql-nguoi-dung",
+      component: () => import("../components/Admin/QLNguoiDung/index.vue"),
+      meta: {
+        chuc_nang: "quan_ly_nguoi_dung",
       },
-      {
-        path: "trang-chu",
-        component: () => import("../components/Admin/TrangChu/index.vue"),
+    },
+    {
+      path: "quan-ly-dao-tao",
+      component: () => import("../components/Admin/QLDaoTao/index.vue"),
+      meta: {
+        chuc_nang: "quan_ly_khoa",
       },
-      {
-        path: "ql-nguoi-dung",
-        component: () => import("../components/Admin/QLNguoiDung/index.vue"),
+    },
+    {
+      path: "quan-ly-dot-danh-gia",
+      component: () => import("../components/Admin/QLDotDanhGia/index.vue"),
+      meta: {
+        chuc_nang: "quan_ly_dot_danh_gia",
       },
-      {
-        path: "quan-ly-dao-tao",
-        component: () => import("../components/Admin/QLDaoTao/index.vue"),
+    },
+    {
+      path: "quan-ly-tieu-chi",
+      component: () => import("../components/Admin/QLTieuChi/index.vue"),
+      meta: {
+        chuc_nang: "quan_ly_tieu_chi",
       },
-      {
-        path: "chuyen-nganh",
-        redirect: () => ({
-          path: "/admin/quan-ly-dao-tao",
-          query: { tab: "nganh" },
-        }),
+    },
+    {
+      path: "phan-quyen",
+      component: () => import("../components/Admin/PhanQuyen/index.vue"),
+      meta: {
+        chuc_nang: "phan_quyen",
       },
-      {
-        path: "khoa",
-        redirect: () => ({
-          path: "/admin/quan-ly-dao-tao",
-          query: { tab: "khoa" },
-        }),
+    },
+    {
+      path: "ds-phieu-cho-duyet",
+      name: "AdminDSPhieuChoDuyet",
+      component: () => import("../components/Admin/DSPhieuChoDuyet/index.vue"),
+      meta: {
+        chuc_nang: "duyet_phieu_ren_luyen",
       },
-      {
-        path: "lop-hoc",
-        redirect: () => ({
-          path: "/admin/quan-ly-dao-tao",
-          query: { tab: "lop" },
-        }),
+    },
+    {
+      path: "chi-tiet-danh-gia/:id",
+      name: "AdminChiTietPhieuDanhGia",
+      component: () => import("../components/Admin/ChiTietPhieuDanhGia/index.vue"),
+      meta: {
+        chuc_nang: "duyet_phieu_ren_luyen",
       },
-      {
-        path: "ds-lop",
-        redirect: () => ({
-          path: "/admin/quan-ly-dao-tao",
-          query: { tab: "danh-sach-lop" },
-        }),
-      },
-      {
-        path: "quan-ly-dot-danh-gia",
-        component: () => import("../components/Admin/QLDotDanhGia/index.vue"),
-      },
-      {
-        path: "quan-ly-tieu-chi",
-        component: () => import("../components/Admin/QLTieuChi/index.vue"),
-      },
-      {
-        path: "phan-quyen",
-        component: () => import("../components/Admin/PhanQuyen/index.vue"),
-      },
-      {
-        path: "ds-phieu-cho-duyet",
-        name: "AdminDSPhieuChoDuyet",
-        component: () =>
-          import("../components/Admin/DSPhieuChoDuyet/index.vue"),
-      },
-      {
-        path: "chi-tiet-danh-gia/:id",
-        name: "AdminChiTietPhieuDanhGia",
-        component: () =>
-          import("../components/Admin/ChiTietPhieuDanhGia/index.vue"),
-      },
-      {
-        path: "chi-tiet-danh-gia",
-        redirect: "/admin/ds-phieu-cho-duyet",
-      },
-    ],
-  },
-
+    },
+    {
+      path: "chi-tiet-danh-gia",
+      redirect: "/admin/ds-phieu-cho-duyet",
+    },
+  ],
+},
   // ============= SV/Lớp trưởng/Bí thư ==================
   {
     path: "/sinh-vien",

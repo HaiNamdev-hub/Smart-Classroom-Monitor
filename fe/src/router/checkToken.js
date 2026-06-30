@@ -47,7 +47,20 @@ function checkTokenApi(token) {
   });
 }
 
-// Dùng cho path "/"
+function checkQuyenApi(token, maChucNang) {
+  return axios.post(
+    "http://127.0.0.1:8000/api/admin/check-quyen",
+    {
+      ma_chuc_nang: maChucNang,
+    },
+    {
+      headers: {
+        Authorization: "Bearer " + token,
+      },
+    }
+  );
+}
+
 export function redirectByRole(to, from, next) {
   const token = sessionStorage.getItem("auth_token");
 
@@ -80,8 +93,7 @@ export function redirectByRole(to, from, next) {
     });
 }
 
-// Dùng cho /admin và /sinh-vien
-export default function checkToken(to, from, next) {
+export default async function checkToken(to, from, next) {
   const token = sessionStorage.getItem("auth_token");
 
   if (!token) {
@@ -89,51 +101,57 @@ export default function checkToken(to, from, next) {
     return next("/dang-nhap");
   }
 
-  checkTokenApi(token)
-    .then((res) => {
-      if (!res.data.status) {
-        clearAuth();
+  try {
+    const res = await checkTokenApi(token);
 
-        toaster.error("Phiên đăng nhập đã hết hạn");
-        return next("/dang-nhap");
-      }
-
-      const user = res.data.user;
-      const role = getRoleFromUser(user);
-      const path = to.path;
-
-      if (!role) {
-        clearAuth();
-
-        toaster.error("Vai trò không hợp lệ");
-        return next("/dang-nhap");
-      }
-
-      sessionStorage.setItem("auth_user", JSON.stringify(user));
-
-      if (adminRoles.includes(role) && path.startsWith("/sinh-vien")) {
-        return next("/admin/trang-chu");
-      }
-
-      if (studentRoles.includes(role) && path.startsWith("/admin")) {
-        toaster.error("Bạn không có quyền truy cập");
-        return next("/sinh-vien/trang-chu");
-      }
-
-      if (adminRoles.includes(role) && !path.startsWith("/admin")) {
-        return next("/admin/trang-chu");
-      }
-
-      if (studentRoles.includes(role) && !path.startsWith("/sinh-vien")) {
-        return next("/sinh-vien/trang-chu");
-      }
-
-      return next();
-    })
-    .catch(() => {
+    if (!res.data.status) {
       clearAuth();
-
-      toaster.error("Lỗi xác thực");
+      toaster.error("Phiên đăng nhập đã hết hạn");
       return next("/dang-nhap");
-    });
+    }
+
+    const user = res.data.user;
+    const role = getRoleFromUser(user);
+    const path = to.path;
+
+    if (!role) {
+      clearAuth();
+      toaster.error("Vai trò không hợp lệ");
+      return next("/dang-nhap");
+    }
+
+    sessionStorage.setItem("auth_user", JSON.stringify(user));
+
+    if (adminRoles.includes(role) && path.startsWith("/sinh-vien")) {
+      return next("/admin/trang-chu");
+    }
+
+    if (studentRoles.includes(role) && path.startsWith("/admin")) {
+      toaster.error("Bạn không có quyền truy cập");
+      return next("/sinh-vien/trang-chu");
+    }
+
+    if (adminRoles.includes(role) && !path.startsWith("/admin")) {
+      return next("/admin/trang-chu");
+    }
+
+    if (studentRoles.includes(role) && !path.startsWith("/sinh-vien")) {
+      return next("/sinh-vien/trang-chu");
+    }
+
+    if (path.startsWith("/admin") && to.meta?.chuc_nang && role !== "admin") {
+      const check = await checkQuyenApi(token, to.meta.chuc_nang);
+
+      if (!check.data.status) {
+        toaster.error("Bạn không có quyền truy cập chức năng này");
+        return next("/admin/trang-chu");
+      }
+    }
+
+    return next();
+  } catch (e) {
+    clearAuth();
+    toaster.error("Lỗi xác thực");
+    return next("/dang-nhap");
+  }
 }

@@ -47,7 +47,7 @@
 
             <div class="review-stat-card success">
                 <span>Lớp đã đánh giá</span>
-                <strong>{{ countByStatus('lop_da_danh_gia') }}</strong>
+                <strong>{{ countByStatus('lop_da_duyet') }}</strong>
             </div>
         </div>
 
@@ -64,10 +64,9 @@
                     <select v-model="filterStatus">
                         <option value="all">Tất cả trạng thái</option>
                         <option value="da_gui">Đã gửi</option>
-                        <option value="lop_da_danh_gia">Lớp đã đánh giá</option>
-                        <option value="co_van_da_kiem_tra">CVHT đã kiểm tra</option>
+                        <option value="lop_da_duyet">Lớp đã duyệt</option>
+                        <option value="co_van_da_duyet">Cố vấn đã duyệt</option>
                         <option value="hoan_thanh">Hoàn thành</option>
-                        <option value="tra_lai">Trả lại</option>
                     </select>
                 </div>
             </div>
@@ -166,8 +165,10 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import axios from 'axios'
+import { createToaster } from '@meforma/vue-toaster'
 
 import "../../../assets/css/admin.css"
 import "../../../assets/css/dark-theme.css"
@@ -176,336 +177,187 @@ import "../../../assets/css/user.css"
 
 const router = useRouter()
 
-const search = ref('')
-const filterStatus = ref('all')
-
-/*
-|--------------------------------------------------------------------------
-| MOCK ĐÚNG DATABASE
-|--------------------------------------------------------------------------
-| currentUser      -> nguoi_dung
-| currentSinhVien  -> sinh_vien
-| lopDangQuanLy    -> lop + khoa + nganh
-| phieuRenLuyen    -> phieu_ren_luyen + sinh_vien + nguoi_dung + lop
-|--------------------------------------------------------------------------
-*/
-
-const currentUser = reactive({
-    id: 1,
-    ho_ten: 'Nguyễn Văn A',
-    email: 'sv001@student.edu.vn',
-    vai_tro_id: 6,
-    trang_thai: 'hoat_dong',
+const toaster = createToaster({
+    position: 'top-right',
 })
 
+const BASE_URL = 'http://127.0.0.1:8000/api'
+const API = BASE_URL + '/can-su-lop/phieu-ren-luyen/get-data'
+
+const search = ref('')
+const filterStatus = ref('all')
+const loading = ref(false)
+
+const vaiTroCanSu = ref('')
+
 const lopDangQuanLy = reactive({
-    id: 1,
-    ma_lop: 'D23CQCN01',
-    ten_lop: 'Công nghệ thông tin 01',
-
-    khoa_id: 1,
-    nganh_id: 1,
-    co_van_id: 2,
-
-    lop_truong_id: 1,
-    bi_thu_id: 3,
+    id: null,
+    ma_lop: '',
+    ten_lop: '',
 
     khoa: {
-        id: 1,
-        ma_khoa: 'CNTT',
-        ten_khoa: 'Công nghệ thông tin',
+        id: null,
+        ma_khoa: '',
+        ten_khoa: '',
     },
 
     nganh: {
-        id: 1,
-        ma_nganh: 'KTPM',
-        ten_nganh: 'Kỹ thuật phần mềm',
+        id: null,
+        ma_nganh: '',
+        ten_nganh: '',
     },
 })
 
-const currentSinhVien = reactive({
-    id: 1,
-    ma_sinh_vien: 'SV001',
-    nam_trung_tuyen: 2023,
-    user_id: currentUser.id,
-    lop_id: lopDangQuanLy.id,
-    nguoi_dung: currentUser,
-    lop: lopDangQuanLy,
+const thongKe = reactive({
+    tong_phieu: 0,
+    da_gui: 0,
+    lop_da_duyet: 0,
+    co_van_da_duyet: 0,
+    hoan_thanh: 0,
 })
 
-const dotDanhGia = reactive({
-    id: 1,
-    nam_hoc: '2025 - 2026',
-    hoc_ky: 1,
-    ngay_bat_dau: '2026-06-01 00:00:00',
-    ngay_ket_thuc: '2026-06-30 23:59:59',
-    trang_thai: 'dang_mo',
+const phieuRenLuyen = ref([])
+
+function authHeader() {
+    const token =
+        sessionStorage.getItem('auth_token') ||
+        localStorage.getItem('auth_token') ||
+        localStorage.getItem('key_admin')
+
+    return {
+        headers: {
+            Authorization: 'Bearer ' + token,
+        },
+    }
+}
+
+onMounted(() => {
+    getData()
 })
 
-const isOfficer = computed(() => {
-    return (
-        currentSinhVien.id === lopDangQuanLy.lop_truong_id ||
-        currentSinhVien.id === lopDangQuanLy.bi_thu_id
-    )
-})
+function getData() {
+    loading.value = true
 
-const phieuRenLuyen = ref([
-    {
-        id: 1,
-        sinh_vien_id: 1,
-        dot_danh_gia_id: dotDanhGia.id,
+    axios
+        .get(API, authHeader())
+        .then((res) => {
+            if (!res.data.status) {
+                toaster.error(res.data.message || 'Không lấy được danh sách phiếu lớp!')
+                return
+            }
 
-        tong_diem_sv: 86,
-        tong_diem_lop: 0,
+            vaiTroCanSu.value = res.data.vai_tro_can_su || ''
 
-        xep_loai_sv: 'tot',
-        xep_loai_lop: null,
+            const lop = res.data.lop || {}
 
-        trang_thai: 'da_gui',
+            Object.assign(lopDangQuanLy, {
+                id: lop.id || null,
+                ma_lop: lop.ma_lop || '',
+                ten_lop: lop.ten_lop || '',
+                khoa: {
+                    id: lop.khoa?.id || null,
+                    ma_khoa: lop.khoa?.ma_khoa || '',
+                    ten_khoa: lop.khoa?.ten_khoa || '',
+                },
+                nganh: {
+                    id: lop.nganh?.id || null,
+                    ma_nganh: lop.nganh?.ma_nganh || '',
+                    ten_nganh: lop.nganh?.ten_nganh || '',
+                },
+            })
 
-        created_at: '2026-06-10 08:00:00',
-        updated_at: '2026-06-12 09:20:00',
+            Object.assign(thongKe, {
+                tong_phieu: res.data.thong_ke?.tong_phieu || 0,
+                da_gui: res.data.thong_ke?.da_gui || 0,
+                lop_da_duyet: res.data.thong_ke?.lop_da_duyet || 0,
+                co_van_da_duyet: res.data.thong_ke?.co_van_da_duyet || 0,
+                hoan_thanh: res.data.thong_ke?.hoan_thanh || 0,
+            })
 
-        sinh_vien: {
-            id: 1,
-            ma_sinh_vien: 'SV001',
-            nam_trung_tuyen: 2023,
-            user_id: 1,
-            lop_id: 1,
+            phieuRenLuyen.value = (res.data.data || []).map((item) => {
+                return {
+                    id: item.id,
+                    sinh_vien_id: item.sinh_vien_id,
+                    dot_danh_gia_id: item.dot_danh_gia_id,
 
-            nguoi_dung: {
-                id: 1,
-                ho_ten: 'Nguyễn Văn A',
-                email: 'sv001@student.edu.vn',
-                so_dien_thoai: '0901234567',
-                ngay_sinh: '15/01/2005',
-                vai_tro_id: 6,
-                trang_thai: 'hoat_dong',
-            },
+                    tong_diem_sv: item.tong_diem_sv || 0,
+                    tong_diem_lop: item.tong_diem_lop || 0,
+                    tong_diem_cuoi: item.tong_diem_cuoi || 0,
 
-            lop: lopDangQuanLy,
-        },
+                    xep_loai: item.xep_loai || null,
+                    trang_thai: item.trang_thai,
 
-        dot_danh_gia: dotDanhGia,
-    },
+                    created_at: item.created_at,
+                    updated_at: item.updated_at,
 
-    {
-        id: 2,
-        sinh_vien_id: 2,
-        dot_danh_gia_id: dotDanhGia.id,
+                    sinh_vien: {
+                        id: item.sinh_vien_id,
+                        ma_sinh_vien: item.ma_sinh_vien,
+                        nam_trung_tuyen: item.nam_trung_tuyen,
+                        lop_id: lopDangQuanLy.id,
 
-        tong_diem_sv: 85,
-        tong_diem_lop: 0,
+                        nguoi_dung: {
+                            ho_ten: item.ho_ten,
+                            email: item.email || '',
+                            so_dien_thoai: item.so_dien_thoai || '',
+                            ngay_sinh: item.ngay_sinh || '',
+                        },
 
-        xep_loai_sv: 'tot',
-        xep_loai_lop: null,
+                        lop: {
+                            id: lopDangQuanLy.id,
+                            ma_lop: item.ma_lop || lopDangQuanLy.ma_lop,
+                            ten_lop: item.ten_lop || lopDangQuanLy.ten_lop,
 
-        trang_thai: 'da_gui',
+                            khoa: {
+                                ten_khoa: item.ten_khoa || lopDangQuanLy.khoa.ten_khoa,
+                            },
 
-        created_at: '2026-06-11 08:00:00',
-        updated_at: '2026-06-12 10:30:00',
+                            nganh: {
+                                ten_nganh: item.ten_nganh || lopDangQuanLy.nganh.ten_nganh,
+                            },
+                        },
+                    },
 
-        sinh_vien: {
-            id: 2,
-            ma_sinh_vien: 'SV002',
-            nam_trung_tuyen: 2023,
-            user_id: 2,
-            lop_id: 1,
-
-            nguoi_dung: {
-                id: 2,
-                ho_ten: 'Trần Thị Bình',
-                email: 'sv002@student.edu.vn',
-                so_dien_thoai: '0912345678',
-                ngay_sinh: '20/03/2005',
-            vai_tro_id: 6,
-                trang_thai: 'hoat_dong',
-            },
-
-            lop: lopDangQuanLy,
-        },
-
-        dot_danh_gia: dotDanhGia,
-    },
-
-    {
-        id: 3,
-        sinh_vien_id: 3,
-        dot_danh_gia_id: dotDanhGia.id,
-
-        tong_diem_sv: 78,
-        tong_diem_lop: 0,
-
-        xep_loai_sv: 'kha',
-        xep_loai_lop: null,
-
-        trang_thai: 'da_gui',
-
-        created_at: '2026-06-11 08:00:00',
-        updated_at: '2026-06-12 11:20:00',
-
-        sinh_vien: {
-            id: 3,
-            ma_sinh_vien: 'SV003',
-            nam_trung_tuyen: 2023,
-            user_id: 3,
-            lop_id: 1,
-
-            nguoi_dung: {
-                id: 3,
-                ho_ten: 'Lê Văn Cường',
-                email: 'sv003@student.edu.vn',
-                so_dien_thoai: '0922222222',
-                ngay_sinh: '11/07/2005',
-                vai_tro_id: 6,
-                trang_thai: 'hoat_dong',
-            },
-
-            lop: lopDangQuanLy,
-        },
-
-        dot_danh_gia: dotDanhGia,
-    },
-
-    {
-        id: 4,
-        sinh_vien_id: 4,
-        dot_danh_gia_id: dotDanhGia.id,
-
-        tong_diem_sv: 92,
-        tong_diem_lop: 90,
-
-        xep_loai_sv: 'xuat_sac',
-        xep_loai_lop: 'xuat_sac',
-
-        trang_thai: 'lop_da_danh_gia',
-
-        created_at: '2026-06-10 08:00:00',
-        updated_at: '2026-06-12 14:45:00',
-
-        sinh_vien: {
-            id: 4,
-            ma_sinh_vien: 'SV004',
-            nam_trung_tuyen: 2023,
-            user_id: 4,
-            lop_id: 1,
-
-            nguoi_dung: {
-                id: 4,
-                ho_ten: 'Phạm Thị Dung',
-                email: 'sv004@student.edu.vn',
-                so_dien_thoai: '0933333333',
-                ngay_sinh: '03/02/2005',
-                vai_tro_id: 6,
-                trang_thai: 'hoat_dong',
-            },
-
-            lop: lopDangQuanLy,
-        },
-
-        dot_danh_gia: dotDanhGia,
-    },
-
-    {
-        id: 5,
-        sinh_vien_id: 5,
-        dot_danh_gia_id: dotDanhGia.id,
-
-        tong_diem_sv: 70,
-        tong_diem_lop: 68,
-
-        xep_loai_sv: 'kha',
-        xep_loai_lop: 'kha',
-
-        trang_thai: 'co_van_da_kiem_tra',
-
-        created_at: '2026-06-09 08:00:00',
-        updated_at: '2026-06-13 09:15:00',
-
-        sinh_vien: {
-            id: 5,
-            ma_sinh_vien: 'SV005',
-            nam_trung_tuyen: 2023,
-            user_id: 5,
-            lop_id: 1,
-
-            nguoi_dung: {
-                id: 5,
-                ho_ten: 'Đỗ Văn Hùng',
-                email: 'sv005@student.edu.vn',
-                so_dien_thoai: '0944444444',
-                ngay_sinh: '09/09/2005',
-                vai_tro_id: 6,
-                trang_thai: 'hoat_dong',
-            },
-
-            lop: lopDangQuanLy,
-        },
-
-        dot_danh_gia: dotDanhGia,
-    },
-
-    {
-        id: 6,
-        sinh_vien_id: 6,
-        dot_danh_gia_id: dotDanhGia.id,
-
-        tong_diem_sv: 65,
-        tong_diem_lop: 0,
-
-        xep_loai_sv: 'kha',
-        xep_loai_lop: null,
-
-        trang_thai: 'tra_lai',
-
-        created_at: '2026-06-08 08:00:00',
-        updated_at: '2026-06-13 15:00:00',
-
-        sinh_vien: {
-            id: 6,
-            ma_sinh_vien: 'SV006',
-            nam_trung_tuyen: 2023,
-            user_id: 6,
-            lop_id: 1,
-
-            nguoi_dung: {
-                id: 6,
-                ho_ten: 'Hoàng Minh Khang',
-                email: 'sv006@student.edu.vn',
-                so_dien_thoai: '0955555555',
-                ngay_sinh: '12/12/2005',
-                vai_tro_id: 6,
-                trang_thai: 'hoat_dong',
-            },
-
-            lop: lopDangQuanLy,
-        },
-
-        dot_danh_gia: dotDanhGia,
-    },
-])
+                    dot_danh_gia: {
+                        nam_hoc: item.nam_hoc,
+                        hoc_ky: item.hoc_ky,
+                        ngay_bat_dau: item.ngay_bat_dau,
+                        ngay_ket_thuc: item.ngay_ket_thuc,
+                    },
+                }
+            })
+        })
+        .catch((err) => {
+            console.log('Lỗi lấy danh sách phiếu lớp:', err.response?.data || err)
+            toaster.error(err.response?.data?.message || 'Lỗi lấy danh sách phiếu lớp!')
+        })
+        .finally(() => {
+            loading.value = false
+        })
+}
 
 const classmateForms = computed(() => {
-    return phieuRenLuyen.value.filter((item) => {
-        const sameClass = item.sinh_vien.lop_id === currentSinhVien.lop_id
-        const notSelf = item.sinh_vien_id !== currentSinhVien.id
-
-        return sameClass && notSelf
-    })
+    return phieuRenLuyen.value
 })
 
 const filteredForms = computed(() => {
     const q = search.value.trim().toLowerCase()
 
     return classmateForms.value.filter((item) => {
-        const student = item.sinh_vien
-        const user = student.nguoi_dung
+        const student = item.sinh_vien || {}
+        const user = student.nguoi_dung || {}
+
+        const maSinhVien = String(student.ma_sinh_vien || '').toLowerCase()
+        const hoTen = String(user.ho_ten || '').toLowerCase()
+        const email = String(user.email || '').toLowerCase()
+        const trangThai = formatTrangThai(item.trang_thai).toLowerCase()
 
         const matchSearch =
             !q ||
-            student.ma_sinh_vien.toLowerCase().includes(q) ||
-            user.ho_ten.toLowerCase().includes(q) ||
-            String(user.email || '').toLowerCase().includes(q)
+            maSinhVien.includes(q) ||
+            hoTen.includes(q) ||
+            email.includes(q) ||
+            trangThai.includes(q)
 
         const matchStatus =
             filterStatus.value === 'all' ||
@@ -520,19 +372,24 @@ const waitingClassReview = computed(() => {
 })
 
 function countByStatus(status) {
+    if (status === 'da_gui') return thongKe.da_gui || 0
+    if (status === 'lop_da_duyet') return thongKe.lop_da_duyet || 0
+    if (status === 'co_van_da_duyet') return thongKe.co_van_da_duyet || 0
+    if (status === 'hoan_thanh') return thongKe.hoan_thanh || 0
+
     return classmateForms.value.filter((item) => item.trang_thai === status).length
 }
 
 function hasClassScore(row) {
     return [
-        'lop_da_danh_gia',
-        'co_van_da_kiem_tra',
+        'lop_da_duyet',
+        'co_van_da_duyet',
         'hoan_thanh',
     ].includes(row.trang_thai)
 }
 
 function canReview(row) {
-    return isOfficer.value && row.trang_thai === 'da_gui'
+    return row.trang_thai === 'da_gui' || row.trang_thai === 'lop_da_duyet'
 }
 
 function goToEvaluation(row, mode = 'view') {
@@ -548,10 +405,9 @@ function formatTrangThai(value) {
     const map = {
         nhap: 'Nháp',
         da_gui: 'Đã gửi',
-        lop_da_danh_gia: 'Lớp đã đánh giá',
-        co_van_da_kiem_tra: 'CVHT đã kiểm tra',
+        lop_da_duyet: 'Lớp đã duyệt',
+        co_van_da_duyet: 'Cố vấn đã duyệt',
         hoan_thanh: 'Hoàn thành',
-        tra_lai: 'Trả lại',
     }
 
     return map[value] || '—'
@@ -730,13 +586,13 @@ function formatDate(value) {
     border-color: rgba(245, 158, 11, 0.32);
 }
 
-.status-lop_da_danh_gia {
+.status-lop_da_duyet {
     background: rgba(59, 130, 246, 0.16);
     color: #2563eb;
     border-color: rgba(59, 130, 246, 0.32);
 }
 
-.status-co_van_da_kiem_tra {
+.status-co_van_da_duyet {
     background: rgba(34, 197, 94, 0.16);
     color: #15803d;
     border-color: rgba(34, 197, 94, 0.32);
@@ -769,15 +625,15 @@ function formatDate(value) {
     border-color: rgba(251, 191, 36, 0.42);
 }
 
-:global(html.dark-theme) .status-lop_da_danh_gia,
-:global([data-theme="dark"]) .status-lop_da_danh_gia {
+:global(html.dark-theme) .status-lop_da_duyet,
+:global([data-theme="dark"]) .status-lop_da_duyet {
     background: rgba(96, 165, 250, 0.22);
     color: #bfdbfe;
     border-color: rgba(96, 165, 250, 0.42);
 }
 
-:global(html.dark-theme) .status-co_van_da_kiem_tra,
-:global([data-theme="dark"]) .status-co_van_da_kiem_tra {
+:global(html.dark-theme) .status-co_van_da_duyet,
+:global([data-theme="dark"]) .status-co_van_da_duyet {
     background: rgba(74, 222, 128, 0.20);
     color: #bbf7d0;
     border-color: rgba(74, 222, 128, 0.42);

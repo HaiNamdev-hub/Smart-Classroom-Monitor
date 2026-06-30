@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class ChucNang extends Model
 {
+    use HasFactory;
+
     protected $table = 'chuc_nang';
 
     protected $fillable = [
@@ -14,4 +17,9 @@ class ChucNang extends Model
         'mo_ta',
         'trang_thai',
     ];
+
+    public function phanQuyens()
+    {
+        return $this->hasMany(PhanQuyen::class, 'chuc_nang_id');
+    }
 }

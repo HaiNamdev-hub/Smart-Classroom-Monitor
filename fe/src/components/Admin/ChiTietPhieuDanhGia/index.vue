@@ -63,10 +63,7 @@
 
                 <div class="info-line">
                     <label>Ngành/chuyên ngành:</label>
-                    <select v-model="student.nganh" disabled>
-                        <option>Kỹ thuật phần mềm</option>
-                        <option>Hệ thống thông tin</option>
-                    </select>
+                    <input v-model="student.nganh" disabled />
                 </div>
 
                 <div class="info-line">
@@ -78,10 +75,7 @@
 
                 <div class="info-line">
                     <label>Lớp:</label>
-                    <select v-model="student.lop" disabled>
-                        <option>D23CQCN01</option>
-                        <option>D23CQCN02</option>
-                    </select>
+                    <input v-model="student.lop" disabled />
                 </div>
 
                 <div class="info-line">
@@ -114,10 +108,7 @@
 
                 <div class="info-line">
                     <label>Năm học:</label>
-                    <select v-model="formInfo.nam_hoc" disabled>
-                        <option>2025 - 2026</option>
-                        <option>2026 - 2027</option>
-                    </select>
+                    <input v-model="formInfo.nam_hoc" disabled />
                 </div>
             </div>
 
@@ -392,8 +383,10 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import axios from 'axios'
+
 import "../../../assets/css/admin.css"
 import "../../../assets/css/dashboard.css"
 import "../../../assets/css/user.css"
@@ -401,22 +394,143 @@ import "../../../assets/css/user.css"
 const route = useRoute()
 const router = useRouter()
 
+const API = 'http://127.0.0.1:8000/api/admin/phieu-cho-duyet'
+
+const loading = ref(false)
+const selectedEvidence = ref(null)
+const rejectReason = ref('')
+const rejectError = ref('')
+
 const student = reactive({
-    nam_trung_tuyen: '2023',
-    nganh: 'Kỹ thuật phần mềm',
-    khoa: 'Công nghệ thông tin',
-    lop: 'D23CQCN01',
-    ma_sinh_vien: 'SV001',
-    ho_ten: 'Nguyễn Văn A',
-    ngay_sinh: '15/01/2005',
-    so_dien_thoai: '0901234567',
+    nam_trung_tuyen: '',
+    nganh: '',
+    khoa: '',
+    lop: '',
+    ma_sinh_vien: '',
+    ho_ten: '',
+    ngay_sinh: '',
+    so_dien_thoai: '',
 })
 
 const formInfo = reactive({
-    hoc_ky: 'Kỳ I',
-    nam_hoc: '2025 - 2026',
-    trang_thai: 'lop_da_danh_gia',
+    id: null,
+    hoc_ky: '',
+    nam_hoc: '',
+    trang_thai: '',
+    tong_diem_sv: 0,
+    tong_diem_lop: 0,
+    tong_diem_cuoi: 0,
+    xep_loai: '',
 })
+
+const evaluationRows = reactive([])
+
+function authHeader() {
+    const token =
+        sessionStorage.getItem('auth_token') ||
+        localStorage.getItem('auth_token') ||
+        localStorage.getItem('key_admin')
+
+    return {
+        headers: {
+            Authorization: 'Bearer ' + token,
+        },
+    }
+}
+
+onMounted(() => {
+    getChiTietPhieu()
+})
+
+watch(
+    () => route.params.id,
+    () => {
+        getChiTietPhieu()
+    }
+)
+
+function getChiTietPhieu() {
+    const id = route.params.id
+
+    if (!id) {
+        alert('Không tìm thấy ID phiếu!')
+        router.push({
+            name: 'AdminDSPhieuChoDuyet',
+        })
+        return
+    }
+
+    loading.value = true
+
+    axios
+        .get(API + '/chi-tiet', {
+            ...authHeader(),
+            params: {
+                id: id,
+            },
+        })
+        .then((res) => {
+            if (!res.data.status) {
+                alert(res.data.message || 'Không lấy được chi tiết phiếu!')
+                router.push({
+                    name: 'AdminDSPhieuChoDuyet',
+                })
+                return
+            }
+
+            const phieu = res.data.phieu || {}
+            const chiTiet = res.data.chi_tiet || []
+
+            Object.assign(student, {
+                nam_trung_tuyen: phieu.nam_trung_tuyen || '',
+                nganh: phieu.ten_nganh || '',
+                khoa: phieu.khoa || phieu.ten_khoa || '',
+                lop: phieu.ten_lop || '',
+                ma_sinh_vien: phieu.ma_sinh_vien || '',
+                ho_ten: phieu.ho_ten || '',
+                ngay_sinh: formatNgay(phieu.ngay_sinh),
+                so_dien_thoai: phieu.so_dien_thoai || '',
+            })
+
+            Object.assign(formInfo, {
+                id: phieu.id || id,
+                hoc_ky: formatHocKyRaw(phieu.hoc_ky),
+                nam_hoc: phieu.nam_hoc || '',
+                trang_thai: phieu.trang_thai || '',
+                tong_diem_sv: Number(phieu.tong_diem_sv || 0),
+                tong_diem_lop: Number(phieu.tong_diem_lop || 0),
+                tong_diem_cuoi: Number(phieu.tong_diem_cuoi || 0),
+                xep_loai: phieu.xep_loai || '',
+            })
+
+            evaluationRows.splice(
+                0,
+                evaluationRows.length,
+                ...chiTiet.map((item) => ({
+                    id: item.id,
+                    type: 'criteria',
+                    tt: item.ma_tieu_chi || '',
+                    content: item.ten_tieu_chi || '',
+                    max_text: item.diem_toi_da ?? '',
+                    max_score: Number(item.diem_toi_da || 0),
+                    student_score: Number(item.diem_sv || 0),
+                    class_score: Number(item.diem_lop || item.diem_sv || 0),
+                    note: item.ghi_chu || '',
+                    editable: true,
+                    chi_tiet_id: item.id,
+                    tieu_chi_id: item.tieu_chi_id,
+                    evidences: item.minh_chung || item.minh_chungs || [],
+                }))
+            )
+        })
+        .catch((err) => {
+            console.log('Lỗi lấy chi tiết phiếu:', err.response?.data || err)
+            alert(err.response?.data?.message || 'Lỗi lấy chi tiết phiếu!')
+        })
+        .finally(() => {
+            loading.value = false
+        })
+}
 
 const isReadOnly = computed(() => {
     const mode = route.query.mode
@@ -429,503 +543,24 @@ const isReadOnly = computed(() => {
     )
 })
 
-const fakeEvaluationDetails = {
-    1: {
-        student: {
-            nam_trung_tuyen: '2023',
-            nganh: 'Kỹ thuật phần mềm',
-            khoa: 'Công nghệ thông tin',
-            lop: 'D23CQCN01',
-            ma_sinh_vien: 'SV001',
-            ho_ten: 'Nguyễn Văn A',
-            ngay_sinh: '15/01/2005',
-            so_dien_thoai: '0901234567',
-        },
-        formInfo: {
-            hoc_ky: 'Kỳ I',
-            nam_hoc: '2025 - 2026',
-            trang_thai: 'lop_da_danh_gia',
-        },
-    },
-
-    2: {
-        student: {
-            nam_trung_tuyen: '2023',
-            nganh: 'Kỹ thuật phần mềm',
-            khoa: 'Công nghệ thông tin',
-            lop: 'D23CQCN01',
-            ma_sinh_vien: 'SV002',
-            ho_ten: 'Trần Thị Bình',
-            ngay_sinh: '20/03/2005',
-            so_dien_thoai: '0912345678',
-        },
-        formInfo: {
-            hoc_ky: 'Kỳ I',
-            nam_hoc: '2025 - 2026',
-            trang_thai: 'da_gui',
-        },
-    },
-
-    3: {
-        student: {
-            nam_trung_tuyen: '2023',
-            nganh: 'Hệ thống thông tin',
-            khoa: 'Công nghệ thông tin',
-            lop: 'D23CQCN02',
-            ma_sinh_vien: 'SV003',
-            ho_ten: 'Lê Văn Cường',
-            ngay_sinh: '11/07/2005',
-            so_dien_thoai: '0987654321',
-        },
-        formInfo: {
-            hoc_ky: 'Kỳ I',
-            nam_hoc: '2025 - 2026',
-            trang_thai: 'lop_da_danh_gia',
-        },
-    },
-
-    4: {
-        student: {
-            nam_trung_tuyen: '2023',
-            nganh: 'Hệ thống thông tin',
-            khoa: 'Công nghệ thông tin',
-            lop: 'D23CQCN02',
-            ma_sinh_vien: 'SV004',
-            ho_ten: 'Phạm Thị Dung',
-            ngay_sinh: '03/02/2005',
-            so_dien_thoai: '0934567890',
-        },
-        formInfo: {
-            hoc_ky: 'Kỳ I',
-            nam_hoc: '2025 - 2026',
-            trang_thai: 'co_van_da_kiem_tra',
-        },
-    },
-
-    5: {
-        student: {
-            nam_trung_tuyen: '2023',
-            nganh: 'Kỹ thuật phần mềm',
-            khoa: 'Công nghệ thông tin',
-            lop: 'D23CQCN01',
-            ma_sinh_vien: 'SV005',
-            ho_ten: 'Đỗ Văn Hùng',
-            ngay_sinh: '09/09/2005',
-            so_dien_thoai: '0967891234',
-        },
-        formInfo: {
-            hoc_ky: 'Kỳ I',
-            nam_hoc: '2025 - 2026',
-            trang_thai: 'tra_lai',
-        },
-    },
-}
-
-function loadEvaluationDetail() {
-    const id = route.params.id
-    const detail = fakeEvaluationDetails[id]
-
-    if (!detail) {
-        router.push({
-            name: 'AdminDSPhieuChoDuyet',
-        })
-        return
-    }
-
-    Object.assign(student, detail.student)
-    Object.assign(formInfo, detail.formInfo)
-}
-
-watch(
-    () => route.params.id,
-    () => {
-        loadEvaluationDetail()
-    },
-    { immediate: true }
-)
-
-const selectedEvidence = ref(null)
-const rejectReason = ref('')
-const rejectError = ref('')
-
-const evaluationRows = reactive([
-    {
-        id: 'I',
-        type: 'section',
-        tt: 'I.',
-        content: 'Ý thức tham gia học tập (căn cứ vào số tín chỉ trong 01 học kỳ ≥ số tín chỉ tối thiểu theo quy định của Học viện)',
-        max_text: 'Từ 0÷20 điểm',
-        note: 'Tổng: 1 + 2 + 3 = 20',
-    },
-    {
-        id: 'I-1',
-        type: 'criteria',
-        tt: '1',
-        content: 'Ý thức và thái độ học tập (ý thức chuyên cần)',
-        max_text: '6',
-        max_score: 6,
-        student_score: 6,
-        class_score: 6,
-        editable: true,
-        note: '',
-        evidences: [],
-    },
-    {
-        id: 'I-1-a',
-        type: 'option',
-        tt: 'a)',
-        content: 'Điểm TB đánh giá thường xuyên học kỳ ≥ 9 (6 điểm)',
-        max_text: '6',
-    },
-    {
-        id: 'I-1-b',
-        type: 'option',
-        tt: 'b)',
-        content: 'Điểm TB đánh giá thường xuyên học kỳ từ 7 đến cận 9 (5 điểm)',
-        max_text: '5',
-    },
-    {
-        id: 'I-1-c',
-        type: 'option',
-        tt: 'c)',
-        content: 'Điểm TB đánh giá thường xuyên học kỳ từ 5 đến cận 7 (4 điểm)',
-        max_text: '4',
-    },
-    {
-        id: 'I-1-d',
-        type: 'option',
-        tt: 'd)',
-        content: 'Điểm TB đánh giá thường xuyên học kỳ từ 4 đến cận 5 (2 điểm)',
-        max_text: '2',
-    },
-    {
-        id: 'I-1-e',
-        type: 'option',
-        tt: 'e)',
-        content: 'Điểm TB đánh giá thường xuyên học kỳ từ 01 đến cận 04 (1 điểm)',
-        max_text: '1',
-    },
-    {
-        id: 'I-2',
-        type: 'criteria',
-        tt: '2',
-        content: 'Ý thức và thái độ tham gia các hoạt động học thuật, hoạt động NCKH, thi Olympic các cấp và các cuộc thi chuyên môn nghiệp vụ từ cấp Khoa trở lên.',
-        max_text: '6',
-        max_score: 6,
-        student_score: 6,
-        class_score: 5,
-        editable: true,
-        note: 'Có minh chứng.',
-        evidences: [
-            {
-                id: 1,
-                ten_file: 'giay_xac_nhan_nckh.pdf',
-                duong_dan: '/minh-chung/giay_xac_nhan_nckh.pdf',
-                trang_thai: 'cho_duyet',
-                created_at: '10/06/2026',
-            },
-        ],
-    },
-    {
-        id: 'I-2-a',
-        type: 'option',
-        tt: 'a)',
-        content: 'Tham gia đầy đủ hoạt động, sự kiện liên quan đến NCKH, học thuật, chuyên môn',
-        max_text: '2',
-        note: 'Có minh chứng file đính kèm',
-    },
-    {
-        id: 'I-2-b',
-        type: 'option',
-        tt: 'b)',
-        content: 'Có công bố khoa học tại Hội nghị hoặc tạp chí khoa học chuyên ngành hoặc tham gia các cuộc thi SV NCKH, Olympic',
-        max_text: '2',
-        note: 'Có minh chứng file đính kèm',
-    },
-    {
-        id: 'I-2-c',
-        type: 'option',
-        tt: 'c)',
-        content: 'Đạt giải trong các cuộc thi SV NCKH, Olympic',
-        max_text: '2',
-        note: 'Có minh chứng file đính kèm',
-    },
-    {
-        id: 'I-3',
-        type: 'criteria',
-        tt: '3',
-        content: 'Xếp loại học tập học kỳ, căn cứ vào điểm trung bình chung học tập lần 1',
-        max_text: '8',
-        max_score: 8,
-        student_score: 8,
-        class_score: 8,
-        editable: true,
-        note: '',
-        evidences: [],
-    },
-
-    {
-        id: 'II',
-        type: 'section',
-        tt: 'II.',
-        content: 'Chấp hành tốt nội quy, quy chế và các quy định khác được áp dụng trong Học viện',
-        max_text: 'Từ 0÷25 điểm',
-    },
-    {
-        id: 'II-1',
-        type: 'criteria',
-        tt: '1',
-        content: 'Chấp hành tốt, không vi phạm',
-        max_text: '25',
-        max_score: 25,
-        student_score: 25,
-        class_score: 25,
-        editable: true,
-        note: 'Sinh viên tự nhập vào.',
-        evidences: [],
-    },
-    {
-        id: 'II-2',
-        type: 'option',
-        tt: '2',
-        content: 'Phần trừ điểm: Sinh viên vi phạm một số lỗi trong nội quy, quy chế, quy định',
-        max_text: '',
-        note: 'Mỗi mục tạo 01 textbox để sinh viên nhập điểm.',
-    },
-    {
-        id: 'II-2-a',
-        type: 'option',
-        tt: '-',
-        content: 'Không tham gia học tập đầy đủ, nghiêm túc nghị quyết, nội quy, quy chế, tuần sinh hoạt công dân - sinh viên hoặc bài thu hoạch không đạt.',
-        max_text: 'Trừ 10 điểm',
-    },
-    {
-        id: 'II-2-b',
-        type: 'option',
-        tt: '-',
-        content: 'Nghỉ không lý do các chuyên đề tuần sinh hoạt công dân - sinh viên đầu khóa, đầu năm, cuối khóa.',
-        max_text: 'Trừ 3 điểm/1 buổi',
-    },
-    {
-        id: 'II-2-c',
-        type: 'option',
-        tt: '-',
-        content: 'Không tham gia các buổi sinh hoạt lớp, họp, hội nghị, giao ban, tập huấn và các hoạt động khác do Học viện yêu cầu.',
-        max_text: 'Trừ 5 điểm/1 buổi',
-    },
-    {
-        id: 'II-2-d',
-        type: 'option',
-        tt: '-',
-        content: 'Vi phạm quy chế thi ở mức cảnh cáo hoặc trừ điểm thi nhưng chưa đến mức bị đình chỉ thi.',
-        max_text: 'Trừ 10 điểm/1 lần',
-    },
-
-    {
-        id: 'III',
-        type: 'section',
-        tt: 'III',
-        content: 'Đánh giá về ý thức và kết quả tham gia các hoạt động chính trị, xã hội, văn hóa, văn nghệ, thể thao, phòng chống tệ nạn xã hội',
-        max_text: 'Từ 0÷20 điểm',
-    },
-    {
-        id: 'III-1',
-        type: 'criteria',
-        tt: '1',
-        content: 'Tham gia đầy đủ, tích cực các hoạt động chính trị, xã hội, các hoạt động tại giảng đường.',
-        max_text: '5',
-        max_score: 5,
-        student_score: 5,
-        class_score: 5,
-        editable: true,
-        note: '',
-        evidences: [],
-    },
-    {
-        id: 'III-2',
-        type: 'criteria',
-        tt: '2',
-        content: 'Ý thức tham gia các hoạt động văn hóa, văn nghệ, thể thao do Học viện/Phân viện, các tổ chức đoàn thể phát động.',
-        max_text: '5',
-        max_score: 5,
-        student_score: 5,
-        class_score: 4,
-        editable: true,
-        note: '',
-        evidences: [
-            {
-                id: 2,
-                ten_file: 'minh_chung_van_nghe.jpg',
-                duong_dan: '/minh-chung/minh_chung_van_nghe.jpg',
-                trang_thai: 'cho_duyet',
-                created_at: '11/06/2026',
-            },
-        ],
-    },
-    {
-        id: 'III-3',
-        type: 'criteria',
-        tt: '3',
-        content: 'Tham gia các câu lạc bộ, Đội, Nhóm được tổ chức theo quy định.',
-        max_text: '5',
-        max_score: 5,
-        student_score: 3,
-        class_score: 3,
-        editable: true,
-        note: '',
-        evidences: [],
-    },
-    {
-        id: 'III-4',
-        type: 'criteria',
-        tt: '4',
-        content: 'Tham gia tuyên truyền, phòng chống tội phạm và các TNXH.',
-        max_text: '3',
-        max_score: 3,
-        student_score: 3,
-        class_score: 3,
-        editable: true,
-        note: '',
-        evidences: [],
-    },
-    {
-        id: 'III-5',
-        type: 'criteria',
-        tt: '5',
-        content: 'Được khen thưởng, biểu dương trong các hoạt động tại mục III.',
-        max_text: '2',
-        max_score: 2,
-        student_score: 2,
-        class_score: 2,
-        editable: true,
-        note: 'File đính kèm.',
-        evidences: [
-            {
-                id: 3,
-                ten_file: 'giay_khen_hoat_dong_doan.pdf',
-                duong_dan: '/minh-chung/giay_khen_hoat_dong_doan.pdf',
-                trang_thai: 'cho_duyet',
-                created_at: '11/06/2026',
-            },
-        ],
-    },
-
-    {
-        id: 'IV',
-        type: 'section',
-        tt: 'IV',
-        content: 'Đánh giá về ý thức công dân trong quan hệ cộng đồng',
-        max_text: 'Từ 0÷25 điểm',
-    },
-    {
-        id: 'IV-1',
-        type: 'criteria',
-        tt: '1',
-        content: 'Ý thức chấp hành và tham gia tuyên truyền chủ trương, đường lối của Đảng, chính sách pháp luật của Nhà nước, quy định nơi cư trú, an ninh trật tự, an toàn giao thông.',
-        max_text: '10',
-        max_score: 10,
-        student_score: 10,
-        class_score: 8,
-        editable: true,
-        note: '',
-        evidences: [],
-    },
-    {
-        id: 'IV-2',
-        type: 'criteria',
-        tt: '2',
-        content: 'Tham gia các hoạt động nhân đạo, từ thiện vì cộng đồng, phong trào thanh niên tình nguyện.',
-        max_text: '10',
-        max_score: 10,
-        student_score: 10,
-        class_score: 10,
-        editable: true,
-        note: 'File đính kèm.',
-        evidences: [
-            {
-                id: 4,
-                ten_file: 'xac_nhan_tinh_nguyen.pdf',
-                duong_dan: '/minh-chung/xac_nhan_tinh_nguyen.pdf',
-                trang_thai: 'cho_duyet',
-                created_at: '12/06/2026',
-            },
-        ],
-    },
-    {
-        id: 'IV-3',
-        type: 'criteria',
-        tt: '3',
-        content: 'Ý thức xây dựng mối quan hệ đoàn kết với bạn bè và tập thể; xây dựng, bảo vệ cảnh quan giảng đường, nơi cư trú văn minh, sạch đẹp, văn hóa học đường.',
-        max_text: '5',
-        max_score: 5,
-        student_score: 5,
-        class_score: 5,
-        editable: true,
-        note: '',
-        evidences: [],
-    },
-
-    {
-        id: 'V',
-        type: 'section',
-        tt: 'V.',
-        content: 'Đánh giá về ý thức và kết quả tham gia Ban cán sự lớp, BCH Đoàn, Ban chủ nhiệm các Ban, CLB, Đội, Hội, Nhóm được thành lập theo quy định.',
-        max_text: 'Từ 0÷10 điểm',
-        note: 'Mỗi sinh viên chỉ được tối đa 10 điểm cho mục này.',
-    },
-    {
-        id: 'V-1',
-        type: 'option',
-        tt: '1',
-        content: 'BCS lớp, BCH các tổ chức Đảng, Đoàn thanh niên, Hội sinh viên, chi bộ sinh viên, các CLB và các tổ chức khác.',
-        max_text: '7',
-    },
-    {
-        id: 'V-2-a',
-        type: 'criteria',
-        tt: '2a',
-        content: 'Sinh viên tham gia đầy đủ các hoạt động, sinh hoạt của lớp, khoa, Học viện, có ý kiến tham gia xây dựng tập thể vững mạnh.',
-        max_text: '3',
-        max_score: 3,
-        student_score: 3,
-        class_score: 3,
-        editable: true,
-        note: '',
-        evidences: [],
-    },
-    {
-        id: 'V-2-b',
-        type: 'criteria',
-        tt: '2b',
-        content: 'Sinh viên đạt được các thành tích đặc biệt trong học tập, rèn luyện, dũng cảm cứu người được cấp giấy chứng nhận hoặc có giấy khen.',
-        max_text: '7',
-        max_score: 7,
-        student_score: 5,
-        class_score: 5,
-        editable: true,
-        note: 'File đính kèm.',
-        evidences: [
-            {
-                id: 5,
-                ten_file: 'giay_khen_cap_khoa.pdf',
-                duong_dan: '/minh-chung/giay_khen_cap_khoa.pdf',
-                trang_thai: 'cho_duyet',
-                created_at: '12/06/2026',
-            },
-        ],
-    },
-])
-
 const totalStudentScore = computed(() => {
-    return evaluationRows
+    const total = evaluationRows
         .filter((row) => row.editable)
-        .reduce((sum, row) => sum + Number(row.student_score || 0), 0)
+        .reduce((sum, row) => {
+            return sum + Number(row.student_score || 0)
+        }, 0)
+
+    return Math.min(total, 100)
 })
 
 const totalClassScore = computed(() => {
-    return evaluationRows
+    const total = evaluationRows
         .filter((row) => row.editable)
-        .reduce((sum, row) => sum + Number(row.class_score || 0), 0)
+        .reduce((sum, row) => {
+            return sum + Number(row.class_score || 0)
+        }, 0)
+
+    return Math.min(total, 100)
 })
 
 function rowClass(row) {
@@ -944,17 +579,105 @@ function normalizeScore(row) {
         return
     }
 
-    if (score > row.max_score) {
-        row.class_score = row.max_score
+    if (score > Number(row.max_score || 0)) {
+        row.class_score = Number(row.max_score || 0)
     }
 }
 
+function saveDraft() {
+    alert('Hiện backend chưa có API lưu điểm lớp/CVHT. Nút này chưa lưu thật vào DB.')
+}
+
+function approveEvaluation() {
+    if (!formInfo.id) {
+        alert('Không tìm thấy phiếu!')
+        return
+    }
+
+    if (!confirm('Bạn chắc chắn muốn duyệt phiếu này?')) {
+        return
+    }
+
+    axios
+        .post(
+            API + '/duyet',
+            {
+                id: formInfo.id,
+                ghi_chu: 'CVHT đã kiểm tra phiếu',
+            },
+            authHeader()
+        )
+        .then((res) => {
+            if (!res.data.status) {
+                alert(res.data.message || 'Duyệt phiếu thất bại!')
+                return
+            }
+
+            alert(res.data.message || 'Duyệt phiếu thành công!')
+
+            router.push({
+                name: 'AdminDSPhieuChoDuyet',
+            })
+        })
+        .catch((err) => {
+            console.log('Lỗi duyệt phiếu:', err.response?.data || err)
+            alert(err.response?.data?.message || 'Lỗi duyệt phiếu!')
+        })
+}
+
+function rejectEvaluation() {
+    rejectError.value = ''
+
+    if (!rejectReason.value.trim()) {
+        rejectError.value = 'Vui lòng nhập lý do trả lại.'
+        return
+    }
+
+    if (!formInfo.id) {
+        rejectError.value = 'Không tìm thấy phiếu!'
+        return
+    }
+
+    axios
+        .post(
+            API + '/tra-lai',
+            {
+                id: formInfo.id,
+                ghi_chu: rejectReason.value,
+            },
+            authHeader()
+        )
+        .then((res) => {
+            if (!res.data.status) {
+                alert(res.data.message || 'Trả lại phiếu thất bại!')
+                return
+            }
+
+            hideModal('rejectModal')
+            rejectReason.value = ''
+            rejectError.value = ''
+
+            alert(res.data.message || 'Trả lại phiếu thành công!')
+
+            router.push({
+                name: 'AdminDSPhieuChoDuyet',
+            })
+        })
+        .catch((err) => {
+            console.log('Lỗi trả lại phiếu:', err.response?.data || err)
+            alert(err.response?.data?.message || 'Lỗi trả lại phiếu!')
+        })
+}
+
 function classifyScore(score) {
-    if (score >= 90) return 'Xuất sắc'
-    if (score >= 80) return 'Tốt'
-    if (score >= 65) return 'Khá'
-    if (score >= 50) return 'Trung bình'
-    if (score >= 35) return 'Yếu'
+    const value = Number(score || 0)
+
+    if (value >= 90) return 'Xuất sắc'
+    if (value >= 80) return 'Tốt'
+    if (value >= 65) return 'Khá'
+    if (value >= 50) return 'Trung bình'
+    if (value >= 35) return 'Yếu'
+
     return 'Kém'
 }
 
@@ -971,12 +694,32 @@ function formatTrangThai(value) {
     return map[value] || '—'
 }
 
+function formatHocKyRaw(value) {
+    if (value === 1 || value === '1') return 'Kỳ I'
+    if (value === 2 || value === '2') return 'Kỳ II'
+
+    return value || '—'
+}
+
+function formatNgay(value) {
+    if (!value) return ''
+
+    const date = new Date(value)
+
+    if (Number.isNaN(date.getTime())) {
+        return value
+    }
+
+    return date.toLocaleDateString('vi-VN')
+}
+
 function fileIcon(fileName) {
     const value = String(fileName || '').toLowerCase()
 
     if (value.endsWith('.pdf')) return 'fa-solid fa-file-pdf'
     if (value.endsWith('.doc') || value.endsWith('.docx')) return 'fa-solid fa-file-word'
     if (value.endsWith('.xls') || value.endsWith('.xlsx')) return 'fa-solid fa-file-excel'
+
     if (
         value.endsWith('.jpg') ||
         value.endsWith('.jpeg') ||
@@ -1009,6 +752,8 @@ function isPdfFile(file) {
 function formatTrangThaiMinhChung(value) {
     const map = {
         cho_duyet: 'Chờ duyệt',
+        da_duyet: 'Đã duyệt',
+        tu_choi: 'Từ chối',
         hop_le: 'Hợp lệ',
         khong_hop_le: 'Không hợp lệ',
     }
@@ -1021,53 +766,12 @@ function openEvidence(file) {
 }
 
 function downloadEvidence(file) {
-    if (!file) return
-
-    if (!file.duong_dan) {
-        alert(`Chưa có đường dẫn file: ${file.ten_file}`)
+    if (!file || !file.duong_dan) {
+        alert('Không tìm thấy đường dẫn file!')
         return
     }
 
-    const link = document.createElement('a')
-    link.href = file.duong_dan
-    link.download = file.ten_file
-    link.click()
-}
-
-function saveDraft() {
-    // DB không có trạng thái lưu nháp riêng cho CVHT.
-    // Khi nối BE, hàm này chỉ lưu diem_lop và ghi_chu trong chi_tiet_danh_gia.
-    alert('Đã lưu nháp điểm và ghi chú.')
-}
-
-function approveEvaluation() {
-    formInfo.trang_thai = 'co_van_da_kiem_tra'
-
-    alert('CVHT đã kiểm tra phiếu đánh giá.')
-
-    router.push({
-        name: 'AdminDSPhieuChoDuyet',
-    })
-}
-
-function rejectEvaluation() {
-    rejectError.value = ''
-
-    if (!rejectReason.value.trim()) {
-        rejectError.value = 'Vui lòng nhập lý do trả lại.'
-        return
-    }
-
-    formInfo.trang_thai = 'tra_lai'
-
-    hideModal('rejectModal')
-    rejectReason.value = ''
-
-    alert('Đã trả lại phiếu cho sinh viên chỉnh sửa.')
-
-    router.push({
-        name: 'AdminDSPhieuChoDuyet',
-    })
+    window.open(file.duong_dan, '_blank')
 }
 
 function hideModal(id) {
@@ -1080,7 +784,6 @@ function hideModal(id) {
     instance.hide()
 }
 </script>
-
 <style scoped>
 .evaluation-detail-page {
     padding-bottom: 100px;

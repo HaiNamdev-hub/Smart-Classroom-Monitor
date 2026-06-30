@@ -507,666 +507,163 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import axios from 'axios'
+import { createToaster } from '@meforma/vue-toaster'
 
 import "../../../assets/css/admin.css"
 import "../../../assets/css/dashboard.css"
 import "../../../assets/css/user.css"
 import "../../../assets/css/phieurenluyen.css"
 
+const toaster = createToaster({
+    position: 'top-right',
+})
+
+const BASE_URL = 'http://127.0.0.1:8000/api'
+
+function authHeader() {
+    const token =
+        localStorage.getItem('key_admin') ||
+        localStorage.getItem('auth_token') ||
+        sessionStorage.getItem('auth_token')
+
+    return {
+        headers: {
+            Authorization: 'Bearer ' + token,
+        },
+    }
+}
+
+const loading = ref(false)
+const selectedEvidence = ref(null)
+
 const currentUser = reactive({
-    id: 1,
-    ho_ten: 'Nguyễn Văn A',
-    email: 'sv001@student.edu.vn',
-    so_dien_thoai: '0901234567',
-    ngay_sinh: '15/01/2005',
-    vai_tro_id: 6,
-    trang_thai: 'hoat_dong',
+    id: null,
+    ho_ten: '',
+    email: '',
+    so_dien_thoai: '',
+    ngay_sinh: '',
+    vai_tro_id: null,
+    trang_thai: '',
 })
 
 const sinhVien = reactive({
-    id: 1,
-    ma_sinh_vien: 'SV001',
-    nam_trung_tuyen: 2023,
-    user_id: 1,
-    lop_id: 1,
+    id: null,
+    ma_sinh_vien: '',
+    nam_trung_tuyen: '',
+    user_id: null,
+    lop_id: null,
 
-    nguoi_dung: currentUser,
+    nguoi_dung: {
+        id: null,
+        ho_ten: '',
+        ngay_sinh: '',
+        so_dien_thoai: '',
+    },
 
     lop: {
-        id: 1,
-        ma_lop: 'D23CQCN01',
-        ten_lop: 'Công nghệ thông tin 01',
-        khoa_id: 1,
-        nganh_id: 1,
-        co_van_id: 2,
-        lop_truong_id: 1,
-        bi_thu_id: 3,
+        id: null,
+        ma_lop: '',
+        ten_lop: '',
+        lop_truong_id: null,
+        bi_thu_id: null,
 
         khoa: {
-            id: 1,
-            ma_khoa: 'CNTT',
-            ten_khoa: 'Công nghệ thông tin',
+            ma_khoa: '',
+            ten_khoa: '',
         },
 
         nganh: {
-            id: 1,
-            ma_nganh: 'KTPM',
-            ten_nganh: 'Kỹ thuật phần mềm',
+            ma_nganh: '',
+            ten_nganh: '',
         },
     },
 })
 
 const dotDanhGia = reactive({
-    id: 1,
-    nam_hoc: '2025 - 2026',
-    hoc_ky: 1,
-    ngay_bat_dau: '2026-06-01 00:00:00',
-    ngay_ket_thuc: '2026-06-30 23:59:59',
-    trang_thai: 'dang_mo',
+    id: null,
+    nam_hoc: '',
+    hoc_ky: '',
+    ngay_bat_dau: '',
+    ngay_ket_thuc: '',
+    trang_thai: '',
 })
 
 const phieu = reactive({
-    id: 1,
-    sinh_vien_id: sinhVien.id,
-    dot_danh_gia_id: dotDanhGia.id,
-
+    id: null,
+    sinh_vien_id: null,
+    dot_danh_gia_id: null,
     tong_diem_sv: 0,
     tong_diem_lop: 0,
-
-    xep_loai_sv: null,
-    xep_loai_lop: null,
-
+    tong_diem_cuoi: 0,
+    xep_loai: null,
     trang_thai: 'nhap',
 })
 
-const selectedEvidence = ref(null)
+const evaluationRows = reactive([])
 
-const hocKyLabel = computed(() => {
-    if (dotDanhGia.hoc_ky === 1) return 'Kỳ I'
-    if (dotDanhGia.hoc_ky === 2) return 'Kỳ II'
-    return `Kỳ ${dotDanhGia.hoc_ky}`
+onMounted(() => {
+    getData()
 })
 
-/*
-|--------------------------------------------------------------------------
-| evaluationRows
-|--------------------------------------------------------------------------
-| Đây là dữ liệu đã map từ:
-| - nhom_tieu_chi
-| - tieu_chi
-| - tieu_chi_lua_chon
-| - chi_tiet_danh_gia
-| - minh_chung
-|--------------------------------------------------------------------------
-*/
-
-const evaluationRows = reactive([
-    {
-        row_key: 'nhom-1',
-        row_type: 'section',
-        nhom_id: 1,
-        ma_hien_thi: 'I.',
-        tt: 'I.',
-        ten_hien_thi: 'Ý thức tham gia học tập',
-        diem_toi_da_text: 'Từ 0÷20 điểm',
-        editable: false,
-    },
-
-    {
-        row_key: 'ct-1',
-        row_type: 'criteria',
-
-        chi_tiet_id: 1,
-        phieu_id: phieu.id,
-        tieu_chi_id: 1,
-
-        nhom_id: 1,
-        parent_id: null,
-
-        ma_tieu_chi: 'I.1',
-        tt: '1',
-        ten_hien_thi: 'Ý thức và thái độ học tập, ý thức chuyên cần',
-
-        diem_toi_da: 6,
-        diem_toi_da_text: '6',
-
-        loai_tieu_chi: 'cong',
-        loai_nhap: 'combobox',
-        bat_buoc_minh_chung: false,
-
-        lua_chon_id: null,
-        gia_tri_nhap: null,
-
-        diem_sv: 0,
-        diem_lop: 0,
-        ghi_chu: '',
-
-        editable: true,
-
-        lua_chon: [
-            {
-                id: 1,
-                tieu_chi_id: 1,
-                noi_dung: 'Điểm TB đánh giá thường xuyên học kỳ ≥ 9',
-                diem_tuong_ung: 6,
-            },
-            {
-                id: 2,
-                tieu_chi_id: 1,
-                noi_dung: 'Điểm TB đánh giá thường xuyên học kỳ từ 7 đến cận 9',
-                diem_tuong_ung: 5,
-            },
-            {
-                id: 3,
-                tieu_chi_id: 1,
-                noi_dung: 'Điểm TB đánh giá thường xuyên học kỳ từ 5 đến cận 7',
-                diem_tuong_ung: 4,
-            },
-        ],
-
-        minh_chung: [],
-    },
-
-    {
-        row_key: 'lc-1-1',
-        row_type: 'option',
-        tt: 'a)',
-        ten_hien_thi: 'Điểm TB đánh giá thường xuyên học kỳ ≥ 9',
-        diem_toi_da_text: '6 điểm',
-        editable: false,
-    },
-
-    {
-        row_key: 'lc-1-2',
-        row_type: 'option',
-        tt: 'b)',
-        ten_hien_thi: 'Điểm TB đánh giá thường xuyên học kỳ từ 7 đến cận 9',
-        diem_toi_da_text: '5 điểm',
-        editable: false,
-    },
-
-    {
-        row_key: 'lc-1-3',
-        row_type: 'option',
-        tt: 'c)',
-        ten_hien_thi: 'Điểm TB đánh giá thường xuyên học kỳ từ 5 đến cận 7',
-        diem_toi_da_text: '4 điểm',
-        editable: false,
-    },
-
-    {
-        row_key: 'ct-2',
-        row_type: 'criteria',
-
-        chi_tiet_id: 2,
-        phieu_id: phieu.id,
-        tieu_chi_id: 2,
-
-        nhom_id: 1,
-        parent_id: null,
-
-        ma_tieu_chi: 'I.2',
-        tt: '2',
-        ten_hien_thi: 'Ý thức và thái độ tham gia các hoạt động học thuật, NCKH, Olympic, cuộc thi chuyên môn nghiệp vụ từ cấp Khoa trở lên',
-
-        diem_toi_da: 6,
-        diem_toi_da_text: '6',
-
-        loai_tieu_chi: 'cong',
-        loai_nhap: 'textbox',
-        bat_buoc_minh_chung: true,
-
-        lua_chon_id: null,
-        gia_tri_nhap: null,
-
-        diem_sv: 0,
-        diem_lop: 0,
-        ghi_chu: '',
-
-        editable: true,
-        lua_chon: [],
-
-        minh_chung: [],
-    },
-
-    {
-        row_key: 'ct-3',
-        row_type: 'criteria',
-
-        chi_tiet_id: 3,
-        phieu_id: phieu.id,
-        tieu_chi_id: 3,
-
-        nhom_id: 1,
-        parent_id: null,
-
-        ma_tieu_chi: 'I.3',
-        tt: '3',
-        ten_hien_thi: 'Xếp loại học tập học kỳ, căn cứ vào điểm trung bình chung học tập lần 1',
-
-        diem_toi_da: 8,
-        diem_toi_da_text: '8',
-
-        loai_tieu_chi: 'cong',
-        loai_nhap: 'combobox',
-        bat_buoc_minh_chung: false,
-
-        lua_chon_id: null,
-        gia_tri_nhap: null,
-
-        diem_sv: 0,
-        diem_lop: 0,
-        ghi_chu: '',
-
-        editable: true,
-
-        lua_chon: [
-            {
-                id: 4,
-                tieu_chi_id: 3,
-                noi_dung: 'Loại xuất sắc',
-                diem_tuong_ung: 8,
-            },
-            {
-                id: 5,
-                tieu_chi_id: 3,
-                noi_dung: 'Loại giỏi',
-                diem_tuong_ung: 7,
-            },
-            {
-                id: 6,
-                tieu_chi_id: 3,
-                noi_dung: 'Loại khá',
-                diem_tuong_ung: 6,
-            },
-        ],
-
-        minh_chung: [],
-    },
-
-    {
-        row_key: 'nhom-2',
-        row_type: 'section',
-        nhom_id: 2,
-        ma_hien_thi: 'II.',
-        tt: 'II.',
-        ten_hien_thi: 'Chấp hành tốt nội quy, quy chế và các quy định khác được áp dụng trong Học viện',
-        diem_toi_da_text: 'Từ 0÷25 điểm',
-        editable: false,
-    },
-
-    {
-        row_key: 'ct-4',
-        row_type: 'criteria',
-
-        chi_tiet_id: 4,
-        phieu_id: phieu.id,
-        tieu_chi_id: 4,
-
-        nhom_id: 2,
-        parent_id: null,
-
-        ma_tieu_chi: 'II.1',
-        tt: '1',
-        ten_hien_thi: 'Chấp hành tốt, không vi phạm',
-
-        diem_toi_da: 25,
-        diem_toi_da_text: '25',
-
-        loai_tieu_chi: 'cong',
-        loai_nhap: 'textbox',
-        bat_buoc_minh_chung: false,
-
-        lua_chon_id: null,
-        gia_tri_nhap: null,
-
-        diem_sv: 0,
-        diem_lop: 0,
-        ghi_chu: '',
-
-        editable: true,
-        lua_chon: [],
-        minh_chung: [],
-    },
-
-    {
-        row_key: 'nhom-3',
-        row_type: 'section',
-        nhom_id: 3,
-        ma_hien_thi: 'III.',
-        tt: 'III.',
-        ten_hien_thi: 'Ý thức và kết quả tham gia các hoạt động chính trị, xã hội, văn hóa, văn nghệ, thể thao, phòng chống tệ nạn xã hội',
-        diem_toi_da_text: 'Từ 0÷20 điểm',
-        editable: false,
-    },
-
-    {
-        row_key: 'ct-5',
-        row_type: 'criteria',
-
-        chi_tiet_id: 5,
-        phieu_id: phieu.id,
-        tieu_chi_id: 5,
-
-        nhom_id: 3,
-        parent_id: null,
-
-        ma_tieu_chi: 'III.1',
-        tt: '1',
-        ten_hien_thi: 'Tham gia đầy đủ, tích cực các hoạt động chính trị, xã hội, các hoạt động tại giảng đường',
-
-        diem_toi_da: 5,
-        diem_toi_da_text: '5',
-
-        loai_tieu_chi: 'cong',
-        loai_nhap: 'combobox',
-        bat_buoc_minh_chung: false,
-
-        lua_chon_id: null,
-        gia_tri_nhap: null,
-
-        diem_sv: 0,
-        diem_lop: 0,
-        ghi_chu: '',
-
-        editable: true,
-
-        lua_chon: [
-            {
-                id: 7,
-                tieu_chi_id: 5,
-                noi_dung: 'Tham gia và chấp hành tốt các hoạt động',
-                diem_tuong_ung: 5,
-            },
-            {
-                id: 8,
-                tieu_chi_id: 5,
-                noi_dung: 'Vắng 01 buổi không có lý do',
-                diem_tuong_ung: 3,
-            },
-            {
-                id: 9,
-                tieu_chi_id: 5,
-                noi_dung: 'Không tham gia',
-                diem_tuong_ung: 0,
-            },
-        ],
-
-        minh_chung: [],
-    },
-
-    {
-        row_key: 'ct-6',
-        row_type: 'criteria',
-
-        chi_tiet_id: 6,
-        phieu_id: phieu.id,
-        tieu_chi_id: 6,
-
-        nhom_id: 3,
-        parent_id: null,
-
-        ma_tieu_chi: 'III.5',
-        tt: '5',
-        ten_hien_thi: 'Được khen thưởng, biểu dương trong các hoạt động tại mục III',
-
-        diem_toi_da: 2,
-        diem_toi_da_text: '2',
-
-        loai_tieu_chi: 'cong',
-        loai_nhap: 'textbox',
-        bat_buoc_minh_chung: true,
-
-        lua_chon_id: null,
-        gia_tri_nhap: null,
-
-        diem_sv: 0,
-        diem_lop: 0,
-        ghi_chu: '',
-
-        editable: true,
-        lua_chon: [],
-
-        minh_chung: [],
-    },
-
-    {
-        row_key: 'nhom-4',
-        row_type: 'section',
-        nhom_id: 4,
-        ma_hien_thi: 'IV.',
-        tt: 'IV.',
-        ten_hien_thi: 'Ý thức công dân trong quan hệ cộng đồng',
-        diem_toi_da_text: 'Từ 0÷25 điểm',
-        editable: false,
-    },
-
-    {
-        row_key: 'ct-7',
-        row_type: 'criteria',
-
-        chi_tiet_id: 7,
-        phieu_id: phieu.id,
-        tieu_chi_id: 7,
-
-        nhom_id: 4,
-        parent_id: null,
-
-        ma_tieu_chi: 'IV.1',
-        tt: '1',
-        ten_hien_thi: 'Ý thức chấp hành và tham gia tuyên truyền chủ trương, đường lối của Đảng, chính sách pháp luật của Nhà nước, quy định nơi cư trú, an ninh trật tự, an toàn giao thông',
-
-        diem_toi_da: 10,
-        diem_toi_da_text: '10',
-
-        loai_tieu_chi: 'cong',
-        loai_nhap: 'combobox',
-        bat_buoc_minh_chung: false,
-
-        lua_chon_id: null,
-        gia_tri_nhap: null,
-
-        diem_sv: 0,
-        diem_lop: 0,
-        ghi_chu: '',
-
-        editable: true,
-
-        lua_chon: [
-            {
-                id: 10,
-                tieu_chi_id: 7,
-                noi_dung: 'Chấp hành đúng và tham gia tuyên truyền tốt, được khen thưởng',
-                diem_tuong_ung: 10,
-            },
-            {
-                id: 11,
-                tieu_chi_id: 7,
-                noi_dung: 'Chấp hành đúng và tham gia tuyên truyền tốt',
-                diem_tuong_ung: 8,
-            },
-            {
-                id: 12,
-                tieu_chi_id: 7,
-                noi_dung: 'Chấp hành đúng các quy định',
-                diem_tuong_ung: 5,
-            },
-        ],
-
-        minh_chung: [],
-    },
-
-    {
-        row_key: 'ct-8',
-        row_type: 'criteria',
-
-        chi_tiet_id: 8,
-        phieu_id: phieu.id,
-        tieu_chi_id: 8,
-
-        nhom_id: 4,
-        parent_id: null,
-
-        ma_tieu_chi: 'IV.2',
-        tt: '2',
-        ten_hien_thi: 'Tham gia các hoạt động nhân đạo, từ thiện vì cộng đồng, phong trào thanh niên tình nguyện',
-
-        diem_toi_da: 10,
-        diem_toi_da_text: '10',
-
-        loai_tieu_chi: 'cong',
-        loai_nhap: 'textbox',
-        bat_buoc_minh_chung: true,
-
-        lua_chon_id: null,
-        gia_tri_nhap: null,
-
-        diem_sv: 0,
-        diem_lop: 0,
-        ghi_chu: '',
-
-        editable: true,
-        lua_chon: [],
-        minh_chung: [],
-    },
-
-    {
-        row_key: 'ct-9',
-        row_type: 'criteria',
-
-        chi_tiet_id: 9,
-        phieu_id: phieu.id,
-        tieu_chi_id: 9,
-
-        nhom_id: 4,
-        parent_id: null,
-
-        ma_tieu_chi: 'IV.3',
-        tt: '3',
-        ten_hien_thi: 'Ý thức xây dựng mối quan hệ đoàn kết với bạn bè và tập thể; xây dựng, bảo vệ cảnh quan giảng đường, nơi cư trú văn minh, sạch đẹp, văn hóa học đường',
-
-        diem_toi_da: 5,
-        diem_toi_da_text: '5',
-
-        loai_tieu_chi: 'cong',
-        loai_nhap: 'textbox',
-        bat_buoc_minh_chung: false,
-
-        lua_chon_id: null,
-        gia_tri_nhap: null,
-
-        diem_sv: 0,
-        diem_lop: 0,
-        ghi_chu: '',
-
-        editable: true,
-        lua_chon: [],
-        minh_chung: [],
-    },
-
-    {
-        row_key: 'nhom-5',
-        row_type: 'section',
-        nhom_id: 5,
-        ma_hien_thi: 'V.',
-        tt: 'V.',
-        ten_hien_thi: 'Ý thức và kết quả tham gia Ban cán sự lớp, BCH Đoàn, Ban chủ nhiệm các Ban, CLB, Đội, Hội, Nhóm được thành lập theo quy định',
-        diem_toi_da_text: 'Từ 0÷10 điểm',
-        editable: false,
-    },
-
-    {
-        row_key: 'ct-10',
-        row_type: 'criteria',
-
-        chi_tiet_id: 10,
-        phieu_id: phieu.id,
-        tieu_chi_id: 10,
-
-        nhom_id: 5,
-        parent_id: null,
-
-        ma_tieu_chi: 'V.1',
-        tt: '1',
-        ten_hien_thi: 'Ý thức, tinh thần, thái độ, uy tín và hiệu quả công việc của sinh viên được phân công nhiệm vụ',
-
-        diem_toi_da: 7,
-        diem_toi_da_text: '7',
-
-        loai_tieu_chi: 'cong',
-        loai_nhap: 'textbox',
-        bat_buoc_minh_chung: true,
-
-        lua_chon_id: null,
-        gia_tri_nhap: null,
-
-        diem_sv: 0,
-        diem_lop: 0,
-        ghi_chu: '',
-
-        editable: true,
-        lua_chon: [],
-        minh_chung: [],
-    },
-
-    {
-        row_key: 'ct-11',
-        row_type: 'criteria',
-
-        chi_tiet_id: 11,
-        phieu_id: phieu.id,
-        tieu_chi_id: 11,
-
-        nhom_id: 5,
-        parent_id: null,
-
-        ma_tieu_chi: 'V.2',
-        tt: '2',
-        ten_hien_thi: 'Sinh viên tham gia đầy đủ các hoạt động, sinh hoạt của lớp, khoa, Học viện, có ý kiến tham gia xây dựng tập thể vững mạnh',
-
-        diem_toi_da: 3,
-        diem_toi_da_text: '3',
-
-        loai_tieu_chi: 'cong',
-        loai_nhap: 'textbox',
-        bat_buoc_minh_chung: false,
-
-        lua_chon_id: null,
-        gia_tri_nhap: null,
-
-        diem_sv: 0,
-        diem_lop: 0,
-        ghi_chu: '',
-
-        editable: true,
-        lua_chon: [],
-        minh_chung: [],
-    },
-])
+function getData() {
+    loading.value = true
+
+    axios
+        .get(BASE_URL + '/sinh-vien/phieu-ren-luyen/get-data', authHeader())
+        .then((res) => {
+            if (!res.data.status) {
+                toaster.error(res.data.message || 'Không lấy được dữ liệu phiếu!')
+                return
+            }
+
+            const data = res.data.data
+
+            Object.assign(currentUser, data.current_user || {})
+            Object.assign(sinhVien, data.sinh_vien || {})
+            Object.assign(dotDanhGia, data.dot_danh_gia || {})
+            Object.assign(phieu, data.phieu || {})
+
+            evaluationRows.splice(
+                0,
+                evaluationRows.length,
+                ...(data.evaluation_rows || [])
+            )
+        })
+        .catch((err) => {
+            console.log(err.response?.data || err)
+            toaster.error(err.response?.data?.message || 'Lỗi tải phiếu rèn luyện!')
+        })
+        .finally(() => {
+            loading.value = false
+        })
+}
+
+const hocKyLabel = computed(() => {
+    if (Number(dotDanhGia.hoc_ky) === 1) return 'Kỳ I'
+    if (Number(dotDanhGia.hoc_ky) === 2) return 'Kỳ II'
+    return dotDanhGia.hoc_ky ? `Kỳ ${dotDanhGia.hoc_ky}` : '—'
+})
+
+const roleId = computed(() => {
+    return Number(currentUser.vai_tro_id)
+})
+
+const isClassOfficer = computed(() => {
+    return [4, 5].includes(roleId.value)
+})
+
+const canEditStudentInfo = computed(() => {
+    return roleId.value === 6 && ['nhap', 'tra_lai'].includes(phieu.trang_thai)
+})
 
 const canEditStudentScore = computed(() => {
     return ['nhap', 'tra_lai'].includes(phieu.trang_thai)
 })
 
-const currentRoleId = computed(() => {
-    return Number(currentUser.vai_tro_id)
-})
-
-const isNormalStudent = computed(() => {
-    return currentRoleId.value === 6
-})
-
-const isClassOfficer = computed(() => {
-    return [4, 5].includes(currentRoleId.value)
-})
-
-const canEditStudentInfo = computed(() => {
-    return isNormalStudent.value && ['nhap', 'tra_lai'].includes(phieu.trang_thai)
-})
-
 const canManageEvidence = computed(() => {
-    return ['nhap', 'tra_lai'].includes(phieu.trang_thai)
+    return canEditStudentScore.value
 })
 
 const hasClassScore = computed(() => {
@@ -1178,15 +675,19 @@ const hasClassScore = computed(() => {
 })
 
 const totalStudentScore = computed(() => {
-    return evaluationRows
+    const total = evaluationRows
         .filter((row) => row.row_type === 'criteria')
         .reduce((sum, row) => sum + Number(row.diem_sv || 0), 0)
+
+    return Math.min(total, 100)
 })
 
 const totalClassScore = computed(() => {
-    return evaluationRows
+    const total = evaluationRows
         .filter((row) => row.row_type === 'criteria')
         .reduce((sum, row) => sum + Number(row.diem_lop || 0), 0)
+
+    return Math.min(total, 100)
 })
 
 function rowClass(row) {
@@ -1198,121 +699,242 @@ function rowClass(row) {
 }
 
 function normalizeScore(row, field) {
-    let score = Number(row[field])
-    const maxScore = Number(row.diem_toi_da || 0)
+    let value = Number(row[field] || 0)
 
-    if (Number.isNaN(score) || score < 0) {
-        row[field] = 0
-        return
+    if (value < 0) value = 0
+
+    if (row.diem_toi_da !== undefined && row.diem_toi_da !== null) {
+        value = Math.min(value, Number(row.diem_toi_da))
     }
 
-    if (score > maxScore) {
-        row[field] = maxScore
-        return
-    }
-
-    row[field] = score
-}
-
-function isCheckedOption(row, optionId) {
-    if (!Array.isArray(row.lua_chon_da_chon)) {
-        row.lua_chon_da_chon = []
-    }
-
-    return row.lua_chon_da_chon.includes(optionId)
-}
-
-function onChangeCheckboxChoice(row, option, event) {
-    if (!Array.isArray(row.lua_chon_da_chon)) {
-        row.lua_chon_da_chon = []
-    }
-
-    if (event.target.checked) {
-        row.lua_chon_da_chon.push(option.id)
-    } else {
-        row.lua_chon_da_chon = row.lua_chon_da_chon.filter((id) => id !== option.id)
-    }
-
-    const total = row.lua_chon_da_chon.reduce((sum, optionId) => {
-        const selected = row.lua_chon.find((item) => item.id === optionId)
-        return sum + Number(selected?.diem_tuong_ung || 0)
-    }, 0)
-
-    row.diem_sv = Math.min(total, Number(row.diem_toi_da || 0))
+    row[field] = value
 }
 
 function onChangeStudentChoice(row) {
-    const selected = row.lua_chon.find((item) => item.id === row.lua_chon_id)
+    const option = row.lua_chon?.find((item) => {
+        return Number(item.id) === Number(row.lua_chon_id)
+    })
 
-    if (!selected) {
-        row.diem_sv = 0
+    row.diem_sv = option ? Number(option.diem_tuong_ung) : 0
+    row.gia_tri_nhap = option ? option.noi_dung : null
+    normalizeScore(row, 'diem_sv')
+}
+
+function isCheckedOption(row, optionId) {
+    if (!row.lua_chon_id) return false
+
+    const selected = String(row.lua_chon_id)
+        .split(',')
+        .map((id) => Number(id))
+
+    return selected.includes(Number(optionId))
+}
+
+function onChangeCheckboxChoice(row, option, event) {
+    let selected = []
+
+    if (row.lua_chon_id) {
+        selected = String(row.lua_chon_id)
+            .split(',')
+            .filter((id) => id !== '')
+            .map((id) => Number(id))
+    }
+
+    if (event.target.checked) {
+        if (!selected.includes(Number(option.id))) {
+            selected.push(Number(option.id))
+        }
+    } else {
+        selected = selected.filter((id) => id !== Number(option.id))
+    }
+
+    row.lua_chon_id = selected.join(',')
+
+    row.diem_sv = row.lua_chon
+        .filter((item) => selected.includes(Number(item.id)))
+        .reduce((sum, item) => sum + Number(item.diem_tuong_ung || 0), 0)
+
+    normalizeScore(row, 'diem_sv')
+}
+
+function buildPayload() {
+    return {
+        phieu_id: phieu.id,
+        chi_tiet_danh_gia: evaluationRows
+            .filter((row) => row.row_type === 'criteria')
+            .map((row) => ({
+                tieu_chi_id: row.tieu_chi_id,
+                lua_chon_id: row.lua_chon_id,
+                gia_tri_nhap: row.gia_tri_nhap,
+                diem_sv: Number(row.diem_sv || 0),
+                diem_lop: Number(row.diem_lop || 0),
+                ghi_chu: row.ghi_chu,
+            })),
+    }
+}
+
+function saveDraft() {
+    if (!phieu.id) {
+        toaster.error('Không tìm thấy phiếu!')
         return
     }
 
-    row.diem_sv = Math.min(
-        Number(selected.diem_tuong_ung || 0),
-        Number(row.diem_toi_da || 0)
-    )
+    axios
+        .post(
+            BASE_URL + '/sinh-vien/phieu-ren-luyen/luu-nhap',
+            buildPayload(),
+            authHeader()
+        )
+        .then((res) => {
+            if (!res.data.status) {
+                toaster.error(res.data.message || 'Lưu nháp thất bại!')
+                return
+            }
+
+            Object.assign(phieu, res.data.data || {})
+            toaster.success(res.data.message || 'Lưu nháp thành công!')
+        })
+        .catch((err) => {
+            console.log(err.response?.data || err)
+            toaster.error(err.response?.data?.message || 'Lỗi lưu nháp!')
+        })
 }
 
-function classifyScore(score) {
-    if (score >= 90) return 'Xuất sắc'
-    if (score >= 80) return 'Tốt'
-    if (score >= 65) return 'Khá'
-    if (score >= 50) return 'Trung bình'
-    if (score >= 35) return 'Yếu'
-    return 'Kém'
-}
-
-function classifyKey(score) {
-    if (score >= 90) return 'xuat_sac'
-    if (score >= 80) return 'tot'
-    if (score >= 65) return 'kha'
-    if (score >= 50) return 'trung_binh'
-    if (score >= 35) return 'yeu'
-    return 'kem'
-}
-
-function formatTrangThai(value) {
-    const map = {
-        nhap: 'Nháp',
-        da_gui: 'Đã gửi',
-        lop_da_danh_gia: 'Lớp đã đánh giá',
-        co_van_da_kiem_tra: 'CVHT đã kiểm tra',
-        hoan_thanh: 'Hoàn thành',
-        tra_lai: 'Trả lại',
+function submitEvaluation() {
+    if (!phieu.id) {
+        toaster.error('Không tìm thấy phiếu!')
+        return
     }
 
-    return map[value] || '—'
-}
+    const invalidEvidenceRow = evaluationRows.find((row) => {
+        return (
+            row.row_type === 'criteria' &&
+            row.bat_buoc_minh_chung &&
+            Number(row.diem_sv || 0) > 0 &&
+            (!row.minh_chung || row.minh_chung.length === 0)
+        )
+    })
 
-function formatTrangThaiMinhChung(value) {
-    const map = {
-        cho_duyet: 'Chờ duyệt',
-        hop_le: 'Hợp lệ',
-        khong_hop_le: 'Không hợp lệ',
+    if (invalidEvidenceRow) {
+        toaster.error(`Tiêu chí "${invalidEvidenceRow.ten_hien_thi}" bắt buộc có minh chứng!`)
+        return
     }
 
-    return map[value] || '—'
-}
-
-function fileIcon(fileName) {
-    const value = String(fileName || '').toLowerCase()
-
-    if (value.endsWith('.pdf')) return 'fa-solid fa-file-pdf'
-    if (value.endsWith('.doc') || value.endsWith('.docx')) return 'fa-solid fa-file-word'
-    if (value.endsWith('.xls') || value.endsWith('.xlsx')) return 'fa-solid fa-file-excel'
-
-    if (
-        value.endsWith('.jpg') ||
-        value.endsWith('.jpeg') ||
-        value.endsWith('.png') ||
-        value.endsWith('.webp')
-    ) {
-        return 'fa-solid fa-file-image'
+    if (!confirm('Bạn chắc chắn muốn gửi phiếu? Sau khi gửi sẽ không thể chỉnh sửa.')) {
+        return
     }
 
-    return 'fa-solid fa-file'
+    axios
+        .post(
+            BASE_URL + '/sinh-vien/phieu-ren-luyen/gui-phieu',
+            buildPayload(),
+            authHeader()
+        )
+        .then((res) => {
+            if (!res.data.status) {
+                toaster.error(res.data.message || 'Gửi phiếu thất bại!')
+                return
+            }
+
+            Object.assign(phieu, res.data.data || {})
+            toaster.success(res.data.message || 'Gửi phiếu thành công!')
+            getData()
+        })
+        .catch((err) => {
+            console.log(err.response?.data || err)
+            toaster.error(err.response?.data?.message || 'Lỗi gửi phiếu!')
+        })
+}
+
+function uploadEvidence(event, row) {
+    const file = event.target.files[0]
+
+    if (!file) return
+
+    if (!row.chi_tiet_id) {
+        toaster.error('Không tìm thấy chi tiết tiêu chí!')
+        event.target.value = ''
+        return
+    }
+
+    const formData = new FormData()
+    formData.append('chi_tiet_id', row.chi_tiet_id)
+    formData.append('file', file)
+
+    axios
+        .post(
+            BASE_URL + '/sinh-vien/phieu-ren-luyen/upload-minh-chung',
+            formData,
+            {
+                ...authHeader(),
+                headers: {
+                    ...authHeader().headers,
+                    'Content-Type': 'multipart/form-data',
+                },
+            }
+        )
+        .then((res) => {
+            if (!res.data.status) {
+                toaster.error(res.data.message || 'Upload minh chứng thất bại!')
+                return
+            }
+
+            if (!row.minh_chung) {
+                row.minh_chung = []
+            }
+
+            row.minh_chung.push(res.data.data)
+            toaster.success(res.data.message || 'Upload minh chứng thành công!')
+        })
+        .catch((err) => {
+            console.log(err.response?.data || err)
+            toaster.error(err.response?.data?.message || 'Lỗi upload minh chứng!')
+        })
+        .finally(() => {
+            event.target.value = ''
+        })
+}
+
+function removeEvidence(row, fileId) {
+    if (!confirm('Bạn có chắc muốn xóa minh chứng này?')) {
+        return
+    }
+
+    axios
+        .post(
+            BASE_URL + '/sinh-vien/phieu-ren-luyen/xoa-minh-chung',
+            { id: fileId },
+            authHeader()
+        )
+        .then((res) => {
+            if (!res.data.status) {
+                toaster.error(res.data.message || 'Xóa minh chứng thất bại!')
+                return
+            }
+
+            row.minh_chung = row.minh_chung.filter((file) => {
+                return Number(file.id) !== Number(fileId)
+            })
+
+            toaster.success(res.data.message || 'Xóa minh chứng thành công!')
+        })
+        .catch((err) => {
+            console.log(err.response?.data || err)
+            toaster.error(err.response?.data?.message || 'Lỗi xóa minh chứng!')
+        })
+}
+
+function openEvidence(file) {
+    selectedEvidence.value = file
+}
+
+function downloadEvidence(file) {
+    if (!file || !file.duong_dan) {
+        toaster.error('Không tìm thấy đường dẫn file!')
+        return
+    }
+
+    window.open(file.duong_dan, '_blank')
 }
 
 function isImageFile(file) {
@@ -1332,129 +954,55 @@ function isPdfFile(file) {
     return name.endsWith('.pdf')
 }
 
-function uploadEvidence(event, row) {
-    const file = event.target.files?.[0]
+function fileIcon(fileName) {
+    const name = String(fileName || '').toLowerCase()
 
-    if (!file) return
-
-    if (!row.chi_tiet_id) {
-        alert('Dòng tiêu chí này chưa có chi_tiet_id, không thể upload minh chứng.')
-        event.target.value = ''
-        return
+    if (name.endsWith('.pdf')) return 'fa-solid fa-file-pdf'
+    if (name.endsWith('.doc') || name.endsWith('.docx')) return 'fa-solid fa-file-word'
+    if (
+        name.endsWith('.jpg') ||
+        name.endsWith('.jpeg') ||
+        name.endsWith('.png') ||
+        name.endsWith('.webp')
+    ) {
+        return 'fa-solid fa-file-image'
     }
 
-    if (!row.minh_chung) {
-        row.minh_chung = []
+    return 'fa-solid fa-file'
+}
+
+function formatTrangThai(value) {
+    const map = {
+        nhap: 'Nháp',
+        da_gui: 'Đã gửi',
+        lop_da_danh_gia: 'Lớp đã đánh giá',
+        co_van_da_kiem_tra: 'CVHT đã kiểm tra',
+        hoan_thanh: 'Hoàn thành',
+        tra_lai: 'Trả lại',
     }
 
-    row.minh_chung.push({
-        id: Date.now(),
-
-        chi_tiet_id: row.chi_tiet_id,
-        nguoi_tai_id: currentUser.id,
-
-        ten_file: file.name,
-        duong_dan: URL.createObjectURL(file),
-
-        trang_thai: 'cho_duyet',
-
-        created_at: new Date().toLocaleDateString('vi-VN'),
-        updated_at: new Date().toLocaleDateString('vi-VN'),
-
-        raw_file: file,
-    })
-
-    event.target.value = ''
+    return map[value] || '—'
 }
 
-function removeEvidence(row, fileId) {
-    if (!row.minh_chung) return
-
-    const ok = confirm('Bạn có chắc muốn xóa minh chứng này không?')
-
-    if (!ok) return
-
-    row.minh_chung = row.minh_chung.filter((file) => file.id !== fileId)
-}
-
-function openEvidence(file) {
-    selectedEvidence.value = file
-}
-
-function downloadEvidence(file) {
-    if (!file) return
-
-    if (!file.duong_dan) {
-        alert(`Chưa có đường dẫn file: ${file.ten_file}`)
-        return
+function formatTrangThaiMinhChung(value) {
+    const map = {
+        cho_duyet: 'Chờ duyệt',
+        da_duyet: 'Đã duyệt',
+        tu_choi: 'Từ chối',
     }
 
-    const link = document.createElement('a')
-    link.href = file.duong_dan
-    link.download = file.ten_file
-    link.click()
+    return map[value] || '—'
 }
 
-function syncPhieuScore() {
-    phieu.tong_diem_sv = totalStudentScore.value
-    phieu.xep_loai_sv = classifyKey(totalStudentScore.value)
-}
+function classifyScore(score) {
+    const value = Number(score || 0)
 
-function saveDraft() {
-    syncPhieuScore()
+    if (value >= 90) return 'Xuất sắc'
+    if (value >= 80) return 'Tốt'
+    if (value >= 65) return 'Khá'
+    if (value >= 50) return 'Trung bình'
+    if (value >= 35) return 'Yếu'
 
-    phieu.trang_thai = 'nhap'
-
-    console.log('Payload lưu nháp đúng DB:', buildSavePayload())
-
-    alert('Đã lưu nháp phiếu tự đánh giá.')
-}
-
-function submitEvaluation() {
-    const ok = confirm(
-        'Sau khi gửi, bạn sẽ không thể chỉnh sửa phiếu cho đến khi được trả lại. Bạn muốn gửi phiếu không?'
-    )
-
-    if (!ok) return
-
-    syncPhieuScore()
-
-    phieu.trang_thai = 'da_gui'
-
-    console.log('Payload gửi phiếu đúng DB:', buildSavePayload())
-
-    alert('Đã gửi phiếu đánh giá rèn luyện.')
-}
-
-function buildSavePayload() {
-    return {
-        phieu_ren_luyen: {
-            id: phieu.id,
-            sinh_vien_id: phieu.sinh_vien_id,
-            dot_danh_gia_id: phieu.dot_danh_gia_id,
-            tong_diem_sv: phieu.tong_diem_sv,
-            tong_diem_lop: phieu.tong_diem_lop,
-            xep_loai_sv: phieu.xep_loai_sv,
-            xep_loai_lop: phieu.xep_loai_lop,
-            trang_thai: phieu.trang_thai,
-        },
-
-        chi_tiet_danh_gia: evaluationRows
-            .filter((row) => row.row_type === 'criteria')
-            .map((row) => ({
-                id: row.chi_tiet_id,
-                phieu_id: row.phieu_id,
-                tieu_chi_id: row.tieu_chi_id,
-                lua_chon_id: row.lua_chon_id,
-                gia_tri_nhap: row.gia_tri_nhap,
-                diem_sv: row.diem_sv,
-                diem_lop: row.diem_lop,
-                ghi_chu: row.ghi_chu,
-            })),
-
-        minh_chung: evaluationRows
-            .filter((row) => row.row_type === 'criteria')
-            .flatMap((row) => row.minh_chung || []),
-    }
+    return 'Kém'
 }
 </script>

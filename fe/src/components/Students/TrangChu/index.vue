@@ -32,7 +32,13 @@
                 </div>
                 <div>
                     <span>Điểm SV tự đánh giá</span>
-                    <strong>{{ phieuHienTai.tong_diem_sv }}/100</strong>
+                    <strong>
+                        {{
+                            phieuHienTai.trang_thai == "hoan_thanh"
+                                ? phieuHienTai.tong_diem_cuoi + "/100"
+                                : phieuHienTai.tong_diem_sv + "/100"
+                        }}
+                    </strong>
                 </div>
             </div>
 
@@ -98,7 +104,13 @@
                             <i class="fa-solid fa-pen"></i>
                             <div>
                                 <strong>Sinh viên tự đánh giá</strong>
-                                <span>{{ phieuHienTai.tong_diem_sv }} điểm</span>
+                                <span>
+                                    {{
+                                        phieuHienTai.trang_thai == "hoan_thanh"
+                                            ? phieuHienTai.tong_diem_cuoi + " điểm"
+                                    : phieuHienTai.tong_diem_sv + " điểm"
+                                    }}
+                                </span>
                             </div>
                         </div>
 
@@ -248,8 +260,9 @@
 </template>
 
 <script setup>
-import { computed, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import axios from "axios"
+import { computed, reactive, onMounted } from "vue"
+import { useRouter } from "vue-router"
 
 import "../../../assets/css/admin.css"
 import "../../../assets/css/dark-theme.css"
@@ -258,124 +271,114 @@ import "../../../assets/css/user.css"
 
 const router = useRouter()
 
-/*
-|--------------------------------------------------------------------------
-| ROLE
-|--------------------------------------------------------------------------
-| 4 = lớp trưởng
-| 5 = bí thư
-| 6 = sinh viên thường
-|--------------------------------------------------------------------------
-| Demo hiện tại đang set sinh viên thường.
-| Muốn test lớp trưởng thì đổi:
-| - currentUser.vai_tro_id = 4
-| - currentSinhVien.id = currentSinhVien.lop.lop_truong_id
-|--------------------------------------------------------------------------
-*/
+const BASE_URL = "http://127.0.0.1:8000/api"
+
+function authHeader() {
+    return {
+        headers: {
+            Authorization: "Bearer " + sessionStorage.getItem("auth_token"),
+        },
+    }
+}
 
 const currentUser = reactive({
-    id: 2,
-    ho_ten: 'Trần Thị Bình',
-    email: 'sv002@student.edu.vn',
-    so_dien_thoai: '0912345678',
-    ngay_sinh: '20/03/2005',
-    vai_tro_id: 6,
-    trang_thai: 'hoat_dong',
+    id: null,
+    ho_ten: "",
+    email: "",
+    so_dien_thoai: "",
+    ngay_sinh: "",
+    vai_tro_id: null,
+    trang_thai: "",
 })
 
 const currentSinhVien = reactive({
-    id: 2,
-    ma_sinh_vien: 'SV002',
-    nam_trung_tuyen: 2023,
-    user_id: currentUser.id,
-    lop_id: 1,
-
-    nguoi_dung: currentUser,
-
+    id: null,
+    ma_sinh_vien: "",
+    nam_trung_tuyen: "",
+    user_id: null,
+    lop_id: null,
     lop: {
-        id: 1,
-        ma_lop: 'D23CQCN01',
-        ten_lop: 'Công nghệ thông tin 01',
-        khoa_id: 1,
-        nganh_id: 1,
-        co_van_id: 2,
-
-        // id sinh viên giữ chức vụ
-        lop_truong_id: 1,
-        bi_thu_id: 3,
-
+        id: null,
+        ma_lop: "",
+        ten_lop: "",
+        lop_truong_id: null,
+        bi_thu_id: null,
         khoa: {
-            id: 1,
-            ma_khoa: 'CNTT',
-            ten_khoa: 'Công nghệ thông tin',
+            ma_khoa: "",
+            ten_khoa: "",
         },
-
         nganh: {
-            id: 1,
-            ma_nganh: 'KTPM',
-            ten_nganh: 'Kỹ thuật phần mềm',
+            ma_nganh: "",
+            ten_nganh: "",
         },
     },
 })
 
 const dotDanhGia = reactive({
-    id: 1,
-    nam_hoc: '2025 - 2026',
-    hoc_ky: 1,
-    ngay_bat_dau: '2026-06-01 00:00:00',
-    ngay_ket_thuc: '2026-06-30 23:59:59',
-    trang_thai: 'dang_mo',
+    id: null,
+    nam_hoc: "",
+    hoc_ky: "",
+    ngay_bat_dau: "",
+    ngay_ket_thuc: "",
+    trang_thai: "",
 })
 
 const phieuHienTai = reactive({
-    id: 2,
-    sinh_vien_id: currentSinhVien.id,
-    dot_danh_gia_id: dotDanhGia.id,
+    id: null,
+    sinh_vien_id: null,
+    dot_danh_gia_id: null,
 
-    tong_diem_sv: 86,
+    tong_diem_sv: 0,
     tong_diem_lop: 0,
+    tong_diem_cuoi: 0,
 
-    xep_loai_sv: 'tot',
-    xep_loai_lop: null,
+    xep_loai: null,
 
-    trang_thai: 'da_gui',
+    trang_thai: "nhap",
 
-    created_at: '2026-06-10 08:00:00',
-    updated_at: '2026-06-12 09:20:00',
-
-    sinh_vien: currentSinhVien,
-    dot_danh_gia: dotDanhGia,
+    created_at: "",
+    updated_at: "",
 })
 
 const classStats = reactive({
-    total: 42,
-    waiting: 12,
-    done: 18,
+    total: 0,
+    waiting: 0,
+    done: 0,
 })
 
-const recentActivities = reactive([
-    {
-        id: 1,
-        type: 'blue',
-        icon: 'fa-solid fa-file-pen',
-        title: 'Bạn đã gửi phiếu tự đánh giá',
-        time: '12/06/2026',
-    },
-    {
-        id: 2,
-        type: 'green',
-        icon: 'fa-solid fa-upload',
-        title: 'Bạn đã upload minh chứng hoạt động',
-        time: '11/06/2026',
-    },
-    {
-        id: 3,
-        type: 'amber',
-        icon: 'fa-solid fa-clock',
-        title: 'Đợt đánh giá đang mở',
-        time: '01/06/2026',
-    },
-])
+const recentActivities = reactive([])
+
+onMounted(() => {
+    getStudentDashboard()
+})
+
+function getStudentDashboard() {
+    axios
+        .get(BASE_URL + "/sinh-vien/trang-chu/get-data", authHeader())
+        .then((res) => {
+            if (!res.data.status) {
+                console.log(res.data.message)
+                return
+            }
+
+            const data = res.data.data
+
+            Object.assign(currentUser, data.current_user)
+            Object.assign(currentSinhVien, data.current_sinh_vien)
+            Object.assign(dotDanhGia, data.dot_danh_gia)
+            Object.assign(phieuHienTai, data.phieu_hien_tai)
+            Object.assign(classStats, data.class_stats)
+
+            recentActivities.splice(
+                0,
+                recentActivities.length,
+                ...(data.recent_activities || [])
+            )
+        })
+        .catch((err) => {
+            console.log("Lỗi lấy dữ liệu trang chủ sinh viên", err.response?.data || err)
+        })
+}
 
 const roleId = computed(() => {
     return Number(currentUser.vai_tro_id)
@@ -393,36 +396,32 @@ const isOfficer = computed(() => {
     if (!isClassOfficer.value) return false
 
     return (
-        currentSinhVien.id === currentSinhVien.lop.lop_truong_id ||
-        currentSinhVien.id === currentSinhVien.lop.bi_thu_id
+        Number(currentSinhVien.id) === Number(currentSinhVien.lop.lop_truong_id) ||
+        Number(currentSinhVien.id) === Number(currentSinhVien.lop.bi_thu_id)
     )
 })
 
 const hasClassScore = computed(() => {
     return [
-        'lop_da_danh_gia',
-        'co_van_da_kiem_tra',
-        'hoan_thanh',
+        "lop_da_danh_gia",
+        "co_van_da_kiem_tra",
+        "hoan_thanh",
     ].includes(phieuHienTai.trang_thai)
 })
 
 const hasAdvisorChecked = computed(() => {
     return [
-        'co_van_da_kiem_tra',
-        'hoan_thanh',
+        "co_van_da_kiem_tra",
+        "hoan_thanh",
     ].includes(phieuHienTai.trang_thai)
 })
 
 const currentRank = computed(() => {
-    if (hasClassScore.value && phieuHienTai.xep_loai_lop) {
-        return phieuHienTai.xep_loai_lop
-    }
-
-    return phieuHienTai.xep_loai_sv
+    return phieuHienTai.xep_loai
 })
 
 const canEditStudentForm = computed(() => {
-    return ['nhap', 'tra_lai'].includes(phieuHienTai.trang_thai)
+    return ["nhap", "tra_lai"].includes(phieuHienTai.trang_thai)
 })
 
 const canViewStudentForm = computed(() => {
@@ -431,11 +430,11 @@ const canViewStudentForm = computed(() => {
 
 const canViewResult = computed(() => {
     return [
-        'da_gui',
-        'lop_da_danh_gia',
-        'co_van_da_kiem_tra',
-        'hoan_thanh',
-        'tra_lai',
+        "da_gui",
+        "lop_da_danh_gia",
+        "co_van_da_kiem_tra",
+        "hoan_thanh",
+        "tra_lai",
     ].includes(phieuHienTai.trang_thai)
 })
 
@@ -453,7 +452,7 @@ const progressPercent = computed(() => {
 })
 
 const remainingDays = computed(() => {
-    const end = new Date(String(dotDanhGia.ngay_ket_thuc).replace(' ', 'T'))
+    const end = new Date(String(dotDanhGia.ngay_ket_thuc).replace(" ", "T"))
     const now = new Date()
     const diff = end.getTime() - now.getTime()
 
@@ -463,66 +462,66 @@ const remainingDays = computed(() => {
 })
 
 function formatHocKy(value) {
-    if (value === 1) return 'Kỳ I'
-    if (value === 2) return 'Kỳ II'
+    if (Number(value) === 1) return "Kỳ I"
+    if (Number(value) === 2) return "Kỳ II"
 
-    return `Kỳ ${value}`
+    return value ? `Kỳ ${value}` : "—"
 }
 
 function formatTrangThai(value) {
     const map = {
-        nhap: 'Nháp',
-        da_gui: 'Đã gửi',
-        lop_da_danh_gia: 'Lớp đã đánh giá',
-        co_van_da_kiem_tra: 'CVHT đã kiểm tra',
-        hoan_thanh: 'Hoàn thành',
-        tra_lai: 'Trả lại',
+        nhap: "Nháp",
+        da_gui: "Đã gửi",
+        lop_da_danh_gia: "Lớp đã đánh giá",
+        co_van_da_kiem_tra: "CVHT đã kiểm tra",
+        hoan_thanh: "Hoàn thành",
+        tra_lai: "Trả lại",
     }
 
-    return map[value] || '—'
+    return map[value] || "—"
 }
 
 function formatTrangThaiDot(value) {
     const map = {
-        nhap: 'Nháp',
-        dang_mo: 'Đang mở',
-        da_dong: 'Đã đóng',
+        nhap: "Nháp",
+        dang_mo: "Đang mở",
+        da_dong: "Đã đóng",
     }
 
-    return map[value] || '—'
+    return map[value] || "—"
 }
 
 function formatXepLoai(value) {
     const map = {
-        xuat_sac: 'Xuất sắc',
-        tot: 'Tốt',
-        kha: 'Khá',
-        trung_binh: 'Trung bình',
-        yeu: 'Yếu',
-        kem: 'Kém',
+        xuat_sac: "Xuất sắc",
+        tot: "Tốt",
+        kha: "Khá",
+        trung_binh: "Trung bình",
+        yeu: "Yếu",
+        kem: "Kém",
     }
 
-    return map[value] || '—'
+    return map[value] || "—"
 }
 
 function formatDate(value) {
-    if (!value) return '—'
+    if (!value) return "—"
 
-    const date = new Date(String(value).replace(' ', 'T'))
+    const date = new Date(String(value).replace(" ", "T"))
 
     if (Number.isNaN(date.getTime())) return value
 
-    return date.toLocaleDateString('vi-VN')
+    return date.toLocaleDateString("vi-VN")
 }
 
 function goToMyEvaluation() {
     if (!canViewStudentForm.value) return
 
     router.push({
-        path: '/sinh-vien/phieu-ren-luyen',
+        path: "/sinh-vien/phieu-ren-luyen",
         query: {
             phieuId: phieuHienTai.id,
-            mode: canEditStudentForm.value ? 'edit' : 'view',
+            mode: canEditStudentForm.value ? "edit" : "view",
         },
     })
 }
@@ -530,13 +529,13 @@ function goToMyEvaluation() {
 function goToResult() {
     if (!canViewResult.value) return
 
-    router.push('/sinh-vien/ket-qua-ren-luyen')
+    router.push("/sinh-vien/ket-qua-ren-luyen")
 }
 
 function goToClassForms() {
     if (!isOfficer.value) return
 
-    router.push('/sinh-vien/danh-sach-phieu-lop')
+    router.push("/sinh-vien/danh-sach-phieu-lop")
 }
 </script>
 

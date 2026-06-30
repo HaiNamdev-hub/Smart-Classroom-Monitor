@@ -17,5 +17,8 @@ class TieuChiLuaChon extends Model
         'tieu_chi_id',
         'noi_dung',
         'diem_tuong_ung',
+        'thu_tu',
     ];
+
+    
 }

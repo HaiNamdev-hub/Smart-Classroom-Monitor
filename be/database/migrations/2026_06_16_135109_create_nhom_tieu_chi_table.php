@@ -6,22 +6,17 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('nhom_tieu_chi', function (Blueprint $table) {
             $table->id();
-            $table->string('ma_nhom');
+            $table->string('ma_nhom')->unique();
             $table->string('ten_nhom');
             $table->integer('diem_toi_da');
+            $table->integer('thu_tu')->default(1);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('nhom_tieu_chi');

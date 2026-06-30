@@ -254,150 +254,117 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import axios from "axios"
+import { computed, ref, onMounted } from "vue"
+import { createToaster } from "@meforma/vue-toaster"
+
 import "../../../assets/css/admin.css"
 import "../../../assets/css/dashboard.css"
 import "../../../assets/css/user.css"
 
-const roles = ref([
-    {
-        id: 1,
-        ten_vai_tro: 'admin',
-        mo_ta: 'Quản trị viên hệ thống',
-    },
-    {
-        id: 2,
-        ten_vai_tro: 'phong_qldt',
-        mo_ta: 'Phòng Quản lý đào tạo',
-    },
-    {
-        id: 3,
-        ten_vai_tro: 'co_van',
-        mo_ta: 'Cố vấn học tập',
-    },
-    {
-        id: 4,
-        ten_vai_tro: 'lop_truong',
-        mo_ta: 'Lớp trưởng',
-    },
-    {
-        id: 5,
-        ten_vai_tro: 'bi_thu',
-        mo_ta: 'Bí thư',
-    },
-    {
-        id: 6,
-        ten_vai_tro: 'sinh_vien',
-        mo_ta: 'Sinh viên',
-    },
-])
-
-const functions = ref([
-    {
-        id: 1,
-        ma_chuc_nang: 'quan_ly_user',
-        ten_chuc_nang: 'Quản lý người dùng',
-        mo_ta: 'Tạo, sửa, xóa tài khoản người dùng',
-        trang_thai: 'hoat_dong',
-    },
-    {
-        id: 2,
-        ma_chuc_nang: 'quan_ly_dao_tao',
-        ten_chuc_nang: 'Quản lý đào tạo',
-        mo_ta: 'Quản lý khoa, ngành, lớp, danh sách lớp',
-        trang_thai: 'hoat_dong',
-    },
-    {
-        id: 3,
-        ma_chuc_nang: 'quan_ly_dot_danh_gia',
-        ten_chuc_nang: 'Quản lý đợt đánh giá',
-        mo_ta: 'Tạo và quản lý các đợt đánh giá rèn luyện',
-        trang_thai: 'hoat_dong',
-    },
-    {
-        id: 4,
-        ma_chuc_nang: 'quan_ly_tieu_chi',
-        ten_chuc_nang: 'Quản lý tiêu chí',
-        mo_ta: 'Quản lý nhóm tiêu chí, tiêu chí và lựa chọn điểm',
-        trang_thai: 'hoat_dong',
-    },
-    {
-        id: 5,
-        ma_chuc_nang: 'nhap_phieu_ren_luyen',
-        ten_chuc_nang: 'Nhập phiếu rèn luyện',
-        mo_ta: 'Sinh viên nhập phiếu tự đánh giá',
-        trang_thai: 'hoat_dong',
-    },
-    {
-        id: 6,
-        ma_chuc_nang: 'danh_gia_phieu_lop',
-        ten_chuc_nang: 'Đánh giá phiếu lớp',
-        mo_ta: 'Lớp trưởng/Bí thư đánh giá phiếu sinh viên',
-        trang_thai: 'hoat_dong',
-    },
-    {
-        id: 7,
-        ma_chuc_nang: 'kiem_tra_phieu',
-        ten_chuc_nang: 'Kiểm tra phiếu',
-        mo_ta: 'Cố vấn học tập kiểm tra phiếu rèn luyện',
-        trang_thai: 'hoat_dong',
-    },
-])
-
-const permissions = ref([
-    // Admin: toàn quyền
-    { id: 1, vai_tro_id: 1, chuc_nang_id: 1 },
-    { id: 2, vai_tro_id: 1, chuc_nang_id: 2 },
-    { id: 3, vai_tro_id: 1, chuc_nang_id: 3 },
-    { id: 4, vai_tro_id: 1, chuc_nang_id: 4 },
-    { id: 5, vai_tro_id: 1, chuc_nang_id: 5 },
-    { id: 6, vai_tro_id: 1, chuc_nang_id: 6 },
-    { id: 7, vai_tro_id: 1, chuc_nang_id: 7 },
-
-    // Phòng QLĐT
-    { id: 8, vai_tro_id: 2, chuc_nang_id: 2 },
-    { id: 9, vai_tro_id: 2, chuc_nang_id: 3 },
-    { id: 10, vai_tro_id: 2, chuc_nang_id: 4 },
-    { id: 11, vai_tro_id: 2, chuc_nang_id: 7 },
-
-    // Cố vấn học tập
-    { id: 12, vai_tro_id: 3, chuc_nang_id: 7 },
-
-    // Lớp trưởng
-    { id: 13, vai_tro_id: 4, chuc_nang_id: 5 },
-    { id: 14, vai_tro_id: 4, chuc_nang_id: 6 },
-
-    // Bí thư
-    { id: 15, vai_tro_id: 5, chuc_nang_id: 5 },
-    { id: 16, vai_tro_id: 5, chuc_nang_id: 6 },
-
-    // Sinh viên
-    { id: 17, vai_tro_id: 6, chuc_nang_id: 5 },
-])
-
-const selectedRole = ref(
-    roles.value.find(role => role.ten_vai_tro === 'phong_qldt') || roles.value[0]
-)
-
-const roleSearch = ref('')
-const functionSearch = ref('')
-
-const functionForm = reactive({
-    ma_chuc_nang: '',
-    ten_chuc_nang: '',
-    mo_ta: '',
-    trang_thai: 'hoat_dong',
+const toaster = createToaster({
+    position: "top-right",
 })
 
-const functionErrors = reactive({})
+const BASE_URL = "http://127.0.0.1:8000/api/admin"
+
+const roles = ref([])
+const functions = ref([])
+const permissions = ref([])
+const selectedRole = ref(null)
+
+const roleSearch = ref("")
+const functionSearch = ref("")
+const functionForm = ref({
+    ma_chuc_nang: "",
+    ten_chuc_nang: "",
+    mo_ta: "",
+    trang_thai: "hoat_dong",
+})
+
+const functionErrors = ref({})
 
 const isEditingFunction = ref(false)
-const functionEditTarget = ref(null)
+
 const functionDeleteTarget = ref(null)
 
-const isSelectedAdmin = computed(() => {
-    return selectedRole.value?.ten_vai_tro === 'admin'
+function authHeader() {
+    return {
+        headers: {
+            Authorization: "Bearer " + sessionStorage.getItem("auth_token"),
+        },
+    }
+}
+
+onMounted(() => {
+    getVaiTro()
+    getChucNang()
 })
+
+function getVaiTro() {
+    axios
+        .get(BASE_URL + "/vai-tro/get-data", authHeader())
+        .then((res) => {
+            if (res.data.status) {
+                roles.value = res.data.data || []
+
+                if (roles.value.length > 0) {
+                    selectedRole.value = roles.value[0]
+                    getChiTietPhanQuyen()
+                }
+            } else {
+                toaster.error(res.data.message || "Không lấy được vai trò")
+            }
+        })
+        .catch((err) => {
+            handleError(err, "Không lấy được danh sách vai trò")
+        })
+}
+
+function getChucNang() {
+    axios
+        .get(BASE_URL + "/phan-quyen/chuc-nang/get-data", authHeader())
+        .then((res) => {
+            if (res.data.status) {
+                functions.value = res.data.data || []
+            } else {
+                toaster.error(res.data.message || "Không lấy được chức năng")
+            }
+        })
+        .catch((err) => {
+            handleError(err, "Không lấy được danh sách chức năng")
+        })
+}
+
+function getChiTietPhanQuyen() {
+    if (!selectedRole.value) return
+
+    axios
+        .post(
+            BASE_URL + "/phan-quyen/chi-tiet-phan-quyen/get-data",
+            {
+                vai_tro_id: selectedRole.value.id,
+            },
+            authHeader()
+        )
+        .then((res) => {
+            if (res.data.status) {
+                permissions.value = res.data.data || []
+            } else {
+                permissions.value = []
+                toaster.error(res.data.message || "Không lấy được phân quyền")
+            }
+        })
+        .catch((err) => {
+            permissions.value = []
+            handleError(err, "Không lấy được phân quyền")
+        })
+}
+
+function selectRole(role) {
+    selectedRole.value = role
+    getChiTietPhanQuyen()
+}
 
 const filteredRoles = computed(() => {
     const q = roleSearch.value.trim().toLowerCase()
@@ -409,7 +376,10 @@ const filteredRoles = computed(() => {
             role.ten_vai_tro,
             role.mo_ta,
             formatRoleName(role.ten_vai_tro),
-        ].join(' ').toLowerCase().includes(q)
+        ]
+            .join(" ")
+            .toLowerCase()
+            .includes(q)
     })
 })
 
@@ -424,39 +394,39 @@ const filteredFunctions = computed(() => {
             fn.ten_chuc_nang,
             fn.mo_ta,
             formatFunctionStatus(fn.trang_thai),
-        ].join(' ').toLowerCase().includes(q)
+        ]
+            .join(" ")
+            .toLowerCase()
+            .includes(q)
     })
 })
 
 const grantedFunctionIds = computed(() => {
-    if (!selectedRole.value) return []
-
-    return permissions.value
-        .filter((item) => Number(item.vai_tro_id) === Number(selectedRole.value.id))
-        .map((item) => Number(item.chuc_nang_id))
+    return permissions.value.map((item) => Number(item.chuc_nang_id))
 })
 
 const activePermissions = computed(() => {
-    if (!selectedRole.value) return []
-
-    return permissions.value
-        .filter((permission) => Number(permission.vai_tro_id) === Number(selectedRole.value.id))
-        .map((permission) => {
-            const fn = functions.value.find((item) => Number(item.id) === Number(permission.chuc_nang_id))
-
-            return {
-                permission,
-                function: fn || {
-                    ten_chuc_nang: 'Chức năng không tồn tại',
-                    ma_chuc_nang: '—',
-                },
-            }
+    return permissions.value.map((permission) => {
+        const fn = functions.value.find((item) => {
+            return Number(item.id) === Number(permission.chuc_nang_id)
         })
+
+        return {
+            permission,
+            function: fn || {
+                id: permission.chuc_nang_id,
+                ma_chuc_nang: permission.ma_chuc_nang || "—",
+                ten_chuc_nang: permission.ten_chuc_nang || "Chức năng không tồn tại",
+                mo_ta: permission.mo_ta || "",
+                trang_thai: permission.trang_thai || "hoat_dong",
+            },
+        }
+    })
 })
 
-function selectRole(role) {
-    selectedRole.value = role
-}
+const isSelectedAdmin = computed(() => {
+    return selectedRole.value?.ten_vai_tro === "admin" || Number(selectedRole.value?.id) === 1
+})
 
 function isGranted(functionId) {
     return grantedFunctionIds.value.includes(Number(functionId))
@@ -464,192 +434,216 @@ function isGranted(functionId) {
 
 function grantPermission(fn) {
     if (!selectedRole.value) {
-        alert('Vui lòng chọn vai trò trước.')
+        toaster.error("Vui lòng chọn vai trò trước")
         return
     }
 
     if (isSelectedAdmin.value) {
-        alert('Admin mặc định có toàn quyền, không cần cấp thêm.')
+        toaster.error("Admin mặc định có toàn quyền")
         return
     }
 
-    if (fn.trang_thai !== 'hoat_dong') {
-        alert('Chức năng đang tạm dừng, không thể cấp quyền.')
+    if (fn.trang_thai !== "hoat_dong") {
+        toaster.error("Chức năng đang tạm dừng, không thể cấp quyền")
         return
     }
 
     if (isGranted(fn.id)) {
-        alert('Vai trò này đã có chức năng này.')
+        toaster.error("Vai trò này đã có chức năng này")
         return
     }
 
-    permissions.value.push({
-        id: Date.now(),
-        vai_tro_id: selectedRole.value.id,
-        chuc_nang_id: fn.id,
-    })
+    axios
+        .post(
+            BASE_URL + "/phan-quyen/chi-tiet-phan-quyen/add-data",
+            {
+                vai_tro_id: selectedRole.value.id,
+                chuc_nang_id: fn.id,
+            },
+            authHeader()
+        )
+        .then((res) => {
+            if (res.data.status) {
+                toaster.success(res.data.message || "Cấp quyền thành công")
+                getChiTietPhanQuyen()
+            } else {
+                toaster.error(res.data.message || "Cấp quyền thất bại")
+            }
+        })
+        .catch((err) => {
+            handleError(err, "Cấp quyền thất bại")
+        })
 }
 
 function revokePermission(permission) {
-    if (isSelectedAdmin.value) {
-        alert('Admin mặc định có toàn quyền, không thể gỡ quyền.')
+    if (!selectedRole.value) {
+        toaster.error("Vui lòng chọn vai trò trước")
         return
     }
 
-    permissions.value = permissions.value.filter((item) => item.id !== permission.id)
-}
+    if (isSelectedAdmin.value) {
+        toaster.error("Admin mặc định có toàn quyền, không thể gỡ quyền")
+        return
+    }
 
+    axios
+        .post(
+            BASE_URL + "/phan-quyen/chi-tiet-phan-quyen/delete",
+            {
+                vai_tro_id: selectedRole.value.id,
+                chuc_nang_id: permission.chuc_nang_id,
+            },
+            authHeader()
+        )
+        .then((res) => {
+            if (res.data.status) {
+                toaster.success(res.data.message || "Gỡ quyền thành công")
+                getChiTietPhanQuyen()
+            } else {
+                toaster.error(res.data.message || "Gỡ quyền thất bại")
+            }
+        })
+        .catch((err) => {
+            handleError(err, "Gỡ quyền thất bại")
+        })
+}
 function openAddFunction() {
-    clearFunctionForm()
-}
+    isEditingFunction.value = false
 
+    functionForm.value = {
+        id: "",
+        ma_chuc_nang: "",
+        ten_chuc_nang: "",
+        mo_ta: "",
+        trang_thai: "hoat_dong",
+    }
+
+    functionErrors.value = {}
+}
 function openEditFunction(fn) {
-    clearFunctionForm()
-
     isEditingFunction.value = true
-    functionEditTarget.value = fn
 
-    functionForm.ma_chuc_nang = fn.ma_chuc_nang
-    functionForm.ten_chuc_nang = fn.ten_chuc_nang
-    functionForm.mo_ta = fn.mo_ta || ''
-    functionForm.trang_thai = fn.trang_thai
+    functionForm.value = {
+        id: fn.id,
+        ma_chuc_nang: fn.ma_chuc_nang,
+        ten_chuc_nang: fn.ten_chuc_nang,
+        mo_ta: fn.mo_ta,
+        trang_thai: fn.trang_thai,
+    }
+
+    functionErrors.value = {}
 }
-
 function openDeleteFunction(fn) {
     functionDeleteTarget.value = fn
 }
-
 function saveFunction() {
-    if (!validateFunction()) return
+    functionErrors.value = {}
 
-    const data = {
-        ma_chuc_nang: functionForm.ma_chuc_nang.trim(),
-        ten_chuc_nang: functionForm.ten_chuc_nang.trim(),
-        mo_ta: functionForm.mo_ta.trim() || null,
-        trang_thai: functionForm.trang_thai,
-    }
+    const url = isEditingFunction.value
+        ? BASE_URL + "/phan-quyen/chuc-nang/update"
+        : BASE_URL + "/phan-quyen/chuc-nang/add-data"
 
-    if (isEditingFunction.value && functionEditTarget.value) {
-        Object.assign(functionEditTarget.value, data)
-    } else {
-        functions.value.unshift({
-            id: Date.now(),
-            ...data,
+    axios
+        .post(url, functionForm.value, authHeader())
+        .then((res) => {
+            if (res.data.status) {
+                toaster.success(res.data.message)
+
+                bootstrap.Modal.getInstance(
+                    document.getElementById("functionFormModal")
+                ).hide()
+
+                getChucNang()
+            } else {
+                toaster.error(res.data.message)
+            }
         })
-    }
-
-    hideModal('functionFormModal')
-    clearFunctionForm()
+        .catch((err) => {
+            if (err.response?.status === 422) {
+                functionErrors.value = err.response.data.errors || {}
+            } else {
+                handleError(err, "Lưu chức năng thất bại")
+            }
+        })
 }
-
 function confirmDeleteFunction() {
     if (!functionDeleteTarget.value) return
 
-    const id = functionDeleteTarget.value.id
+    axios
+        .post(
+            BASE_URL + "/phan-quyen/chuc-nang/delete",
+            {
+                id: functionDeleteTarget.value.id,
+            },
+            authHeader()
+        )
+        .then((res) => {
+            if (res.data.status) {
+                toaster.success(res.data.message)
 
-    functions.value = functions.value.filter((fn) => fn.id !== id)
-    permissions.value = permissions.value.filter((item) => item.chuc_nang_id !== id)
+                bootstrap.Modal.getInstance(
+                    document.getElementById("functionDeleteModal")
+                ).hide()
 
-    functionDeleteTarget.value = null
-    hideModal('functionDeleteModal')
+                getChucNang()
+            } else {
+                toaster.error(res.data.message)
+            }
+        })
+        .catch((err) => {
+            handleError(err, "Xóa chức năng thất bại")
+        })
 }
 
-function validateFunction() {
-    clearObject(functionErrors)
-
-    let ok = true
-
-    if (!functionForm.ma_chuc_nang.trim()) {
-        functionErrors.ma_chuc_nang = 'Vui lòng nhập mã chức năng'
-        ok = false
-    }
-
-    if (!functionForm.ten_chuc_nang.trim()) {
-        functionErrors.ten_chuc_nang = 'Vui lòng nhập tên chức năng'
-        ok = false
-    }
-
-    const duplicated = functions.value.some((fn) => {
-        const sameId =
-            isEditingFunction.value &&
-            functionEditTarget.value &&
-            fn.id === functionEditTarget.value.id
-
-        return !sameId &&
-            fn.ma_chuc_nang.trim().toLowerCase() ===
-            functionForm.ma_chuc_nang.trim().toLowerCase()
-    })
-
-    if (duplicated) {
-        functionErrors.ma_chuc_nang = 'Mã chức năng đã tồn tại'
-        ok = false
-    }
-
-    return ok
-}
-
-function clearFunctionForm() {
-    functionForm.ma_chuc_nang = ''
-    functionForm.ten_chuc_nang = ''
-    functionForm.mo_ta = ''
-    functionForm.trang_thai = 'hoat_dong'
-
-    clearObject(functionErrors)
-
-    isEditingFunction.value = false
-    functionEditTarget.value = null
-}
 
 function formatRoleName(value) {
     const map = {
-        admin: 'Admin',
-        phong_qldt: 'Phòng QLĐT',
-        co_van: 'Cố vấn học tập',
-        lop_truong: 'Lớp trưởng',
-        bi_thu: 'Bí thư',
-        sinh_vien: 'Sinh viên',
+        admin: "Admin",
+        phong_qldt: "Phòng QLĐT",
+        co_van: "Cố vấn học tập",
+        lop_truong: "Lớp trưởng",
+        bi_thu: "Bí thư",
+        sinh_vien: "Sinh viên",
     }
 
-    return map[value] || value || '—'
+    return map[value] || value || "—"
 }
 
 function getRoleShortName(value) {
     const map = {
-        admin: 'AD',
-        phong_qldt: 'QL',
-        co_van: 'CV',
-        lop_truong: 'LT',
-        bi_thu: 'BT',
-        sinh_vien: 'SV',
+        admin: "AD",
+        phong_qldt: "QL",
+        co_van: "CV",
+        lop_truong: "LT",
+        bi_thu: "BT",
+        sinh_vien: "SV",
     }
 
-    return map[value] || '?'
+    return map[value] || "?"
 }
 
 function formatFunctionStatus(value) {
     const map = {
-        hoat_dong: 'Hoạt động',
-        tam_dung: 'Tạm dừng',
+        hoat_dong: "Hoạt động",
+        tam_dung: "Tạm dừng",
     }
 
-    return map[value] || '—'
+    return map[value] || "—"
 }
 
-function clearObject(obj) {
-    Object.keys(obj).forEach((key) => delete obj[key])
-}
+function handleError(err, defaultMessage) {
+    console.log(defaultMessage, err.response?.data || err)
 
-function hideModal(id) {
-    const el = document.getElementById(id)
-    const ModalCtor = window.bootstrap?.Modal
+    if (err.response?.data?.errors) {
+        const errors = err.response.data.errors
+        const firstKey = Object.keys(errors)[0]
+        toaster.error(errors[firstKey][0] || "Dữ liệu không hợp lệ")
+        return
+    }
 
-    if (!el || !ModalCtor) return
-
-    const instance = ModalCtor.getInstance(el) || ModalCtor.getOrCreateInstance(el)
-    instance.hide()
+    toaster.error(err.response?.data?.message || defaultMessage)
 }
 </script>
-
 <style scoped>
 .rbac-layout {
     display: grid;

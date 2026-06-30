@@ -11,10 +11,18 @@ class VaiTro extends Model
 
     protected $table = 'vai_tro';
 
-    public $timestamps = false;
-
     protected $fillable = [
         'ten_vai_tro',
         'mo_ta',
     ];
+
+    public function nguoiDungs()
+    {
+        return $this->hasMany(NguoiDung::class, 'vai_tro_id');
+    }
+
+    public function phanQuyens()
+    {
+        return $this->hasMany(PhanQuyen::class, 'vai_tro_id');
+    }
 }

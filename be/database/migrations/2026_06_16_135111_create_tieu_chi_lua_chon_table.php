@@ -6,25 +6,25 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('tieu_chi_lua_chon', function (Blueprint $table) {
+
             $table->id();
+
             $table->foreignId('tieu_chi_id')
                 ->constrained('tieu_chi')
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
-            $table->string('noi_dung');
+
+            $table->text('noi_dung');
+
             $table->integer('diem_tuong_ung');
+
+            $table->integer('thu_tu')->default(1);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('tieu_chi_lua_chon');

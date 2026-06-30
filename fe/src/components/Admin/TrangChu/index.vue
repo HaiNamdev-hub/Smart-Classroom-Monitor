@@ -143,8 +143,8 @@
     </AdminLayout>
 </template>
 <script setup>
+import axios from "axios"
 import { Pie, Bar } from "vue-chartjs"
-
 import {
     Chart as ChartJS,
     ArcElement,
@@ -154,92 +154,123 @@ import {
     LinearScale,
     BarElement,
 } from "chart.js"
-import MenuAdmin from "../../../layout/components/MenuAdmin.vue"
-
-import {
-    ref,
-    computed,
-    onMounted,
-    onUnmounted
-} from "vue"
+import { ref, computed, onMounted, onUnmounted } from "vue"
 
 import "../../../assets/css/admin.css"
 import "../../../assets/css/dashboard.css"
 import "../../../assets/css/user.css"
 
+ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement)
+
+const BASE_URL = "http://127.0.0.1:8000/api/admin"
+
+function authHeader() {
+    return {
+        headers: {
+            Authorization: "Bearer " + sessionStorage.getItem("auth_token"),
+        },
+    }
+}
+
 const currentTheme = ref("light")
+
 const handleThemeChange = () => {
     currentTheme.value =
         document.documentElement.getAttribute("data-theme") || "light"
 }
 
-onMounted(() => {
-  handleThemeChange()
-
-  window.addEventListener(
-    "theme-changed",
-    handleThemeChange
-  )
-})
-
-onUnmounted(() => {
-  window.removeEventListener(
-    "theme-changed",
-    handleThemeChange
-  )
-})
-
-const isDark = computed(() =>
-    currentTheme.value === "dark"
-)
+const isDark = computed(() => currentTheme.value === "dark")
 
 const textColor = computed(() =>
     isDark.value ? "#f8fafc" : "#334155"
 )
 
 const gridColor = computed(() =>
-    isDark.value
-        ? "rgba(255,255,255,.08)"
-        : "rgba(0,0,0,.08)"
+    isDark.value ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.08)"
 )
 
 const borderColor = computed(() =>
-    isDark.value
-        ? "#1e293b"
-        : "#ffffff"
+    isDark.value ? "#1e293b" : "#ffffff"
 )
 
-ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement)
+const topStats = ref([
+    { label: "Sinh viên", value: 0, icon: "users", color: "#3b82f6" },
+    { label: "Khoa", value: 0, icon: "building", color: "#22c55e" },
+    { label: "Lớp", value: 0, icon: "school", color: "#f59e0b" },
+    { label: "Đợt đánh giá", value: 0, icon: "calendar", color: "#a855f7" },
+])
 
-const topStats = [
-    { label: "Sinh viên", value: "2.450", icon: "users", color: "#3b82f6" },
-    { label: "Khoa", value: "8", icon: "building", color: "#22c55e" },
-    { label: "Lớp", value: "65", icon: "school", color: "#f59e0b" },
-    { label: "Đợt đánh giá", value: "3", icon: "calendar", color: "#a855f7" },
-]
+const formStats = ref([
+    { label: "Đã nộp", value: 0, icon: "check", color: "#22c55e" },
+    { label: "Chưa nộp", value: 0, icon: "clock", color: "#ef4444" },
+    { label: "Đã duyệt", value: 0, icon: "shield", color: "#3b82f6" },
+    { label: "Chờ duyệt", value: 0, icon: "hourglass", color: "#f59e0b" },
+])
 
-const formStats = [
-    { label: "Đã nộp", value: "1.850", icon: "check", color: "#22c55e" },
-    { label: "Chưa nộp", value: "600", icon: "clock", color: "#ef4444" },
-    { label: "Đã duyệt", value: "1.500", icon: "shield", color: "#3b82f6" },
-    { label: "Chờ duyệt", value: "350", icon: "hourglass", color: "#f59e0b" },
-]
+const activities = ref([])
+const notifications = ref([])
+
+const pieChartValues = ref([0, 0, 0])
+const barLabels = ref([])
+const barValues = ref([])
+
+function getDashboardData() {
+    axios
+        .get(BASE_URL + "/trang-chu/get-data", authHeader())
+        .then((res) => {
+            if (!res.data.status) return
+
+            const data = res.data.data
+
+            topStats.value = [
+                { label: "Sinh viên", value: data.top_stats.sinh_vien, icon: "users", color: "#3b82f6" },
+                { label: "Khoa", value: data.top_stats.khoa, icon: "building", color: "#22c55e" },
+                { label: "Lớp", value: data.top_stats.lop, icon: "school", color: "#f59e0b" },
+                { label: "Đợt đánh giá", value: data.top_stats.dot_danh_gia, icon: "calendar", color: "#a855f7" },
+            ]
+
+            formStats.value = [
+                { label: "Đã nộp", value: data.form_stats.da_nop, icon: "check", color: "#22c55e" },
+                { label: "Chưa nộp", value: data.form_stats.chua_nop, icon: "clock", color: "#ef4444" },
+                { label: "Đã duyệt", value: data.form_stats.da_duyet, icon: "shield", color: "#3b82f6" },
+                { label: "Chờ duyệt", value: data.form_stats.cho_duyet, icon: "hourglass", color: "#f59e0b" },
+            ]
+
+            pieChartValues.value = [
+                data.form_stats.da_duyet,
+                data.form_stats.cho_duyet,
+                data.form_stats.tra_lai,
+            ]
+
+            barLabels.value = data.sinh_vien_theo_khoa.map((item) => item.ten_khoa)
+            barValues.value = data.sinh_vien_theo_khoa.map((item) => item.so_luong)
+
+            activities.value = data.activities || []
+            notifications.value = data.notifications || []
+        })
+        .catch((err) => {
+            console.log("Lỗi lấy dữ liệu dashboard", err.response?.data || err)
+        })
+}
+
+onMounted(() => {
+    handleThemeChange()
+    getDashboardData()
+
+    window.addEventListener("theme-changed", handleThemeChange)
+})
+
+onUnmounted(() => {
+    window.removeEventListener("theme-changed", handleThemeChange)
+})
 
 const pieData = computed(() => ({
-    labels: ["Đã duyệt", "Chờ duyệt", "Từ chối"],
-
+    labels: ["Đã duyệt", "Chờ duyệt", "Trả lại"],
     datasets: [
         {
-            data: [80, 15, 5],
-
-            backgroundColor: [
-                "#22c55e",
-                "#f59e0b",
-                "#ef4444",
-            ],
-
+            data: pieChartValues.value,
+            backgroundColor: ["#22c55e", "#f59e0b", "#ef4444"],
             borderColor: borderColor.value,
-
             borderWidth: 3,
         },
     ],
@@ -247,59 +278,29 @@ const pieData = computed(() => ({
 
 const pieOptions = computed(() => ({
     responsive: true,
-
     maintainAspectRatio: false,
-
     plugins: {
         legend: {
             position: "bottom",
-
             labels: {
                 color: textColor.value,
-
                 padding: 16,
-
                 font: {
                     size: 13,
                 },
             },
         },
     },
-
-    tooltip: {
-        backgroundColor: isDark.value
-            ? "#1e293b"
-            : "#ffffff",
-
-        titleColor: textColor.value,
-
-        bodyColor: textColor.value,
-
-        borderColor: gridColor.value,
-
-        borderWidth: 1,
-    },
 }))
 
 const barData = computed(() => ({
-    labels: [
-        "CNTT",
-        "Kinh tế",
-        "Ngoại ngữ",
-        "Luật",
-        "QLNN",
-        "Báo chí"
-    ],
-
+    labels: barLabels.value,
     datasets: [
         {
             label: "Số sinh viên",
-            data: [600, 450, 300, 380, 420, 300],
-
+            data: barValues.value,
             backgroundColor: "#dc2626",
-
             borderRadius: 8,
-
             maxBarThickness: 46,
         },
     ],
@@ -307,63 +308,29 @@ const barData = computed(() => ({
 
 const barOptions = computed(() => ({
     responsive: true,
-
     maintainAspectRatio: false,
-
     plugins: {
         legend: {
             display: false,
         },
     },
-
-    tooltip: {
-        backgroundColor: isDark.value
-            ? "#1e293b"
-            : "#ffffff",
-
-        titleColor: textColor.value,
-
-        bodyColor: textColor.value,
-
-        borderColor: gridColor.value,
-
-        borderWidth: 1,
-    },
-
     scales: {
         x: {
             ticks: {
                 color: textColor.value,
             },
-
             grid: {
                 display: false,
             },
         },
-
         y: {
             ticks: {
                 color: textColor.value,
             },
-
             grid: {
                 color: gridColor.value,
             },
         },
     },
 }))
-
-const activities = [
-    { name: "Nguyễn Văn A", initials: "NA", action: "Nộp phiếu", type: "blue", time: "5 phút trước" },
-    { name: "Lê Thị B", initials: "LB", action: "Upload minh chứng", type: "amber", time: "12 phút trước" },
-    { name: "Trần Văn C", initials: "TC", action: "Được duyệt", type: "green", time: "30 phút trước" },
-    { name: "Phạm Thị D", initials: "PD", action: "Nộp phiếu", type: "blue", time: "1 giờ trước" },
-    { name: "Hoàng Văn E", initials: "HE", action: "Được duyệt", type: "green", time: "2 giờ trước" },
-]
-
-const notifications = [
-    { title: "Đợt đánh giá HK1 đã mở", desc: "Sinh viên có thể nộp phiếu từ hôm nay", color: "#3b82f6" },
-    { title: "Có 350 phiếu chưa duyệt", desc: "Cần cố vấn học tập xử lý", color: "#f59e0b" },
-    { title: "600 sinh viên chưa nộp", desc: "Nhắc nhở trước hạn chót", color: "#ef4444" },
-]
 </script>

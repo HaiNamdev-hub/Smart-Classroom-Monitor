@@ -19,11 +19,11 @@
                 <span>Sinh viên</span>
                 <strong>{{ currentUser.ho_ten }}</strong>
                 <p>
-                    {{ currentSinhVien.ma_sinh_vien }}
+                    {{ currentSinhVien.ma_sinh_vien || '—' }}
                     ·
-                    {{ currentSinhVien.lop.ma_lop }}
+                    {{ currentSinhVien.lop?.ma_lop || '—' }}
                     ·
-                    {{ currentSinhVien.lop.nganh.ten_nganh }}
+                    {{ currentSinhVien.lop?.nganh?.ten_nganh || '—' }}
                 </p>
             </div>
         </div>
@@ -57,11 +57,7 @@
             <!-- TOOLBAR -->
             <div class="toolbar">
                 <div class="search-box">
-                    <input
-                        v-model="search"
-                        type="text"
-                        placeholder="Tìm theo năm học, học kỳ, trạng thái..."
-                    />
+                    <input v-model="search" type="text" placeholder="Tìm theo năm học, học kỳ, trạng thái..." />
                 </div>
 
                 <div class="filter-select">
@@ -69,10 +65,9 @@
                         <option value="all">Tất cả trạng thái</option>
                         <option value="nhap">Nháp</option>
                         <option value="da_gui">Đã gửi</option>
-                        <option value="lop_da_danh_gia">Lớp đã đánh giá</option>
-                        <option value="co_van_da_kiem_tra">CVHT đã kiểm tra</option>
+                        <option value="lop_da_duyet">Lớp đã duyệt</option>
+                        <option value="co_van_da_duyet">Cố vấn đã duyệt</option>
                         <option value="hoan_thanh">Hoàn thành</option>
-                        <option value="tra_lai">Trả lại</option>
                     </select>
                 </div>
             </div>
@@ -96,10 +91,7 @@
                     </thead>
 
                     <tbody>
-                        <tr
-                            v-for="(row, index) in filteredResults"
-                            :key="row.id"
-                        >
+                        <tr v-for="(row, index) in filteredResults" :key="row.id">
                             <td class="action-cell">{{ index + 1 }}</td>
 
                             <td class="action-cell">
@@ -132,30 +124,20 @@
                             </td>
 
                             <td class="action-cell text-center">
-                                <span
-                                    class="rank-badge"
-                                    :class="'rank-' + getFinalRank(row)"
-                                >
+                                <span class="rank-badge" :class="'rank-' + getFinalRank(row)">
                                     {{ formatXepLoai(getFinalRank(row)) }}
                                 </span>
                             </td>
 
                             <td class="action-cell text-center">
-                                <span
-                                    class="status-badge"
-                                    :class="'status-' + row.trang_thai"
-                                >
+                                <span class="status-badge" :class="'status-' + row.trang_thai">
                                     {{ formatTrangThai(row.trang_thai) }}
                                 </span>
                             </td>
 
                             <td class="action-cell">
                                 <div class="row-actions row-actions-center">
-                                    <button
-                                        type="button"
-                                        class="action-btn ghost"
-                                        @click="viewDetail(row)"
-                                    >
+                                    <button type="button" class="action-btn ghost" @click="viewDetail(row)">
                                         <i class="fa-solid fa-eye"></i>
                                         <span>Xem</span>
                                     </button>
@@ -177,8 +159,9 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import axios from 'axios'
 
 import "../../../assets/css/admin.css"
 import "../../../assets/css/dark-theme.css"
@@ -187,141 +170,147 @@ import "../../../assets/css/user.css"
 
 const router = useRouter()
 
+const API = 'http://127.0.0.1:8000/api/sinh-vien/ket-qua-ren-luyen/get-data'
+
 const search = ref('')
 const filterStatus = ref('all')
+const loading = ref(false)
 
 const currentUser = reactive({
-    id: 1,
-    ho_ten: 'Nguyễn Văn A',
-    email: 'sv001@student.edu.vn',
-    so_dien_thoai: '0901234567',
-    ngay_sinh: '15/01/2005',
-    vai_tro_id: 3,
-    trang_thai: 'hoat_dong',
+    id: null,
+    ho_ten: '',
+    email: '',
+    so_dien_thoai: '',
+    ngay_sinh: '',
+    vai_tro_id: null,
+    trang_thai: '',
 })
 
 const currentSinhVien = reactive({
-    id: 1,
-    ma_sinh_vien: 'SV001',
-    nam_trung_tuyen: 2023,
-    user_id: currentUser.id,
-    lop_id: 1,
-
-    nguoi_dung: currentUser,
+    id: null,
+    ma_sinh_vien: '',
+    nam_trung_tuyen: '',
+    user_id: null,
+    lop_id: null,
 
     lop: {
-        id: 1,
-        ma_lop: 'D23CQCN01',
-        ten_lop: 'Công nghệ thông tin 01',
-        khoa_id: 1,
-        nganh_id: 1,
+        id: null,
+        ma_lop: '',
+        ten_lop: '',
 
         khoa: {
-            id: 1,
-            ma_khoa: 'CNTT',
-            ten_khoa: 'Công nghệ thông tin',
+            id: null,
+            ma_khoa: '',
+            ten_khoa: '',
         },
 
         nganh: {
-            id: 1,
-            ma_nganh: 'KTPM',
-            ten_nganh: 'Kỹ thuật phần mềm',
+            id: null,
+            ma_nganh: '',
+            ten_nganh: '',
         },
     },
 })
 
-const phieuRenLuyenList = ref([
-    {
-        id: 1,
-        sinh_vien_id: currentSinhVien.id,
-        dot_danh_gia_id: 1,
+const phieuRenLuyenList = ref([])
 
-        tong_diem_sv: 86,
-        tong_diem_lop: 84,
+const thongKe = reactive({
+    diem_hien_tai: null,
+    xep_loai_hien_tai: null,
+    so_phieu_hoan_thanh: 0,
+    diem_cao_nhat: null,
+})
 
-        xep_loai_sv: 'tot',
-        xep_loai_lop: 'tot',
+function authHeader() {
+    const token =
+        sessionStorage.getItem('auth_token') ||
+        localStorage.getItem('auth_token') ||
+        localStorage.getItem('key_admin')
 
-        trang_thai: 'hoan_thanh',
-
-        created_at: '2025-12-01 08:00:00',
-        updated_at: '2025-12-20 10:30:00',
-
-        sinh_vien: currentSinhVien,
-
-        dot_danh_gia: {
-            id: 1,
-            nam_hoc: '2025 - 2026',
-            hoc_ky: 1,
-            ngay_bat_dau: '2025-12-01 00:00:00',
-            ngay_ket_thuc: '2025-12-20 23:59:59',
-            trang_thai: 'da_dong',
+    return {
+        headers: {
+            Authorization: 'Bearer ' + token,
         },
-    },
+    }
+}
 
-    {
-        id: 2,
-        sinh_vien_id: currentSinhVien.id,
-        dot_danh_gia_id: 2,
+onMounted(() => {
+    getKetQuaRenLuyen()
+})
 
-        tong_diem_sv: 90,
-        tong_diem_lop: 88,
+function getKetQuaRenLuyen() {
+    loading.value = true
 
-        xep_loai_sv: 'xuat_sac',
-        xep_loai_lop: 'tot',
+    axios
+        .get(API, authHeader())
+        .then((res) => {
+            if (!res.data.status) {
+                alert(res.data.message || 'Không lấy được kết quả rèn luyện!')
+                return
+            }
 
-        trang_thai: 'co_van_da_kiem_tra',
+            const user = res.data.current_user || {}
+            const sinhVien = res.data.current_sinh_vien || {}
+            const ketQua = res.data.ket_qua || []
+            const tk = res.data.thong_ke || {}
 
-        created_at: '2026-06-01 08:00:00',
-        updated_at: '2026-06-15 11:00:00',
+            Object.assign(currentUser, {
+                id: user.id || null,
+                ho_ten: user.ho_ten || '',
+                email: user.email || '',
+                so_dien_thoai: user.so_dien_thoai || '',
+                ngay_sinh: user.ngay_sinh || '',
+                vai_tro_id: user.vai_tro_id || null,
+                trang_thai: user.trang_thai || '',
+            })
 
-        sinh_vien: currentSinhVien,
+            Object.assign(currentSinhVien, {
+                id: sinhVien.id || null,
+                ma_sinh_vien: sinhVien.ma_sinh_vien || '',
+                nam_trung_tuyen: sinhVien.nam_trung_tuyen || '',
+                user_id: sinhVien.user_id || null,
+                lop_id: sinhVien.lop_id || null,
+                lop: {
+                    id: sinhVien.lop?.id || null,
+                    ma_lop: sinhVien.lop?.ma_lop || '',
+                    ten_lop: sinhVien.lop?.ten_lop || '',
+                    khoa: {
+                        id: sinhVien.lop?.khoa?.id || null,
+                        ma_khoa: sinhVien.lop?.khoa?.ma_khoa || '',
+                        ten_khoa: sinhVien.lop?.khoa?.ten_khoa || '',
+                    },
+                    nganh: {
+                        id: sinhVien.lop?.nganh?.id || null,
+                        ma_nganh: sinhVien.lop?.nganh?.ma_nganh || '',
+                        ten_nganh: sinhVien.lop?.nganh?.ten_nganh || '',
+                    },
+                },
+            })
 
-        dot_danh_gia: {
-            id: 2,
-            nam_hoc: '2025 - 2026',
-            hoc_ky: 2,
-            ngay_bat_dau: '2026-06-01 00:00:00',
-            ngay_ket_thuc: '2026-06-30 23:59:59',
-            trang_thai: 'dang_mo',
-        },
-    },
+            phieuRenLuyenList.value = ketQua
 
-    {
-        id: 3,
-        sinh_vien_id: currentSinhVien.id,
-        dot_danh_gia_id: 3,
-
-        tong_diem_sv: 75,
-        tong_diem_lop: 0,
-
-        xep_loai_sv: 'kha',
-        xep_loai_lop: null,
-
-        trang_thai: 'da_gui',
-
-        created_at: '2026-12-01 08:00:00',
-        updated_at: '2026-12-05 09:15:00',
-
-        sinh_vien: currentSinhVien,
-
-        dot_danh_gia: {
-            id: 3,
-            nam_hoc: '2026 - 2027',
-            hoc_ky: 1,
-            ngay_bat_dau: '2026-12-01 00:00:00',
-            ngay_ket_thuc: '2026-12-25 23:59:59',
-            trang_thai: 'dang_mo',
-        },
-    },
-])
+            Object.assign(thongKe, {
+                diem_hien_tai: tk.diem_hien_tai ?? null,
+                xep_loai_hien_tai: tk.xep_loai_hien_tai ?? null,
+                so_phieu_hoan_thanh: tk.so_phieu_hoan_thanh ?? 0,
+                diem_cao_nhat: tk.diem_cao_nhat ?? null,
+            })
+        })
+        .catch((err) => {
+            console.log('Lỗi lấy kết quả rèn luyện:', err.response?.data || err)
+            alert(err.response?.data?.message || 'Lỗi lấy kết quả rèn luyện!')
+        })
+        .finally(() => {
+            loading.value = false
+        })
+}
 
 const filteredResults = computed(() => {
     const q = search.value.trim().toLowerCase()
 
     return phieuRenLuyenList.value.filter((item) => {
-        const hocKyText = formatHocKy(item.dot_danh_gia.hoc_ky).toLowerCase()
-        const namHocText = item.dot_danh_gia.nam_hoc.toLowerCase()
+        const hocKyText = formatHocKy(item.dot_danh_gia?.hoc_ky).toLowerCase()
+        const namHocText = String(item.dot_danh_gia?.nam_hoc || '').toLowerCase()
         const trangThaiText = formatTrangThai(item.trang_thai).toLowerCase()
 
         const matchSearch =
@@ -342,7 +331,10 @@ const latestResult = computed(() => {
     if (!phieuRenLuyenList.value.length) return null
 
     return [...phieuRenLuyenList.value].sort((a, b) => {
-        return new Date(b.updated_at.replace(' ', 'T')) - new Date(a.updated_at.replace(' ', 'T'))
+        const dateA = new Date(String(a.updated_at || '').replace(' ', 'T'))
+        const dateB = new Date(String(b.updated_at || '').replace(' ', 'T'))
+
+        return dateB - dateA
     })[0]
 })
 
@@ -353,47 +345,69 @@ const completedCount = computed(() => {
 const highestScore = computed(() => {
     if (!phieuRenLuyenList.value.length) return '—'
 
-    return Math.max(...phieuRenLuyenList.value.map((item) => Number(getFinalScore(item) || 0)))
+    return Math.max(
+        ...phieuRenLuyenList.value.map((item) => Number(getFinalScore(item) || 0))
+    )
 })
 
 function hasClassScore(row) {
     return [
-        'lop_da_danh_gia',
-        'co_van_da_kiem_tra',
+        'lop_da_duyet',
+        'co_van_da_duyet',
         'hoan_thanh',
     ].includes(row.trang_thai)
 }
 
 function getFinalScore(row) {
-    if (hasClassScore(row)) {
-        return row.tong_diem_lop
+    if (!row) return '—'
+
+    if (row.tong_diem_cuoi !== null && row.tong_diem_cuoi !== undefined) {
+        return row.tong_diem_cuoi
     }
 
-    return row.tong_diem_sv
+    if (hasClassScore(row)) {
+        return row.tong_diem_lop || 0
+    }
+
+    return row.tong_diem_sv || 0
 }
 
 function getFinalRank(row) {
-    if (hasClassScore(row) && row.xep_loai_lop) {
-        return row.xep_loai_lop
+    if (!row) return null
+
+    if (row.xep_loai) {
+        return row.xep_loai
     }
 
-    return row.xep_loai_sv
+    return classifyScore(getFinalScore(row))
+}
+
+function classifyScore(score) {
+    const value = Number(score || 0)
+
+    if (value >= 90) return 'xuat_sac'
+    if (value >= 80) return 'tot'
+    if (value >= 65) return 'kha'
+    if (value >= 50) return 'trung_binh'
+    if (value >= 35) return 'yeu'
+
+    return 'kem'
 }
 
 function formatHocKy(value) {
-    if (value === 1) return 'Kỳ I'
-    if (value === 2) return 'Kỳ II'
-    return `Kỳ ${value}`
+    if (value === 1 || value === '1') return 'Kỳ I'
+    if (value === 2 || value === '2') return 'Kỳ II'
+
+    return value ? `Kỳ ${value}` : '—'
 }
 
 function formatTrangThai(value) {
     const map = {
         nhap: 'Nháp',
         da_gui: 'Đã gửi',
-        lop_da_danh_gia: 'Lớp đã đánh giá',
-        co_van_da_kiem_tra: 'CVHT đã kiểm tra',
+        lop_da_duyet: 'Lớp đã duyệt',
+        co_van_da_duyet: 'Cố vấn đã duyệt',
         hoan_thanh: 'Hoàn thành',
-        tra_lai: 'Trả lại',
     }
 
     return map[value] || '—'
@@ -444,7 +458,6 @@ function viewDetail(row) {
     })
 }
 </script>
-
 <style scoped>
 .result-page {
     padding-bottom: 40px;

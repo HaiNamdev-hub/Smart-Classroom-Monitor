@@ -41,8 +41,8 @@ class PhieuRenLuyen extends Model
         return $this->hasMany(ChiTietDanhGia::class, 'phieu_id');
     }
 
-    public function lichSuDuyets()
+    public function lichSuKiemTras()
     {
-        return $this->hasMany(LichSuDuyet::class, 'phieu_id');
+        return $this->hasMany(LichSuKiemTra::class, 'phieu_id');
     }
 }
