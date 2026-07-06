@@ -31,7 +31,6 @@ class DatabaseSeeder extends Seeder
             ChiTietDanhGiaSeeder::class,
             MinhChungSeeder::class,
             LichSuDuyetSeeder::class,
-            FileDanhSachLopSeeder::class,
             LichSuKiemTraSeeder::class,
         ]);
     }

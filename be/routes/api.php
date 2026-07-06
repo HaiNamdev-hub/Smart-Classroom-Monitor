@@ -218,6 +218,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/can-su-lop/phieu-ren-luyen/danh-gia', [SinhVienController::class, 'danhGiaPhieuCanSuLop']);
 
 
-    Route::apiResource('/admin/file-danh-sach-lop', FileDanhSachLopController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
+    //File danh sách lớp
+    Route::get('/file-danh-sach-lop', [FileDanhSachLopController::class, 'index']);
+    Route::post('/file-danh-sach-lop', [FileDanhSachLopController::class, 'store']);
+    Route::get('/file-danh-sach-lop/{id}', [FileDanhSachLopController::class, 'show']);
+    Route::put('/file-danh-sach-lop/{id}', [FileDanhSachLopController::class, 'update']);
+    Route::delete('/file-danh-sach-lop/{id}', [FileDanhSachLopController::class, 'destroy']);
+    Route::get('/file-danh-sach-lop/{id}/download', [FileDanhSachLopController::class, 'download']);
+    Route::post('/file-danh-sach-lop/{id}/replace', [FileDanhSachLopController::class, 'replace']);
+    Route::get('/file-danh-sach-lop/{id}/doc-du-lieu', [FileDanhSachLopController::class, 'docDuLieu']);
+
     Route::apiResource('/admin/lich-su-kiem-tra', LichSuKiemTraController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
 });
