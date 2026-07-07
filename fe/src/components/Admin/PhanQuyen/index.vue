@@ -15,11 +15,6 @@
                     </div>
                 </div>
 
-                <div class="search-box mb-3">
-                    <input v-model="roleSearch" type="text" placeholder="Tìm vai trò..."
-                        class="outline-none bg-transparent w-full" />
-                </div>
-
                 <div class="role-list">
                     <div v-for="role in filteredRoles" :key="role.id" class="role-item"
                         :class="{ active: selectedRole?.id === role.id }" @click="selectRole(role)">
@@ -67,16 +62,6 @@
                     <div class="function-box">
                         <div class="section-title-row">
                             <h3>Kho chức năng</h3>
-
-                            <button class="btn-light-red" type="button" @click="openAddFunction" data-bs-toggle="modal"
-                                data-bs-target="#functionFormModal">
-                                Thêm chức năng
-                            </button>
-                        </div>
-
-                        <div class="search-box mb-3">
-                            <input v-model="functionSearch" type="text" placeholder="Tìm chức năng..."
-                                class="outline-none bg-transparent w-full" />
                         </div>
 
                         <div class="function-list">
@@ -103,12 +88,6 @@
                                             @click.stop="openEditFunction(fn)" data-bs-toggle="modal"
                                             data-bs-target="#functionFormModal">
                                             <i class="fa-solid fa-pen"></i>
-                                        </button>
-
-                                        <button class="mini-icon del" title="Xóa chức năng" type="button"
-                                            @click.stop="openDeleteFunction(fn)" data-bs-toggle="modal"
-                                            data-bs-target="#functionDeleteModal">
-                                            <i class="fa-solid fa-trash-can"></i>
                                         </button>
                                     </div>
 
@@ -159,7 +138,7 @@
                         <div class="modal-header">
                             <div>
                                 <h1 class="modal-title fs-5">
-                                    {{ isEditingFunction ? 'Sửa' : 'Thêm' }} chức năng
+                                    Sửa chức năng
                                 </h1>
                                 <p class="text-sm text-gray-500 mb-0">
                                     Chức năng dùng để cấp quyền cho từng vai trò.
@@ -173,8 +152,7 @@
                             <div class="form-grid">
                                 <div class="form-group">
                                     <label>Mã chức năng <span class="req">*</span></label>
-                                    <input v-model="functionForm.ma_chuc_nang" type="text"
-                                        placeholder="VD: quan_ly_user" />
+                                    <input v-model="functionForm.ma_chuc_nang" type="text" disabled />
                                     <span v-if="functionErrors.ma_chuc_nang" class="form-error">
                                         {{ functionErrors.ma_chuc_nang }}
                                     </span>
@@ -210,43 +188,10 @@
                                 Hủy
                             </button>
                             <button type="submit" class="btn btn-primary">
-                                {{ isEditingFunction ? 'Cập nhật' : 'Thêm mới' }}
+                                Cập nhật
                             </button>
                         </div>
                     </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- MODAL FUNCTION DELETE -->
-        <div class="modal fade" id="functionDeleteModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <div>
-                            <h1 class="modal-title fs-5">Xóa chức năng</h1>
-                            <p class="text-sm text-gray-500 mb-0">Các quyền liên quan cũng sẽ bị gỡ khỏi demo.</p>
-                        </div>
-
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-
-                    <div class="modal-body">
-                        <p>
-                            Bạn có chắc muốn xóa chức năng
-                            <strong>{{ functionDeleteTarget?.ten_chuc_nang }}</strong>
-                            không?
-                        </p>
-                    </div>
-
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                            Hủy
-                        </button>
-                        <button type="button" class="btn btn-primary" @click="confirmDeleteFunction">
-                            Xóa
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>
@@ -273,8 +218,6 @@ const functions = ref([])
 const permissions = ref([])
 const selectedRole = ref(null)
 
-const roleSearch = ref("")
-const functionSearch = ref("")
 const functionForm = ref({
     ma_chuc_nang: "",
     ten_chuc_nang: "",
@@ -286,7 +229,6 @@ const functionErrors = ref({})
 
 const isEditingFunction = ref(false)
 
-const functionDeleteTarget = ref(null)
 
 function authHeader() {
     return {
@@ -367,38 +309,11 @@ function selectRole(role) {
 }
 
 const filteredRoles = computed(() => {
-    const q = roleSearch.value.trim().toLowerCase()
-
-    if (!q) return roles.value
-
-    return roles.value.filter((role) => {
-        return [
-            role.ten_vai_tro,
-            role.mo_ta,
-            formatRoleName(role.ten_vai_tro),
-        ]
-            .join(" ")
-            .toLowerCase()
-            .includes(q)
-    })
+    return roles.value
 })
 
 const filteredFunctions = computed(() => {
-    const q = functionSearch.value.trim().toLowerCase()
-
-    if (!q) return functions.value
-
-    return functions.value.filter((fn) => {
-        return [
-            fn.ma_chuc_nang,
-            fn.ten_chuc_nang,
-            fn.mo_ta,
-            formatFunctionStatus(fn.trang_thai),
-        ]
-            .join(" ")
-            .toLowerCase()
-            .includes(q)
-    })
+    return functions.value
 })
 
 const grantedFunctionIds = computed(() => {
@@ -507,19 +422,6 @@ function revokePermission(permission) {
             handleError(err, "Gỡ quyền thất bại")
         })
 }
-function openAddFunction() {
-    isEditingFunction.value = false
-
-    functionForm.value = {
-        id: "",
-        ma_chuc_nang: "",
-        ten_chuc_nang: "",
-        mo_ta: "",
-        trang_thai: "hoat_dong",
-    }
-
-    functionErrors.value = {}
-}
 function openEditFunction(fn) {
     isEditingFunction.value = true
 
@@ -533,26 +435,21 @@ function openEditFunction(fn) {
 
     functionErrors.value = {}
 }
-function openDeleteFunction(fn) {
-    functionDeleteTarget.value = fn
-}
+
 function saveFunction() {
     functionErrors.value = {}
 
-    const url = isEditingFunction.value
-        ? BASE_URL + "/phan-quyen/chuc-nang/update"
-        : BASE_URL + "/phan-quyen/chuc-nang/add-data"
-
     axios
-        .post(url, functionForm.value, authHeader())
+        .post(
+            BASE_URL + "/phan-quyen/chuc-nang/update",
+            functionForm.value,
+            authHeader()
+        )
         .then((res) => {
             if (res.data.status) {
                 toaster.success(res.data.message)
 
-                bootstrap.Modal.getInstance(
-                    document.getElementById("functionFormModal")
-                ).hide()
-
+                hideModal("functionFormModal")
                 getChucNang()
             } else {
                 toaster.error(res.data.message)
@@ -566,36 +463,29 @@ function saveFunction() {
             }
         })
 }
-function confirmDeleteFunction() {
-    if (!functionDeleteTarget.value) return
 
-    axios
-        .post(
-            BASE_URL + "/phan-quyen/chuc-nang/delete",
-            {
-                id: functionDeleteTarget.value.id,
-            },
-            authHeader()
-        )
-        .then((res) => {
-            if (res.data.status) {
-                toaster.success(res.data.message)
+function hideModal(id) {
+    const el = document.getElementById(id)
 
-                bootstrap.Modal.getInstance(
-                    document.getElementById("functionDeleteModal")
-                ).hide()
+    if (!el) return
 
-                getChucNang()
-            } else {
-                toaster.error(res.data.message)
-            }
+    const ModalCtor = window.bootstrap?.Modal
+
+    if (ModalCtor) {
+        const instance = ModalCtor.getInstance(el) || ModalCtor.getOrCreateInstance(el)
+        instance.hide()
+    }
+
+    setTimeout(() => {
+        document.querySelectorAll(".modal-backdrop").forEach((item) => {
+            item.remove()
         })
-        .catch((err) => {
-            handleError(err, "Xóa chức năng thất bại")
-        })
+
+        document.body.classList.remove("modal-open")
+        document.body.style.removeProperty("overflow")
+        document.body.style.removeProperty("padding-right")
+    }, 300)
 }
-
-
 function formatRoleName(value) {
     const map = {
         admin: "Admin",

@@ -151,6 +151,7 @@
                                     <select v-model="form.hoc_ky">
                                         <option :value="1">Học kỳ 1</option>
                                         <option :value="2">Học kỳ 2</option>
+                                        <option :value="3">Học kỳ Hè</option>
                                     </select>
                                     <span v-if="errors.hoc_ky" class="form-error">{{ errors.hoc_ky }}</span>
                                 </div>
@@ -534,6 +535,7 @@ function handleError(err) {
 function formatHocKy(value) {
     if (Number(value) === 1) return "Học kỳ 1";
     if (Number(value) === 2) return "Học kỳ 2";
+    if (Number(value) === 3) return "Học kỳ Hè";
 
     return "—";
 }

@@ -171,10 +171,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
     //chức năng
-    Route::post('/admin/phan-quyen/chuc-nang/add-data', [ChucNangController::class, 'themChucNang']);
     Route::post('/admin/phan-quyen/chuc-nang/update', [ChucNangController::class, 'suaChucNang']);
-    Route::post('/admin/phan-quyen/chuc-nang/delete', [ChucNangController::class, 'xoaChucNang']);
-
 
     //api  người dùng
     Route::get('/admin/nguoi-dung', [NguoiDungController::class, 'getNguoiDung']);

@@ -15,6 +15,7 @@ class ChucNangSeeder extends Seeder
             ['ma_chuc_nang' => 'quan_ly_nganh', 'ten_chuc_nang' => 'Quản lý ngành'],
             ['ma_chuc_nang' => 'quan_ly_lop', 'ten_chuc_nang' => 'Quản lý lớp'],
             ['ma_chuc_nang' => 'quan_ly_danh_sach_lop', 'ten_chuc_nang' => 'Quản lý danh sách lớp'],
+            ['ma_chuc_nang' => 'xem_diem_lop', 'ten_chuc_nang' => 'Xem điểm lớp'],
             ['ma_chuc_nang' => 'duyet_phieu_ren_luyen', 'ten_chuc_nang' => 'Duyệt phiếu rèn luyện'],
             ['ma_chuc_nang' => 'xuat_bao_cao', 'ten_chuc_nang' => 'Xuất báo cáo'],
         ];

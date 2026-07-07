@@ -52,40 +52,6 @@ class ChucNangController extends Controller
         ]);
     }
 
-    public function themChucNang(Request $request)
-    {
-        if (!$this->kiemTraQuyen('phan_quyen')) {
-            return $this->khongCoQuyen();
-        }
-
-        $validator = Validator::make($request->all(), [
-            'ma_chuc_nang'  => ['required', 'string', 'max:255', 'unique:chuc_nang,ma_chuc_nang'],
-            'ten_chuc_nang' => ['required', 'string', 'max:255'],
-            'mo_ta'         => ['nullable', 'string'],
-            'trang_thai'    => ['required', Rule::in(['hoat_dong', 'tam_dung'])],
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status'  => false,
-                'message' => 'Dữ liệu không hợp lệ',
-                'errors'  => $validator->errors(),
-            ], 422);
-        }
-
-        $data = ChucNang::create([
-            'ma_chuc_nang'  => $request->ma_chuc_nang,
-            'ten_chuc_nang' => $request->ten_chuc_nang,
-            'mo_ta'         => $request->mo_ta,
-            'trang_thai'    => $request->trang_thai,
-        ]);
-
-        return response()->json([
-            'status'  => true,
-            'message' => 'Thêm chức năng thành công',
-            'data'    => $data,
-        ]);
-    }
 
     public function suaChucNang(Request $request)
     {
@@ -104,12 +70,6 @@ class ChucNangController extends Controller
 
         $validator = Validator::make($request->all(), [
             'id'            => ['required', 'exists:chuc_nang,id'],
-            'ma_chuc_nang'  => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('chuc_nang', 'ma_chuc_nang')->ignore($request->id),
-            ],
             'ten_chuc_nang' => ['required', 'string', 'max:255'],
             'mo_ta'         => ['nullable', 'string'],
             'trang_thai'    => ['required', Rule::in(['hoat_dong', 'tam_dung'])],
@@ -123,7 +83,6 @@ class ChucNangController extends Controller
             ], 422);
         }
 
-        $data->ma_chuc_nang = $request->ma_chuc_nang;
         $data->ten_chuc_nang = $request->ten_chuc_nang;
         $data->mo_ta = $request->mo_ta;
         $data->trang_thai = $request->trang_thai;
@@ -134,31 +93,6 @@ class ChucNangController extends Controller
             'status'  => true,
             'message' => 'Cập nhật chức năng thành công',
             'data'    => $data,
-        ]);
-    }
-
-    public function xoaChucNang(Request $request)
-    {
-        if (!$this->kiemTraQuyen('phan_quyen')) {
-            return $this->khongCoQuyen();
-        }
-
-        $data = ChucNang::find($request->id);
-
-        if (!$data) {
-            return response()->json([
-                'status'  => false,
-                'message' => 'Chức năng không tồn tại'
-            ], 404);
-        }
-
-        PhanQuyen::where('chuc_nang_id', $data->id)->delete();
-
-        $data->delete();
-
-        return response()->json([
-            'status'  => true,
-            'message' => 'Xóa chức năng thành công',
         ]);
     }
 }

@@ -569,15 +569,22 @@ class SinhVienController extends Controller
             ->first();
 
         if ($sinhVien) {
-            $laLopTruong = (int) $sinhVien->lop_truong_id === (int) $sinhVien->id;
-            $laBiThu     = (int) $sinhVien->bi_thu_id === (int) $sinhVien->id;
+            $laLopTruong = (int) $sinhVien->lop_truong_id === (int) $user->id;
+            $laBiThu     = (int) $sinhVien->bi_thu_id === (int) $user->id;
+
+            if (!$laLopTruong && !$laBiThu) {
+                return [
+                    'status'  => false,
+                    'message' => 'Bạn không phải lớp trưởng hoặc bí thư của lớp này!'
+                ];
+            }
 
             return [
                 'status'         => true,
                 'sinh_vien'      => $sinhVien,
                 'lop_id'         => $sinhVien->lop_id,
                 'sinh_vien_id'   => $sinhVien->id,
-                'vai_tro_can_su' => $laLopTruong ? 'lop_truong' : ($laBiThu ? 'bi_thu' : 'sinh_vien')
+                'vai_tro_can_su' => $laLopTruong ? 'lop_truong' : 'bi_thu'
             ];
         }
 
@@ -858,100 +865,10 @@ class SinhVienController extends Controller
 
     public function danhGiaPhieuCanSuLop(Request $request)
     {
-        $check = $this->layThongTinCanSuLop();
-
-        if (!$check['status']) {
-            return response()->json([
-                'status'  => false,
-                'message' => $check['message']
-            ], 403);
-        }
-
-        $request->validate([
-            'phieu_id'           => 'required|exists:phieu_ren_luyen,id',
-            'chi_tiet_danh_gia'  => 'required|array',
-        ]);
-
-        $phieu = PhieuRenLuyen::join('sinh_vien', 'phieu_ren_luyen.sinh_vien_id', '=', 'sinh_vien.id')
-            ->where('phieu_ren_luyen.id', $request->phieu_id)
-            ->where('sinh_vien.lop_id', $check['lop_id'])
-            ->when($check['sinh_vien_id'], function ($query) use ($check) {
-                $query->where('sinh_vien.id', '!=', $check['sinh_vien_id']);
-            })
-            ->select('phieu_ren_luyen.*')
-            ->first();
-
-        if (!$phieu) {
-            return response()->json([
-                'status'  => false,
-                'message' => 'Phiếu không tồn tại hoặc không thuộc lớp của bạn!'
-            ], 404);
-        }
-
-        if (!in_array($phieu->trang_thai, ['da_gui', 'lop_da_duyet'])) {
-            return response()->json([
-                'status'  => false,
-                'message' => 'Phiếu này không còn được lớp đánh giá!'
-            ], 422);
-        }
-
-        DB::beginTransaction();
-
-        try {
-            foreach ($request->chi_tiet_danh_gia as $item) {
-                if (empty($item['tieu_chi_id'])) {
-                    continue;
-                }
-
-                $diemLop = (int) ($item['diem_lop'] ?? 0);
-
-                DB::table('chi_tiet_danh_gia')
-                    ->where('phieu_id', $phieu->id)
-                    ->where('tieu_chi_id', $item['tieu_chi_id'])
-                    ->update([
-                        'diem_lop'   => $diemLop,
-                        'ghi_chu'    => $item['ghi_chu'] ?? null,
-                        'updated_at' => now(),
-                    ]);
-            }
-
-            $tongDiemLop = DB::table('chi_tiet_danh_gia')
-                ->where('phieu_id', $phieu->id)
-                ->sum('diem_lop');
-
-            $tongDiemLop = min($tongDiemLop, 100);
-
-            $phieu->tong_diem_lop  = $tongDiemLop;
-            $phieu->tong_diem_cuoi = $tongDiemLop;
-            $phieu->xep_loai       = $this->xepLoai($tongDiemLop);
-            $phieu->trang_thai     = 'lop_da_duyet';
-            $phieu->save();
-
-            DB::table('lich_su_kiem_tra')->insert([
-                'phieu_id'          => $phieu->id,
-                'nguoi_kiem_tra_id' => Auth::id(),
-                'vai_tro_kiem_tra'  => $check['vai_tro_can_su'],
-                'hanh_dong'         => 'danh_gia',
-                'ghi_chu'           => $request->ghi_chu,
-                'created_at'        => now(),
-            ]);
-
-            DB::commit();
-
-            return response()->json([
-                'status'  => true,
-                'message' => 'Lớp đánh giá phiếu thành công!',
-                'data'    => $phieu
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-
-            return response()->json([
-                'status'  => false,
-                'message' => 'Lỗi đánh giá phiếu!',
-                'error'   => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'status'  => false,
+            'message' => 'Lớp trưởng/Bí thư chỉ được xem điểm lớp, không được đánh giá hoặc sửa điểm.'
+        ], 403);
     }
 
     private function xepLoai($score)

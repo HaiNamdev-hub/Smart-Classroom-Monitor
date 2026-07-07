@@ -25,8 +25,8 @@
         </div>
 
         <!-- BUTTON THÊM FILE DANH SÁCH LỚP -->
-        <button v-if="activeTab === 'danh-sach-lop'" class="btn-primary ml-auto" type="button" @click="openImport(null)"
-          data-bs-toggle="modal" data-bs-target="#importClassListModal">
+        <button v-if="activeTab === 'danh-sach-lop'" class="btn-primary ml-auto" type="button"
+          @click="openImport(null)">
           Tải file Excel/Word
         </button>
 
@@ -64,8 +64,7 @@
                     <i class="fa-solid fa-eye"></i>
                   </button>
 
-                  <button class="icon-btn upload" title="Tải lại file" type="button" @click="openImport(row)"
-                    data-bs-toggle="modal" data-bs-target="#importClassListModal">
+                  <button class="icon-btn upload" title="Tải lại file" type="button" @click="openImport(row)">
                     <i class="fa-solid fa-upload"></i>
                   </button>
 
@@ -182,13 +181,14 @@
                   giá.
                 </p>
               </div>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              <button type="button" class="btn-close" @click="hideModal('importClassListModal')"></button>
             </div>
 
             <div class="modal-body">
               <div class="form-group mb-3">
                 <label>Khoa <span class="req">*</span></label>
-                <select v-model="importForm.khoa_id">
+
+                <select v-model="importForm.khoa_id" @change="onImportKhoaChange">
                   <option value="">Chọn khoa</option>
                   <option v-for="k in rows.khoa" :key="k.id" :value="k.id">
                     {{ k.ten_khoa }}
@@ -198,9 +198,12 @@
 
               <div class="form-group mb-3">
                 <label>Ngành <span class="req">*</span></label>
-                <select v-model="importForm.nganh_id">
-                  <option value="">Chọn ngành</option>
-                  <option v-for="n in rows.nganh" :key="n.id" :value="n.id">
+                <select v-model="importForm.nganh_id" :disabled="!importForm.khoa_id" @change="onImportNganhChange">
+                  <option value="">
+                    {{ importForm.khoa_id ? 'Chọn ngành' : 'Chọn khoa trước' }}
+                  </option>
+
+                  <option v-for="n in importNganhOptions" :key="n.id" :value="n.id">
                     {{ n.ten_nganh }}
                   </option>
                 </select>
@@ -208,7 +211,7 @@
 
               <div class="form-group mb-3">
                 <label>Lớp <span class="req">*</span></label>
-                <select v-model="importForm.lop_id">
+                <select v-model="importForm.lop_id" :disabled="!importForm.nganh_id">
                   <option value="">Chọn lớp</option>
                   <option v-for="l in importLopOptions" :key="l.id" :value="l.id">
                     {{ l.ten_lop }}
@@ -224,9 +227,10 @@
             </div>
 
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-              <button type="submit" class="btn btn-primary" data-bs-dismiss="modal"> {{ importTarget ? 'Cập nhật file' :
-                'Import' }}</button>
+              <button type="button" class="btn btn-secondary" @click="hideModal('importClassListModal')">Hủy</button>
+              <button type="submit" class="btn btn-primary">
+                {{ importTarget ? 'Cập nhật file' : 'Import' }}
+              </button>
             </div>
           </form>
         </div>
@@ -286,7 +290,8 @@
                     <td class="text-center">{{ sv.tong_diem_sv ?? 'Chưa chấm' }}</td>
                     <td class="text-center">{{ sv.xep_loai_sv ? formatXepLoai(sv.xep_loai_sv) : 'Chưa xếp loại' }}</td>
                     <td class="text-center">{{ sv.tong_diem_lop ?? 'Chưa chấm' }}</td>
-                    <td class="text-center">{{ sv.xep_loai_lop ? formatXepLoai(sv.xep_loai_lop) : 'Chưa xếp loại' }}</td>
+                    <td class="text-center">{{ sv.xep_loai_lop ? formatXepLoai(sv.xep_loai_lop) : 'Chưa xếp loại' }}
+                    </td>
                   </tr>
 
                   <tr v-if="importedStudents.length === 0">
@@ -464,6 +469,26 @@ export default {
       })
     },
 
+    importNganhOptions() {
+      if (!this.importForm.khoa_id) return []
+
+      const selectedKhoaId = Number(this.importForm.khoa_id)
+
+      const nganhIdsInKhoa = this.rows.lop
+        .filter((lop) => Number(lop.khoa_id) === selectedKhoaId)
+        .map((lop) => Number(lop.nganh_id))
+
+      return this.rows.nganh.filter((nganh) => {
+        // Nếu bảng ngành có khoa_id thì lọc trực tiếp theo khoa_id
+        if (nganh.khoa_id) {
+          return Number(nganh.khoa_id) === selectedKhoaId
+        }
+
+        // Nếu bảng ngành chưa có khoa_id thì suy ra ngành thuộc khoa thông qua bảng lớp
+        return nganhIdsInKhoa.includes(Number(nganh.id))
+      })
+    },
+
     importLopOptions() {
       return this.rows.lop.filter((lop) => {
         const matchKhoa = !this.importForm.khoa_id || Number(lop.khoa_id) === Number(this.importForm.khoa_id)
@@ -557,7 +582,7 @@ export default {
       }
 
       if (key === 'so_sv') {
-        return row.so_sv || row.sinh_vien_count || '—'
+        return row.so_sv ?? row.sinh_vien_count ?? '—'
       }
 
       return row[key] ?? '—'
@@ -596,6 +621,15 @@ export default {
       })
 
       return ok
+    },
+
+    onImportKhoaChange() {
+      this.importForm.nganh_id = ''
+      this.importForm.lop_id = ''
+    },
+
+    onImportNganhChange() {
+      this.importForm.lop_id = ''
     },
 
     saveRow() {
@@ -814,6 +848,7 @@ export default {
 
     openImport(row = null) {
       this.importTarget = row
+      this.selectedClass = row?.lop || row || null
 
       if (row) {
         const lop = row.lop || row
@@ -833,6 +868,8 @@ export default {
         if (this.$refs.fileInput) {
           this.$refs.fileInput.value = ''
         }
+
+        this.showModal('importClassListModal')
       })
     },
 
@@ -870,7 +907,6 @@ export default {
         .post(url, formData, {
           headers: {
             ...this.authHeader(),
-            'Content-Type': 'multipart/form-data',
           },
         })
         .then((res) => {
@@ -968,14 +1004,44 @@ export default {
       return map[value] || '—'
     },
 
-    hideModal(id) {
+    showModal(id) {
+      this.cleanModalBackdrop()
+
       const el = document.getElementById(id)
       const ModalCtor = window.bootstrap?.Modal
 
       if (!el || !ModalCtor) return
 
-      const instance = ModalCtor.getInstance(el) || ModalCtor.getOrCreateInstance(el)
-      instance.hide()
+      const instance = ModalCtor.getInstance(el) || ModalCtor.getOrCreateInstance(el, {
+        backdrop: true,
+        keyboard: true,
+      })
+
+      instance.show()
+    },
+
+    hideModal(id) {
+      const el = document.getElementById(id)
+      const ModalCtor = window.bootstrap?.Modal
+
+      if (el && ModalCtor) {
+        const instance = ModalCtor.getInstance(el) || ModalCtor.getOrCreateInstance(el)
+        instance.hide()
+      }
+
+      setTimeout(() => {
+        this.cleanModalBackdrop()
+      }, 300)
+    },
+
+    cleanModalBackdrop() {
+      document.querySelectorAll('.modal-backdrop').forEach((item) => {
+        item.remove()
+      })
+
+      document.body.classList.remove('modal-open')
+      document.body.style.removeProperty('overflow')
+      document.body.style.removeProperty('padding-right')
     },
 
     showError(err, defaultMessage) {

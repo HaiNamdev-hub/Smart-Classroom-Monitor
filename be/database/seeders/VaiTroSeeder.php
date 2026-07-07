@@ -7,9 +7,6 @@ use Illuminate\Support\Facades\DB;
 
 class VaiTroSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
         foreach ([

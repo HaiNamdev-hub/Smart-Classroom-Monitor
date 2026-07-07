@@ -17,7 +17,17 @@ class FileDanhSachLopController extends Controller
     {
         $data = FileDanhSachLop::with(['lop', 'nguoiTai'])
             ->orderByDesc('id')
-            ->get();
+            ->get()
+            ->map(function ($file) {
+                try {
+                    $students = $this->readStudentsFromStoredFile($file);
+                    $file->setAttribute('so_sv', count($students));
+                } catch (\Throwable $e) {
+                    $file->setAttribute('so_sv', 0);
+                }
+
+                return $file;
+            });
 
         return response()->json([
             'status' => true,
@@ -30,7 +40,7 @@ class FileDanhSachLopController extends Controller
         $request->validate([
             'lop_id' => 'required|exists:lop,id',
             'nguoi_tai_id' => 'required|exists:nguoi_dung,id',
-            'file' => 'required|file|mimes:xlsx,xls,doc,docx|max:10240',
+            'file' => 'required|file|max:10240',
         ], [
             'lop_id.required' => 'Vui lòng chọn lớp.',
             'lop_id.exists' => 'Lớp không tồn tại.',
@@ -44,6 +54,18 @@ class FileDanhSachLopController extends Controller
         ]);
 
         $fileUpload = $request->file('file');
+
+        $extension = strtolower($fileUpload->getClientOriginalExtension());
+
+        if (!in_array($extension, ['xlsx', 'xls', 'doc', 'docx'], true)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Chỉ chấp nhận file Excel hoặc Word.',
+                'errors' => [
+                    'file' => ['Chỉ chấp nhận file Excel hoặc Word.']
+                ]
+            ], 422);
+        }
 
         $path = $fileUpload->store('danh-sach-lop', 'public');
 
@@ -116,7 +138,7 @@ class FileDanhSachLopController extends Controller
         $request->validate([
             'lop_id' => 'required|exists:lop,id',
             'nguoi_tai_id' => 'required|exists:nguoi_dung,id',
-            'file' => 'required|file|mimes:xlsx,xls,doc,docx|max:10240',
+            'file' => 'required|file|max:10240',
         ], [
             'lop_id.required' => 'Vui lòng chọn lớp.',
             'lop_id.exists' => 'Lớp không tồn tại.',
@@ -130,6 +152,18 @@ class FileDanhSachLopController extends Controller
         ]);
 
         $fileUpload = $request->file('file');
+
+        $extension = strtolower($fileUpload->getClientOriginalExtension());
+
+        if (!in_array($extension, ['xlsx', 'xls', 'doc', 'docx'], true)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Chỉ chấp nhận file Excel hoặc Word.',
+                'errors' => [
+                    'file' => ['Chỉ chấp nhận file Excel hoặc Word.']
+                ]
+            ], 422);
+        }
 
         $oldPath = $file->duong_dan;
         $newPath = $fileUpload->store('danh-sach-lop', 'public');
