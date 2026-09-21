@@ -16,22 +16,17 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             VaiTroSeeder::class,
-            ChucNangSeeder::class,
-            PhanQuyenSeeder::class,
-            KhoaSeeder::class,
-            NganhSeeder::class,
             NguoiDungSeeder::class,
-            LopSeeder::class,
-            SinhVienSeeder::class,
-            DotDanhGiaSeeder::class,
-            PhieuRenLuyenSeeder::class,
-            NhomTieuChiSeeder::class,
-            TieuChiSeeder::class,
-            TieuChiLuaChonSeeder::class,
-            ChiTietDanhGiaSeeder::class,
-            MinhChungSeeder::class,
-            LichSuDuyetSeeder::class,
-            LichSuKiemTraSeeder::class,
+            LopHocSeeder::class,
+            ThanhVienLopSeeder::class,
+            BaiTapSeeder::class,
+            FileBaiTapSeeder::class,
+            BaiNopSeeder::class,
+            DiemSeeder::class,
+            PhienGiamSatSeeder::class,
+            HoatDongSeeder::class,
+            AnhManHinhSeeder::class,
+            CanhBaoSeeder::class,
         ]);
     }
 }

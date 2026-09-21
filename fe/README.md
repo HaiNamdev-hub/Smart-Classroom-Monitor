@@ -1,7 +1,39 @@
-# Vue 3 + Vite
+# Smart Classroom Monitor - Frontend
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+Folder structure only. No application code or run/build configuration yet.
+Component and layout folders contain empty index.vue files. Other folders use empty .gitkeep files.
 
-## Recommended IDE Setup
+## Folders
 
-- [VS Code](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur) + [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin).
+- public/
+- src/assets/css/
+- src/assets/fonts/
+- src/assets/images/
+- src/components/Admin/QLLopHoc/
+- src/components/Admin/QLNguoiDung/
+- src/components/Admin/QLVaiTro/
+- src/components/Admin/TrangChu/
+- src/components/Auth/DangNhap/
+- src/components/Auth/QuenMatKhau/
+- src/components/common/
+- src/components/GiangVien/AnhManHinh/
+- src/components/GiangVien/BaiNop/
+- src/components/GiangVien/BaiTap/
+- src/components/GiangVien/CanhBao/
+- src/components/GiangVien/Diem/
+- src/components/GiangVien/HoatDong/
+- src/components/GiangVien/LopHoc/
+- src/components/GiangVien/PhienGiamSat/
+- src/components/GiangVien/ThanhVienLop/
+- src/components/GiangVien/TrangChu/
+- src/components/SinhVien/BaiNop/
+- src/components/SinhVien/BaiTap/
+- src/components/SinhVien/Diem/
+- src/components/SinhVien/LopHoc/
+- src/components/SinhVien/TrangChu/
+- src/layout/components/
+- src/layout/wrapper/
+- src/router/
+- src/services/
+- src/stores/
+- src/utils/

@@ -3,32 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\VaiTro;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\Rule;
 
-class VaiTroController extends Controller
+class VaiTroController extends CrudController
 {
-    public function getData()
+    protected string $modelClass = VaiTro::class;
+    protected function rules(?Model $record = null): array
     {
-        $order = [
-            'admin' => 1,
-            'phong_qldt' => 2,
-            'co_van' => 3,
-        ];
-
-        $data = VaiTro::whereIn('ten_vai_tro', [
-                'admin',
-                'phong_qldt',
-                'co_van',
-            ])
-            ->get()
-            ->sortBy(function ($item) use ($order) {
-                return $order[$item->ten_vai_tro] ?? 99;
-            })
-            ->values();
-
-        return response()->json([
-            'status' => true,
-            'message' => 'Lấy danh sách vai trò thành công',
-            'data' => $data
-        ]);
+        return ['ten_vai_tro' => ['required', 'string', 'max:255', Rule::unique('vai_tro')->ignore($record)], 'mo_ta' => ['nullable', 'string']];
     }
 }
