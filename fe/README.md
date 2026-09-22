@@ -1,7 +1,18 @@
 # Smart Classroom Monitor - Frontend
 
-Folder structure only. No application code or run/build configuration yet.
-Component and layout folders contain empty index.vue files. Other folders use empty .gitkeep files.
+Vue frontend displaying the login interface. Authentication is not connected to an API.
+Other component and layout folders contain empty index.vue placeholders.
+
+## Run locally
+
+From the `fe` directory:
+
+```sh
+npm install
+npm run dev
+```
+
+Open the local URL printed by Vite. Use `npm run build` to build and `npm run preview` to preview the build.
 
 ## Folders
 

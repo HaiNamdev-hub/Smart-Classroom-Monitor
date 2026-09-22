@@ -15,14 +15,14 @@ class LopHoc extends Model
     }
     public function thanhViens()
     {
-        return $this->hasMany(ThanhVienLop::class);
+        return $this->hasMany(ThanhVienLop::class, 'lop_hoc_id');
     }
     public function baiTaps()
     {
-        return $this->hasMany(BaiTap::class);
+        return $this->hasMany(BaiTap::class, 'lop_hoc_id');
     }
     public function phienGiamSats()
     {
-        return $this->hasMany(PhienGiamSat::class);
+        return $this->hasMany(PhienGiamSat::class, 'lop_hoc_id');
     }
 }

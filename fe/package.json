@@ -1,5 +1,20 @@
 {
+  "name": "smart-classroom-monitor-fe",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.4",
+    "vite": "^6.4.1"
+  },
   "dependencies": {
-    "compose": "^0.1.2"
+    "axios": "^1.20.0",
+    "compose": "^0.1.2",
+    "vue": "^3.5.43"
   }
 }
