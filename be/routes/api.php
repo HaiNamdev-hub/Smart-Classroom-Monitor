@@ -40,6 +40,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/nguoi-dung', [NguoiDungController::class, 'getNguoiDung']);
         Route::post('/admin/nguoi-dung/them-nguoi-dung', [NguoiDungController::class, 'themNguoiDung']);
         Route::post('/admin/nguoi-dung/sua-nguoi-dung/{id}', [NguoiDungController::class, 'suaNguoiDung']);
+        Route::post('/admin/nguoi-dung/xoa-nguoi-dung/{id}', [NguoiDungController::class, 'xoaNguoiDung']);
 
         Route::get('/admin/lop-hoc', [LopHocController::class, 'getLopHoc']);
         Route::get('/admin/lop-hoc/giang-vien', [LopHocController::class, 'getGiangVien']);
