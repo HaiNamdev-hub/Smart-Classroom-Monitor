@@ -283,97 +283,60 @@ const routes = [
   // SINH VIÊN
   // =====================================================
 
-  {
-    path: "/sinh-vien",
+  // =====================================================
+// SINH VIÊN
+// =====================================================
 
-    component: () =>
-      import("../layout/wrapper/students.vue"),
+{
+  path: "/sinh-vien",
 
-    beforeEnter: checkToken,
+  component: () =>
+    import("../layout/wrapper/index.vue"),
 
-    children: [
+  beforeEnter: checkToken,
 
-      // ---------------------------
-      // Redirect
-      // ---------------------------
+  children: [
+    {
+      path: "",
+      redirect: "/sinh-vien/trang-chu",
+    },
 
-      {
-        path: "",
-        redirect: "/sinh-vien/trang-chu",
-      },
+    {
+      path: "trang-chu",
+      name: "SinhVienTrangChu",
+      component: () =>
+        import("../components/SinhVien/TrangChu/index.vue"),
+    },
 
+    {
+      path: "lop-hoc",
+      name: "SinhVienLopHoc",
+      component: () =>
+        import("../components/SinhVien/LopHoc/index.vue"),
+    },
 
-      // ---------------------------
-      // Trang chủ
-      // ---------------------------
+    {
+      path: "bai-tap",
+      name: "SinhVienBaiTap",
+      component: () =>
+        import("../components/SinhVien/BaiTap/index.vue"),
+    },
 
-      {
-        path: "trang-chu",
+    {
+      path: "bai-nop",
+      name: "SinhVienBaiNop",
+      component: () =>
+        import("../components/SinhVien/BaiNop/index.vue"),
+    },
 
-        name: "SinhVienTrangChu",
-
-        component: () =>
-          import("../components/SinhVien/TrangChu/index.vue"),
-      },
-
-
-      // ---------------------------
-      // Lớp học
-      // ---------------------------
-
-      {
-        path: "lop-hoc",
-
-        name: "SinhVienLopHoc",
-
-        component: () =>
-          import("../components/SinhVien/LopHoc/index.vue"),
-      },
-
-
-      // ---------------------------
-      // Bài tập
-      // ---------------------------
-
-      {
-        path: "bai-tap",
-
-        name: "SinhVienBaiTap",
-
-        component: () =>
-          import("../components/SinhVien/BaiTap/index.vue"),
-      },
-
-
-      // ---------------------------
-      // Bài nộp
-      // ---------------------------
-
-      {
-        path: "bai-nop",
-
-        name: "SinhVienBaiNop",
-
-        component: () =>
-          import("../components/SinhVien/BaiNop/index.vue"),
-      },
-
-
-      // ---------------------------
-      // Điểm
-      // ---------------------------
-
-      {
-        path: "diem",
-
-        name: "SinhVienDiem",
-
-        component: () =>
-          import("../components/SinhVien/Diem/index.vue"),
-      },
-
-    ],
-  },
+    {
+      path: "diem",
+      name: "SinhVienDiem",
+      component: () =>
+        import("../components/SinhVien/Diem/index.vue"),
+    },
+  ],
+},
 
 
   // =====================================================

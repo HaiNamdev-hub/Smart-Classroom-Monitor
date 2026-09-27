@@ -229,11 +229,11 @@
             </div>
 
             <a
-              href="/admin/nguoi-dung"
+              href="/admin/ql-nguoi-dung"
               @click.prevent="
                 $emit(
                   'navigate',
-                  '/admin/nguoi-dung'
+                  '/admin/ql-nguoi-dung'
                 )
               "
             >
@@ -308,12 +308,12 @@
         <div class="quick-grid">
           <!-- Người dùng -->
           <a
-            href="/admin/nguoi-dung"
+            href="/admin/ql-nguoi-dung"
             class="quick-item"
             @click.prevent="
               $emit(
                 'navigate',
-                '/admin/nguoi-dung'
+                '/admin/ql-nguoi-dung'
               )
             "
           >
@@ -336,12 +336,12 @@
 
           <!-- Lớp học -->
           <a
-            href="/admin/lop-hoc"
+            href="/admin/ql-lop-hoc"
             class="quick-item"
             @click.prevent="
               $emit(
                 'navigate',
-                '/admin/lop-hoc'
+                '/admin/ql-lop-hoc'
               )
             "
           >
@@ -364,12 +364,12 @@
 
           <!-- Vai trò -->
           <a
-            href="/admin/vai-tro"
+            href="/admin/ql-vai-tro"
             class="quick-item"
             @click.prevent="
               $emit(
                 'navigate',
-                '/admin/vai-tro'
+                '/admin/ql-vai-tro'
               )
             "
           >

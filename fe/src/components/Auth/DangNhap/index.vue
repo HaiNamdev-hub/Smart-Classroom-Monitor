@@ -1,4 +1,3 @@
-
 <template>
     <main class="login-page">
         <section class="intro-panel" aria-labelledby="intro-title">
@@ -69,8 +68,8 @@
                                 <rect x="3" y="5" width="18" height="14" rx="3" />
                                 <path d="m4 7 8 6 8-6" />
                             </svg>
-                            <input id="login-email" v-model="email" :disabled="loading" name="email" type="email" placeholder="Nhập email của bạn"
-                                autocomplete="username" required />
+                            <input id="login-email" v-model="email" :disabled="loading" name="email" type="email"
+                                placeholder="Nhập email của bạn" autocomplete="username" required />
                         </div>
                     </div>
                     <div class="field-group">
@@ -81,8 +80,9 @@
                                 <rect x="5" y="10" width="14" height="11" rx="3" />
                                 <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" />
                             </svg>
-                            <input id="login-password" v-model="password" :disabled="loading" name="password" :type="showPassword ? 'text' : 'password'"
-                                placeholder="Nhập mật khẩu" autocomplete="current-password" required />
+                            <input id="login-password" v-model="password" :disabled="loading" name="password"
+                                :type="showPassword ? 'text' : 'password'" placeholder="Nhập mật khẩu"
+                                autocomplete="current-password" required />
                             <button class="password-toggle" type="button"
                                 :aria-label="showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'"
                                 :aria-pressed="showPassword" @click="showPassword = !showPassword">
@@ -96,7 +96,8 @@
                         </div>
                     </div>
                     <div class="form-options">
-                        <label class="remember-label"><input v-model="remember" :disabled="loading" type="checkbox" name="remember" /> Ghi nhớ đăng
+                        <label class="remember-label"><input v-model="remember" :disabled="loading" type="checkbox"
+                                name="remember" /> Ghi nhớ đăng
                             nhập</label>
                         <button class="text-button" type="button" :aria-expanded="showHelp" aria-controls="account-help"
                             @click="showHelp = !showHelp">Quên mật khẩu?</button>
@@ -105,7 +106,8 @@
                         viên của trường để được hỗ trợ cấp lại mật khẩu.</p>
                     <p v-if="errorMessage" class="login-feedback error" role="alert">{{ errorMessage }}</p>
                     <p v-if="successMessage" class="login-feedback success" role="status">{{ successMessage }}</p>
-                    <button class="login-button" type="submit" :disabled="loading">{{ loading ? 'Đang đăng nhập...' : 'Đăng nhập' }} <span aria-hidden="true">→</span></button>
+                    <button class="login-button" type="submit" :disabled="loading">{{ loading ? 'Đang đăng nhập...' :
+                        'Đăng nhập' }} <span aria-hidden="true">→</span></button>
                 </form>
 
                 <div class="account-note"><span aria-hidden="true">ⓘ</span>
@@ -119,10 +121,27 @@
 </template>
 
 <style scoped>
-.login-feedback { margin: 0; padding: 12px; border-radius: 8px; font-size: 14px; }
-.login-feedback.error { background: #fff0f0; color: #a52232; }
-.login-feedback.success { background: #eaf8ef; color: #23683e; }
-.login-button:disabled { opacity: .65; cursor: wait; }
+.login-feedback {
+    margin: 0;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.login-feedback.error {
+    background: #fff0f0;
+    color: #a52232;
+}
+
+.login-feedback.success {
+    background: #eaf8ef;
+    color: #23683e;
+}
+
+.login-button:disabled {
+    opacity: .65;
+    cursor: wait;
+}
 
 :global(body) {
     margin: 0;
@@ -781,13 +800,17 @@ export default {
     methods: {
         dangNhap() {
             if (this.loading) return
+
             this.errorMessage = ''
             this.successMessage = ''
 
+            // Kiểm tra email
             if (!this.email.trim()) {
                 this.errorMessage = 'Vui lòng nhập email.'
                 return
             }
+
+            // Kiểm tra mật khẩu
             if (!this.password) {
                 this.errorMessage = 'Vui lòng nhập mật khẩu.'
                 return
@@ -796,13 +819,20 @@ export default {
             this.loading = true
 
             return axios
-                .post('/api/dang-nhap', {
-                    email: this.email.trim(),
-                    password: this.password,
-                }, {
-                    headers: { Accept: 'application/json' },
-                    timeout: 15000,
-                })
+                .post(
+                    '/api/dang-nhap',
+                    {
+                        email: this.email.trim(),
+                        password: this.password,
+                    },
+                    {
+                        headers: {
+                            Accept: 'application/json',
+                        },
+                        timeout: 15000,
+                    }
+                )
+
                 .then((res) => {
                     const token = res.data?.access_token
                     const user = res.data?.nguoi_dung
@@ -815,44 +845,161 @@ export default {
                     this.password = ''
 
                     try {
-                        // Xóa phiên cũ ở cả hai bộ nhớ trước khi lưu tài khoản mới.
+                        // =========================
+                        // XÓA PHIÊN ĐĂNG NHẬP CŨ
+                        // =========================
+
+                        const authKeys = [
+                            'auth',
+                            'auth_token',
+                            'auth_user',
+                            'auth_expires_at',
+                            'access_token',
+                            'nguoi_dung',
+                        ]
+
                         for (const storage of [sessionStorage, localStorage]) {
-                            for (const key of ['auth', 'auth_token', 'auth_user', 'auth_expires_at']) {
+                            for (const key of authKeys) {
                                 storage.removeItem(key)
                             }
                         }
 
-                        const storage = this.remember ? localStorage : sessionStorage
-                        storage.setItem('auth_user', JSON.stringify(user))
-                        storage.setItem('auth_expires_at', res.data.expires_at)
-                        storage.setItem('auth_token', token)
-                    } catch {
-                        this.errorMessage = 'Đăng nhập hợp lệ nhưng không lưu được phiên. Vui lòng bật bộ nhớ trang web và thử lại.'
+
+                        // =========================
+                        // LƯU PHIÊN ĐĂNG NHẬP
+                        // =========================
+
+                        const storage = this.remember
+                            ? localStorage
+                            : sessionStorage
+
+                        storage.setItem(
+                            'auth_token',
+                            token
+                        )
+
+                        storage.setItem(
+                            'auth_user',
+                            JSON.stringify(user)
+                        )
+
+                        if (res.data?.expires_at) {
+                            storage.setItem(
+                                'auth_expires_at',
+                                res.data.expires_at
+                            )
+                        }
+
+
+                        // =========================
+                        // LƯU ACCESS TOKEN + USER
+                        // =========================
+
+                        localStorage.setItem(
+                            'access_token',
+                            res.data.access_token
+                        )
+
+                        localStorage.setItem(
+                            'nguoi_dung',
+                            JSON.stringify(res.data.nguoi_dung)
+                        )
+
+                    } catch (error) {
+                        console.error('Lỗi lưu phiên đăng nhập:', error)
+
+                        this.errorMessage =
+                            'Đăng nhập hợp lệ nhưng không lưu được phiên. ' +
+                            'Vui lòng bật bộ nhớ trang web và thử lại.'
+
                         return
                     }
 
-                    this.successMessage = `Đăng nhập thành công! Xin chào ${user.ho_ten}.`
-                    if (user.vai_tro?.ten_vai_tro === 'quan_tri_vien') {
+
+                    // =========================
+                    // ĐĂNG NHẬP THÀNH CÔNG
+                    // =========================
+
+                    this.successMessage =
+                        `Đăng nhập thành công! Xin chào ${user.ho_ten}.`
+
+                    const role =
+                        user.vai_tro?.ten_vai_tro ||
+                        user.vaiTro?.ten_vai_tro ||
+                        (
+                            user.vai_tro_id == 1 ? 'quan_tri_vien' :
+                                user.vai_tro_id == 2 ? 'giang_vien' :
+                                    user.vai_tro_id == 3 ? 'sinh_vien' :
+                                        null
+                        )
+
+                    console.log('USER:', user)
+                    console.log('VAI TRO ID:', user.vai_tro_id)
+                    console.log('ROLE:', role)
+
+                    if (role === 'quan_tri_vien') {
                         window.location.assign('/admin/trang-chu')
+                    } else if (role === 'giang_vien') {
+                        window.location.assign('/giang-vien/trang-chu')
+                    } else if (role === 'sinh_vien') {
+                        window.location.assign('/sinh-vien/trang-chu')
+                    } else {
+                        this.errorMessage = 'Tài khoản không có vai trò hợp lệ.'
+                    }
+
+
+                    // =========================
+                    // CHUYỂN TRANG THEO ROLE
+                    // =========================
+
+                    if (role === 'quan_tri_vien') {
+                        window.location.assign(
+                            '/admin/trang-chu'
+                        )
+                    } else if (role === 'giang_vien') {
+                        window.location.assign(
+                            '/giang-vien/trang-chu'
+                        )
+                    } else if (role === 'sinh_vien') {
+                        window.location.assign(
+                            '/sinh-vien/trang-chu'
+                        )
+                    } else {
+                        this.errorMessage =
+                            'Tài khoản không có vai trò hợp lệ.'
                     }
                 })
+
                 .catch((err) => {
                     const status = err.response?.status
                     const data = err.response?.data
 
                     if (status === 422) {
-                        this.errorMessage = Object.values(data?.errors || {}).flat().join(' ')
-                            || 'Vui lòng kiểm tra email và mật khẩu.'
+                        this.errorMessage =
+                            Object.values(data?.errors || {})
+                                .flat()
+                                .join(' ') ||
+                            'Vui lòng kiểm tra email và mật khẩu.'
+
                     } else if (status === 429) {
-                        this.errorMessage = 'Bạn đã thử quá nhiều lần. Vui lòng thử lại sau một phút.'
+                        this.errorMessage =
+                            'Bạn đã thử quá nhiều lần. Vui lòng thử lại sau một phút.'
+
                     } else if (status >= 500) {
-                        this.errorMessage = 'Máy chủ đang gặp lỗi. Vui lòng thử lại sau.'
+                        this.errorMessage =
+                            'Máy chủ đang gặp lỗi. Vui lòng thử lại sau.'
+
                     } else if (err.code === 'ECONNABORTED') {
-                        this.errorMessage = 'Máy chủ phản hồi quá lâu. Vui lòng thử lại.'
+                        this.errorMessage =
+                            'Máy chủ phản hồi quá lâu. Vui lòng thử lại.'
+
                     } else {
-                        this.errorMessage = data?.message || 'Không thể kết nối tới server API.'
+                        this.errorMessage =
+                            data?.message ||
+                            'Không thể kết nối tới server API.'
                     }
                 })
+
                 .finally(() => {
                     this.loading = false
                 })

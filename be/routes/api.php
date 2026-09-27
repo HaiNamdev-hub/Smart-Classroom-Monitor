@@ -46,6 +46,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/lop-hoc/giang-vien', [LopHocController::class, 'getGiangVien']);
         Route::post('/admin/lop-hoc/them-lop-hoc', [LopHocController::class, 'themLopHoc']);
         Route::post('/admin/lop-hoc/sua-lop-hoc/{id}', [LopHocController::class, 'suaLopHoc']);
+        Route::post('/admin/lop-hoc/xoa-lop-hoc/{id}', [LopHocController::class, 'xoaLopHoc']);
 
         Route::get('/admin/vai-tro', [VaiTroController::class, 'getVaiTro']);
         Route::post('/admin/vai-tro/sua-vai-tro/{id}', [VaiTroController::class, 'suaVaiTro']);
