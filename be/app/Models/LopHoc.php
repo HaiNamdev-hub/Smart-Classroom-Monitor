@@ -25,4 +25,5 @@ class LopHoc extends Model
     {
         return $this->hasMany(PhienGiamSat::class, 'lop_hoc_id');
     }
+    
 }

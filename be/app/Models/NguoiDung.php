@@ -48,4 +48,11 @@ class NguoiDung extends Authenticatable
     {
         return $this->hasMany(PhienGiamSat::class, 'nguoi_tao_id');
     }
+    public function sinhVien()
+{
+    return $this->hasOne(
+        SinhVien::class,
+        'nguoi_dung_id'
+    );
+}
 }

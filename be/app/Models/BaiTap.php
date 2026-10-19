@@ -33,4 +33,18 @@ class BaiTap extends Model
     {
         return $this->hasMany(PhienGiamSat::class);
     }
+    public function sinhVien()
+    {
+        return $this->belongsTo(
+            SinhVien::class,
+            'sinh_vien_id'
+        );
+    }
+    public function cauHois()
+    {
+        return $this->hasMany(
+            CauHoi::class,
+            'bai_tap_id'
+        )->orderBy('thu_tu');
+    }
 }

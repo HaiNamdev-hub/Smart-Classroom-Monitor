@@ -3,29 +3,49 @@
 namespace App\Http\Controllers;
 
 use App\Models\VaiTro;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Validation\Rule;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
-class VaiTroController extends CrudController
+class VaiTroController extends Controller
 {
-    protected string $modelClass = VaiTro::class;
-    protected function rules(?Model $record = null): array
+    /**
+     * Lấy danh sách vai trò dùng cho phân quyền.
+     */
+    public function getData(): JsonResponse
     {
-        return ['ten_vai_tro' => ['required', 'string', 'max:255', Rule::unique('vai_tro')->ignore($record)], 'mo_ta' => ['nullable', 'string']];
+        $order = [
+            'quan_tri_vien' => 1,
+            'giang_vien'    => 2,
+            'sinh_vien'     => 3,
+        ];
+
+        $data = VaiTro::whereIn('ten_vai_tro', [
+            'quan_tri_vien',
+            'giang_vien',
+            'sinh_vien',
+        ])
+            ->withCount('nguoiDungs')
+            ->get()
+            ->sortBy(function ($item) use ($order) {
+                return $order[$item->ten_vai_tro] ?? 99;
+            })
+            ->values();
+
+        return response()->json([
+            'status'  => true,
+            'message' => 'Lấy danh sách vai trò thành công',
+            'data'    => $data,
+        ]);
     }
 
+    /**
+     * API cũ nếu các trang khác của project đang sử dụng.
+     */
     public function getVaiTro(): JsonResponse
     {
-        return response()->json(['data' => VaiTro::withCount('nguoiDungs')->orderBy('id')->get()]);
-    }
-
-    public function suaVaiTro(Request $request, int $id): JsonResponse
-    {
-        $role = VaiTro::findOrFail($id);
-        $role->update($request->validate(['mo_ta' => ['nullable', 'string', 'max:1000']]));
-
-        return response()->json(['message' => 'Đã cập nhật mô tả vai trò.', 'data' => $role]);
+        return response()->json([
+            'data' => VaiTro::withCount('nguoiDungs')
+                ->orderBy('id')
+                ->get(),
+        ]);
     }
 }

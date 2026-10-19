@@ -59,37 +59,37 @@ class LopHocController extends CrudController
     {
         return [
             'ma_lop.required' =>
-                'Vui lòng nhập mã lớp.',
+            'Vui lòng nhập mã lớp.',
 
             'ma_lop.string' =>
-                'Mã lớp không hợp lệ.',
+            'Mã lớp không hợp lệ.',
 
             'ma_lop.max' =>
-                'Mã lớp không được vượt quá 255 ký tự.',
+            'Mã lớp không được vượt quá 255 ký tự.',
 
             'ma_lop.unique' =>
-                'Mã lớp này đã tồn tại.',
+            'Mã lớp này đã tồn tại.',
 
             'ten_lop.required' =>
-                'Vui lòng nhập tên lớp.',
+            'Vui lòng nhập tên lớp.',
 
             'ten_lop.string' =>
-                'Tên lớp không hợp lệ.',
+            'Tên lớp không hợp lệ.',
 
             'ten_lop.max' =>
-                'Tên lớp không được vượt quá 255 ký tự.',
+            'Tên lớp không được vượt quá 255 ký tự.',
 
             'giang_vien_id.required' =>
-                'Vui lòng chọn giảng viên.',
+            'Vui lòng chọn giảng viên.',
 
             'giang_vien_id.integer' =>
-                'Giảng viên không hợp lệ.',
+            'Giảng viên không hợp lệ.',
 
             'giang_vien_id.exists' =>
-                'Giảng viên được chọn không tồn tại.',
+            'Giảng viên được chọn không tồn tại.',
 
             'mo_ta.string' =>
-                'Mô tả không hợp lệ.',
+            'Mô tả không hợp lệ.',
         ];
     }
 
@@ -115,16 +115,16 @@ class LopHocController extends CrudController
             ],
         ], [
             'search.string' =>
-                'Từ khóa tìm kiếm không hợp lệ.',
+            'Từ khóa tìm kiếm không hợp lệ.',
 
             'search.max' =>
-                'Từ khóa tìm kiếm không được vượt quá 255 ký tự.',
+            'Từ khóa tìm kiếm không được vượt quá 255 ký tự.',
 
             'giang_vien_id.integer' =>
-                'Giảng viên không hợp lệ.',
+            'Giảng viên không hợp lệ.',
 
             'giang_vien_id.exists' =>
-                'Giảng viên được chọn không tồn tại.',
+            'Giảng viên được chọn không tồn tại.',
         ]);
 
         $query = LopHoc::with([
@@ -144,11 +144,11 @@ class LopHocController extends CrudController
                     'like',
                     '%' . $search . '%'
                 )
-                ->orWhere(
-                    'ma_lop',
-                    'like',
-                    '%' . $search . '%'
-                );
+                    ->orWhere(
+                        'ma_lop',
+                        'like',
+                        '%' . $search . '%'
+                    );
             });
         }
 
@@ -282,7 +282,7 @@ class LopHocController extends CrudController
         if (! $validTeacher) {
             return response()->json([
                 'message' =>
-                    'Vui lòng chọn giảng viên đang hoạt động.',
+                'Vui lòng chọn giảng viên đang hoạt động.',
             ], 422);
         }
 
@@ -304,27 +304,115 @@ class LopHocController extends CrudController
         ], $status);
     }
     public function xoaLopHoc(int $id): JsonResponse
-{
-    $lopHoc = LopHoc::findOrFail($id);
+    {
+        $lopHoc = LopHoc::findOrFail($id);
 
-    /*
+        /*
      * Không cho xóa lớp nếu đã có sinh viên.
      */
-    if ($lopHoc->thanhViens()->exists()) {
-        return response()->json([
-            'message' => 'Không thể xóa lớp học đang có sinh viên.'
-        ], 422);
-    }
+        if ($lopHoc->thanhViens()->exists()) {
+            return response()->json([
+                'message' => 'Không thể xóa lớp học đang có sinh viên.'
+            ], 422);
+        }
 
-    /*
+        /*
      * Có thể bổ sung kiểm tra bài tập,
      * phiên giám sát... nếu model đã có quan hệ.
      */
 
-    $lopHoc->delete();
+        $lopHoc->delete();
 
-    return response()->json([
-        'message' => 'Đã xóa lớp học.'
-    ]);
-}
+        return response()->json([
+            'message' => 'Đã xóa lớp học.'
+        ]);
+    }
+    public function getLopHocSinhVien(Request $request)
+    {
+        try {
+            $sinhVien = $request->user();
+
+            if (!$sinhVien) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Bạn chưa đăng nhập.',
+                ], 401);
+            }
+
+            $lopHocs = \App\Models\ThanhVienLop::query()
+
+                ->where(
+                    'sinh_vien_id',
+                    $sinhVien->id
+                )
+
+                ->with([
+                    'lopHoc.giangVien:id,ho_ten,email'
+                ])
+
+                ->orderByDesc('created_at')
+
+                ->get()
+
+                ->map(function ($thanhVien) {
+
+                    $lop = $thanhVien->lopHoc;
+
+                    if (!$lop) {
+                        return null;
+                    }
+
+                    return [
+                        'id' => $lop->id,
+
+                        'ma_lop' => $lop->ma_lop,
+
+                        'ten_lop' => $lop->ten_lop,
+
+                        'mo_ta' => $lop->mo_ta,
+
+                        'trang_thai' =>
+                        $thanhVien->trang_thai,
+
+                        'giang_vien' => $lop->giangVien
+                            ? [
+                                'id' =>
+                                $lop->giangVien->id,
+
+                                'ho_ten' =>
+                                $lop->giangVien->ho_ten,
+
+                                'email' =>
+                                $lop->giangVien->email,
+                            ]
+                            : null,
+                    ];
+                })
+
+                ->filter()
+
+                ->values();
+
+            return response()->json([
+                'status' => true,
+
+                'message' =>
+                'Lấy danh sách lớp học thành công.',
+
+                'data' =>
+                $lopHocs,
+            ]);
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'status' => false,
+
+                'message' =>
+                'Không thể lấy danh sách lớp học.',
+
+                'error' =>
+                $e->getMessage(),
+            ], 500);
+        }
+    }
 }

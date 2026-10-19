@@ -19,7 +19,10 @@ class AnhManHinh extends Model
         return $this->belongsTo(PhienGiamSat::class, 'phien_id');
     }
     public function sinhVien()
-    {
-        return $this->belongsTo(NguoiDung::class, 'sinh_vien_id');
-    }
+{
+    return $this->belongsTo(
+        SinhVien::class,
+        'sinh_vien_id'
+    );
+}
 }

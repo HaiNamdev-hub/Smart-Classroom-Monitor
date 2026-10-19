@@ -11,22 +11,105 @@ class NguoiDungSeeder extends Seeder
 {
     public function run(): void
     {
-        $roles = VaiTro::query()->pluck('id', 'ten_vai_tro');
-        foreach ([['ho_ten' => 'Quan tri vien', 'email' => 'admin@example.com', 'vai_tro_id' => $roles['quan_tri_vien']], ['ho_ten' => 'Nguyen Van Giang', 'email' => 'giangvien@example.com', 'vai_tro_id' => $roles['giang_vien']], ['ho_ten' => 'Tran Minh An', 'email' => 'sv.an@example.com', 'vai_tro_id' => $roles['sinh_vien']], ['ho_ten' => 'Le Thu Binh', 'email' => 'sv.binh@example.com', 'vai_tro_id' => $roles['sinh_vien']]] as $nguoiDung) {
-            NguoiDung::query()->updateOrCreate(['email' => $nguoiDung['email']], $nguoiDung + ['password' => 'password', 'trang_thai' => 'hoat_dong']);
-        }
+        // =====================================================
+        // LẤY ID CÁC VAI TRÒ
+        // =====================================================
 
-        $roles = VaiTro::query()->pluck('id', 'ten_vai_tro');
-        $password = Hash::make('password');
+        $roles = VaiTro::query()
+            ->pluck('id', 'ten_vai_tro');
 
-        foreach (['Nguyễn Minh Đức', 'Trần Thị Mai', 'Lê Quốc Bảo'] as $index => $name) {
-            NguoiDung::query()->firstOrCreate(
-                ['email' => 'gv'.($index + 1).'@example.com'],
-                ['ho_ten' => $name, 'password' => $password, 'vai_tro_id' => $roles['giang_vien'], 'trang_thai' => 'hoat_dong'],
+        if (
+            !$roles->has('quan_tri_vien') ||
+            !$roles->has('giang_vien') ||
+            !$roles->has('sinh_vien')
+        ) {
+            throw new \Exception(
+                'Chưa có đầy đủ vai trò. Hãy chạy VaiTroSeeder trước.'
             );
         }
 
-        $names = [
+
+        // =====================================================
+        // MẬT KHẨU MẶC ĐỊNH
+        // =====================================================
+
+        // Tất cả tài khoản test dùng mật khẩu: 1234567
+        // Hash::make() tạo BCrypt hash để Laravel Hash::check() sử dụng được.
+        $password = Hash::make('1234567');
+
+
+        // =====================================================
+        // TÀI KHOẢN CƠ BẢN
+        // =====================================================
+
+        $users = [
+            [
+                'ho_ten' => 'Quản trị viên',
+                'email' => 'admin@example.com',
+                'vai_tro_id' => $roles['quan_tri_vien'],
+            ],
+            [
+                'ho_ten' => 'Nguyễn Văn Giảng',
+                'email' => 'giangvien@example.com',
+                'vai_tro_id' => $roles['giang_vien'],
+            ],
+            [
+                'ho_ten' => 'Trần Minh An',
+                'email' => 'sv.an@example.com',
+                'vai_tro_id' => $roles['sinh_vien'],
+            ],
+            [
+                'ho_ten' => 'Lê Thu Bình',
+                'email' => 'sv.binh@example.com',
+                'vai_tro_id' => $roles['sinh_vien'],
+            ],
+        ];
+
+        foreach ($users as $user) {
+            NguoiDung::query()->updateOrCreate(
+                [
+                    'email' => $user['email'],
+                ],
+                [
+                    'ho_ten' => $user['ho_ten'],
+                    'password' => $password,
+                    'vai_tro_id' => $user['vai_tro_id'],
+                    'trang_thai' => 'hoat_dong',
+                ]
+            );
+        }
+
+
+        // =====================================================
+        // GIẢNG VIÊN
+        // =====================================================
+
+        $teachers = [
+            'Nguyễn Minh Đức',
+            'Trần Thị Mai',
+            'Lê Quốc Bảo',
+        ];
+
+        foreach ($teachers as $index => $name) {
+            NguoiDung::query()->updateOrCreate(
+                [
+                    'email' => 'gv' . ($index + 1) . '@example.com',
+                ],
+                [
+                    'ho_ten' => $name,
+                    'password' => $password,
+                    'vai_tro_id' => $roles['giang_vien'],
+                    'trang_thai' => 'hoat_dong',
+                ]
+            );
+        }
+
+
+        // =====================================================
+        // SINH VIÊN
+        // =====================================================
+
+        $students = [
             'Nguyễn Hoàng An',
             'Trần Ngọc Anh',
             'Lê Gia Bảo',
@@ -49,20 +132,41 @@ class NguoiDungSeeder extends Seeder
             'Nguyễn Hải Yến',
         ];
 
-        foreach ($names as $index => $name) {
-            NguoiDung::query()->firstOrCreate(
-                ['email' => sprintf('sv%02d@example.com', $index + 1)],
+        foreach ($students as $index => $name) {
+
+            $email = sprintf(
+                'sv%02d@example.com',
+                $index + 1
+            );
+
+            $trangThai = match ($index) {
+                // sv19@example.com
+                18 => 'khong_hoat_dong',
+
+                // sv20@example.com
+                19 => 'bi_khoa',
+
+                default => 'hoat_dong',
+            };
+
+            NguoiDung::query()->updateOrCreate(
+                [
+                    'email' => $email,
+                ],
                 [
                     'ho_ten' => $name,
                     'password' => $password,
                     'vai_tro_id' => $roles['sinh_vien'],
-                    'trang_thai' => match ($index) {
-                        18 => 'khong_hoat_dong',
-                        19 => 'bi_khoa',
-                        default => 'hoat_dong'
-                    },
-                ],
+                    'trang_thai' => $trangThai,
+                ]
             );
         }
+
+
+        // =====================================================
+        // THÔNG BÁO
+        // =====================================================
+
+      
     }
 }

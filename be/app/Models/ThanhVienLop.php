@@ -14,7 +14,10 @@ class ThanhVienLop extends Model
         return $this->belongsTo(LopHoc::class);
     }
     public function sinhVien()
-    {
-        return $this->belongsTo(NguoiDung::class, 'sinh_vien_id');
-    }
+{
+    return $this->belongsTo(
+        SinhVien::class,
+        'sinh_vien_id'
+    );
+}
 }

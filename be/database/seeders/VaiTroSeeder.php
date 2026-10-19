@@ -9,8 +9,26 @@ class VaiTroSeeder extends Seeder
 {
     public function run(): void
     {
-        foreach ([['ten_vai_tro' => 'quan_tri_vien', 'mo_ta' => 'Quan tri he thong'], ['ten_vai_tro' => 'giang_vien', 'mo_ta' => 'Giang vien'], ['ten_vai_tro' => 'sinh_vien', 'mo_ta' => 'Sinh vien']] as $vaiTro) {
-            VaiTro::query()->updateOrCreate(['ten_vai_tro' => $vaiTro['ten_vai_tro']], $vaiTro);
+        $data = [
+            [
+                'ten_vai_tro' => 'quan_tri_vien',
+                'mo_ta' => 'Quản trị hệ thống',
+            ],
+            [
+                'ten_vai_tro' => 'giang_vien',
+                'mo_ta' => 'Giảng viên',
+            ],
+            [
+                'ten_vai_tro' => 'sinh_vien',
+                'mo_ta' => 'Sinh viên',
+            ],
+        ];
+
+        foreach ($data as $item) {
+            VaiTro::updateOrCreate(
+                ['ten_vai_tro' => $item['ten_vai_tro']],
+                ['mo_ta' => $item['mo_ta']]
+            );
         }
     }
 }

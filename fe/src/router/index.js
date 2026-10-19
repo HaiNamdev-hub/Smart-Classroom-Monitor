@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 
-import checkToken, { redirectByRole } from "./checkToken";
+import checkToken from "./checkToken";
 
 const routes = [
 
@@ -8,10 +8,10 @@ const routes = [
   // ROOT
   // =====================================================
 
-  {
-    path: "/",
-    beforeEnter: redirectByRole,
-  },
+ {
+  path: "/",
+  redirect: "/dang-nhap",
+},
 
 
   // =====================================================
@@ -148,6 +148,14 @@ const routes = [
         component: () =>
           import("../components/GiangVien/TrangChu/index.vue"),
       },
+//       {
+//     path: "bai-tap/tao-bai-kiem-tra",
+//     name: "GiangVienTaoBaiKiemTra",
+//     component: () =>
+//         import(
+//             "../components/GiangVien/BaiTap/TaoBaiKiemTra.vue"
+//         ),
+// },
 
 
       // ---------------------------
@@ -283,10 +291,6 @@ const routes = [
   // SINH VIÊN
   // =====================================================
 
-  // =====================================================
-// SINH VIÊN
-// =====================================================
-
 {
   path: "/sinh-vien",
 
@@ -300,6 +304,7 @@ const routes = [
       path: "",
       redirect: "/sinh-vien/trang-chu",
     },
+    
 
     {
       path: "trang-chu",
@@ -321,6 +326,12 @@ const routes = [
       component: () =>
         import("../components/SinhVien/BaiTap/index.vue"),
     },
+    {
+  path: "lam-bai/:id",
+  name: "SinhVienLamBai",
+  component: () =>
+    import("../components/SinhVien/LamBai/index.vue"),
+},
 
     {
       path: "bai-nop",
@@ -335,6 +346,16 @@ const routes = [
       component: () =>
         import("../components/SinhVien/Diem/index.vue"),
     },
+
+    {
+  path: "thong-tin-ca-nhan",
+  name: "SinhVienThongTinCaNhan",
+
+  component: () =>
+    import(
+      "../components/SinhVien/ThongTinCaNhan/index.vue"
+    ),
+},
   ],
 },
 

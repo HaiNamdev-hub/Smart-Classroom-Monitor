@@ -25,4 +25,11 @@ class BaiNop extends Model
     {
         return $this->hasOne(Diem::class);
     }
+    public function cauTraLois()
+{
+    return $this->hasMany(
+        CauTraLoi::class,
+        'bai_nop_id'
+    );
+}
 }

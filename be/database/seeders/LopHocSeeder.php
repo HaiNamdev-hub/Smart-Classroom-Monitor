@@ -10,14 +10,49 @@ class LopHocSeeder extends Seeder
 {
     public function run(): void
     {
-        $giangVienId = NguoiDung::query()->where('email', 'giangvien@example.com')->value('id');
-        LopHoc::query()->updateOrCreate(['ma_lop' => 'SE01'], ['ten_lop' => 'Lap trinh Web', 'giang_vien_id' => $giangVienId, 'mo_ta' => 'Lop hoc mau Smart Classroom']);
+        $giangVien = NguoiDung::where(
+            'email',
+            'giangvien@example.com'
+        )->firstOrFail();
 
-        foreach (['Lập trình Web', 'Cơ sở dữ liệu', 'Lập trình hướng đối tượng', 'Mạng máy tính', 'Công nghệ phần mềm'] as $index => $name) {
-            $teacher = NguoiDung::query()->where('email', 'gv' . ($index % 3 + 1) . '@example.com')->firstOrFail();
-            LopHoc::query()->firstOrCreate(
-                ['ma_lop' => sprintf('DEMO%02d', $index + 1)],
-                ['ten_lop' => $name, 'giang_vien_id' => $teacher->id, 'mo_ta' => 'Lớp học minh họa học kỳ I, năm học 2026–2027.'],
+        LopHoc::updateOrCreate(
+            [
+                'ma_lop' => 'SE01',
+            ],
+            [
+                'ten_lop' => 'Lập trình Web',
+                'giang_vien_id' => $giangVien->id,
+                'mo_ta' => 'Lớp học mẫu Smart Classroom',
+            ]
+        );
+
+        $classes = [
+            'Lập trình Web',
+            'Cơ sở dữ liệu',
+            'Lập trình hướng đối tượng',
+            'Mạng máy tính',
+            'Công nghệ phần mềm',
+        ];
+
+        foreach ($classes as $index => $name) {
+            $teacher = NguoiDung::where(
+                'email',
+                'gv' . ($index % 3 + 1) . '@example.com'
+            )->firstOrFail();
+
+            LopHoc::updateOrCreate(
+                [
+                    'ma_lop' => sprintf(
+                        'DEMO%02d',
+                        $index + 1
+                    ),
+                ],
+                [
+                    'ten_lop' => $name,
+                    'giang_vien_id' => $teacher->id,
+                    'mo_ta' =>
+                        'Lớp học minh họa học kỳ I, năm học 2026–2027.',
+                ]
             );
         }
     }
