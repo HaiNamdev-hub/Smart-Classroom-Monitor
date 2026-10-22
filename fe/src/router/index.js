@@ -65,6 +65,7 @@ const routes = [
         component: () =>
           import("../components/Admin/TrangChu/index.vue"),
       },
+      
 
 
       // ---------------------------
@@ -120,7 +121,7 @@ const routes = [
     path: "/giang-vien",
 
     component: () =>
-      import("../layout/wrapper/lecturer.vue"),
+      import("../layout/wrapper/admin.vue"),
 
     beforeEnter: checkToken,
 
@@ -251,7 +252,6 @@ const routes = [
       // ---------------------------
       // Ảnh màn hình
       // ---------------------------
-
       {
         path: "anh-man-hinh",
 
@@ -260,6 +260,7 @@ const routes = [
         component: () =>
           import("../components/GiangVien/AnhManHinh/index.vue"),
       },
+      
 
 
       // ---------------------------
