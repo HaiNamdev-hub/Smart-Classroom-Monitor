@@ -968,6 +968,36 @@ export default {
                         this.errorMessage =
                             'Tài khoản không có vai trò hợp lệ.'
                     }
+                   const role = user.vai_tro?.ten_vai_tro ?? user.role
+
+const redirectPaths = {
+    quan_tri_vien: '/admin/trang-chu',
+    giang_vien: '/giang-vien/trang-chu',
+    sinh_vien: '/sinh-vien/trang-chu'
+}
+
+const destination = redirectPaths[role]
+
+if (!destination) {
+    for (const storage of [sessionStorage, localStorage]) {
+        for (const key of [
+            'auth',
+            'auth_token',
+            'auth_user',
+            'auth_expires_at'
+        ]) {
+            storage.removeItem(key)
+        }
+    }
+
+    this.errorMessage = 'Tài khoản chưa có vai trò hợp lệ.'
+    return
+}
+
+this.successMessage =
+    `Đăng nhập thành công! Xin chào ${user.ho_ten}.`
+
+window.location.assign(destination)
                 })
 
                 .catch((err) => {
