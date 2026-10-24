@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Environment files
+.env
+.env.backup
+.env.production
+*.local
+
+# Logs and databases
+*.log
+*.sqlite
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
