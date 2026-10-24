@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 <template>
     <div class="class-page">
 
@@ -1773,3 +1774,5 @@ onMounted(() => {
 }
 
 </style>
+=======
+>>>>>>> Stashed changes

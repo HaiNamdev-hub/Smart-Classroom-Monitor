@@ -37,6 +37,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/dang-xuat', [NguoiDungController::class, 'dangXuat']);
 
 
+
+
+
+    
     //SINH VIÊN
     Route::get(
         '/sinh-vien/trang-chu/get-data',
