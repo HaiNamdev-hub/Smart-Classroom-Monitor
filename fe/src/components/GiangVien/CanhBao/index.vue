@@ -1,723 +1,1900 @@
-<template>
-  <div>
-    <!-- �ang ph�t tri?n -->
-  </div>
-</template>
 
 <template>
-  <div class="canh-bao-container p-3">
-
-    <!-- Tiêu đề -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="alert-page">
+    <!-- HEADER -->
+    <header class="page-header">
       <div>
-        <h3 class="fw-bold text-dark mb-1">
-          🚨 Nhật Ký & Cảnh Báo Hệ Thống
-        </h3>
-
-        <p class="text-muted mb-0">
-          Theo dõi và xử lý các cảnh báo trong phòng Lab.
+        <span class="eyebrow">GIÁM SÁT VÀ AN TOÀN LỚP HỌC</span>
+        <h1>🚨 Cảnh báo vi phạm</h1>
+        <p>
+          Theo dõi hành vi bất thường và quản lý cảnh báo
+          trong các phiên giám sát lớp học.
         </p>
       </div>
 
-      <div class="d-flex gap-2">
+      <div class="header-actions">
         <button
-          class="btn btn-outline-primary btn-sm"
+          type="button"
+          class="btn-outline"
           :disabled="isBusy"
           @click="fetchData"
         >
-          {{ loading ? 'Đang tải...' : 'Làm mới' }}
+          <span :class="{ spinning: loading }">↻</span>
+          {{ loading ? "Đang tải..." : "Làm mới" }}
         </button>
 
         <button
-          class="btn btn-danger btn-sm"
-          :disabled="isBusy || pendingCount === 0 || !!error"
-          @click="xuLyTatCa"
+          type="button"
+          class="btn-primary"
+          :disabled="isBusy || pendingVisible.length === 0 || !!error"
+          @click="openBulkConfirm"
         >
-          {{ bulkProcessing ? 'Đang xử lý...' : 'Xử lý tất cả đang hiển thị' }}
+          ✓ Xử lý đang hiển thị
+          <span v-if="pendingVisible.length">
+            ({{ pendingVisible.length }})
+          </span>
         </button>
       </div>
-    </div>
+    </header>
 
-    <!-- Thống kê -->
-    <div class="row g-3 mb-4">
-
-      <div class="col-md-3">
-        <div class="stat-card card border-0 shadow-sm p-3">
-          <div class="text-muted small fw-bold">
-            TỔNG CẢNH BÁO
-          </div>
-
-          <h3 class="fw-bold text-primary mt-2">
-            {{ loading || error ? '--' : stats.tong }}
-          </h3>
+    <!-- THỐNG KÊ -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon blue">CB</div>
+        <div class="stat-content">
+          <span>Tổng cảnh báo</span>
+          <strong>{{ statValue(alerts.length) }}</strong>
+          <small>Trong danh sách đã tải</small>
         </div>
       </div>
 
-      <div class="col-md-3">
-        <div class="stat-card card border-0 shadow-sm p-3">
-          <div class="text-muted small fw-bold">
-            CHƯA XỬ LÝ
-          </div>
-
-          <h3 class="fw-bold text-danger mt-2">
-            {{ loading || error ? '--' : stats.chuaXuLy }}
-          </h3>
+      <div class="stat-card">
+        <div class="stat-icon red">!</div>
+        <div class="stat-content">
+          <span>Chưa xử lý</span>
+          <strong>{{ statValue(soChuaXuLy) }}</strong>
+          <small>Cảnh báo cần xem xét</small>
         </div>
       </div>
 
-      <div class="col-md-3">
-        <div class="stat-card card border-0 shadow-sm p-3">
-          <div class="text-muted small fw-bold">
-            MỨC ĐỘ CAO
-          </div>
-
-          <h3 class="fw-bold text-warning mt-2">
-            {{ loading || error ? '--' : stats.nghiemTrong }}
-          </h3>
+      <div class="stat-card">
+        <div class="stat-icon green">✓</div>
+        <div class="stat-content">
+          <span>Đã xử lý</span>
+          <strong>{{ statValue(soDaXuLy) }}</strong>
+          <small>Đã được đánh dấu hoàn tất</small>
         </div>
       </div>
 
-      <div class="col-md-3">
-        <div class="stat-card card border-0 shadow-sm p-3">
-          <div class="text-muted small fw-bold">
-            ĐÃ XỬ LÝ
-          </div>
-
-          <h3 class="fw-bold text-success mt-2">
-            {{ loading || error ? '--' : stats.daXuLy }}
-          </h3>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Bộ lọc -->
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-body">
-
-        <div class="row g-3">
-
-          <div class="col-md-4">
-            <label class="form-label fw-bold">
-              Chọn phòng Lab
-            </label>
-
-            <select
-              v-model="filters.phongLab"
-              class="form-select"
-            >
-              <option value="ALL">
-                Tất cả phòng Lab
-              </option>
-
-              <option
-                v-for="phong in danhSachPhong"
-                :key="phong"
-                :value="phong"
-              >
-                {{ phong }}
-              </option>
-            </select>
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label fw-bold">
-              Mức độ cảnh báo
-            </label>
-
-            <select
-              v-model="filters.mucDo"
-              class="form-select"
-            >
-              <option value="ALL">Tất cả mức độ</option>
-              <option value="HIGH">Nghiêm trọng</option>
-              <option value="MEDIUM">Trung bình</option>
-              <option value="LOW">Thấp</option>
-            </select>
-          </div>
-
-          <div class="col-md-5">
-            <label class="form-label fw-bold">
-              Tìm kiếm sinh viên / máy trạm
-            </label>
-
-            <input
-              v-model="filters.search"
-              class="form-control"
-              type="text"
-              placeholder="Nhập tên, MSSV hoặc tên máy..."
-            />
-          </div>
-
+      <div class="stat-card">
+        <div class="stat-icon purple">SV</div>
+        <div class="stat-content">
+          <span>Sinh viên có cảnh báo</span>
+          <strong>{{ soSinhVienText }}</strong>
+          <small>Đếm theo ID hoặc MSSV</small>
         </div>
       </div>
     </div>
 
-    <!-- Thông báo -->
-    <div v-if="error" class="alert alert-danger" role="alert">
-      {{ error }}
-    </div>
-
-    <div v-if="success" class="alert alert-success" role="status">
-      {{ success }}
-    </div>
-
-    <!-- Loading -->
-    <div v-if="loading" class="text-center py-5">
-      <div class="spinner-border text-primary"></div>
-
-      <p class="text-muted mt-3">
-        Đang tải danh sách cảnh báo...
-      </p>
-    </div>
-
-    <!-- Danh sách cảnh báo -->
-    <div v-else-if="!error" class="card border-0 shadow-sm">
-
-      <div class="card-header bg-white py-3">
-        <div class="d-flex justify-content-between align-items-center">
-          <h6 class="fw-bold mb-0">
-            Danh Sách Cảnh Báo
-          </h6>
-
-          <span class="badge bg-primary">
-            {{ filteredAlerts.length }} cảnh báo
-          </span>
+    <!-- PANEL DANH SÁCH -->
+    <section class="alerts-panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Danh sách cảnh báo</h2>
+          <p>
+            Theo dõi và xử lý cảnh báo phát sinh
+            trong các lớp được phân công.
+          </p>
         </div>
+
+        <span class="count-label">
+          {{ filteredAlerts.length }} cảnh báo
+        </span>
       </div>
 
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+      <!-- FILTER -->
+      <div class="toolbar">
+        <div class="search-box">
+          <span class="search-icon">⌕</span>
+          <input
+            v-model="filters.search"
+            type="search"
+            placeholder="Tìm sinh viên, MSSV, nội dung..."
+            aria-label="Tìm cảnh báo"
+          />
+        </div>
 
-          <thead class="table-light">
+        <select
+          v-model="filters.loai"
+          class="filter-select"
+          aria-label="Lọc loại vi phạm"
+        >
+          <option value="ALL">Tất cả loại vi phạm</option>
+          <option value="ung_dung_khong_cho_phep">
+            Ứng dụng không cho phép
+          </option>
+          <option value="website_khong_cho_phep">
+            Website không cho phép
+          </option>
+          <option value="copy_paste">Copy / Paste</option>
+          <option value="roi_phien">Rời phiên</option>
+          <option value="mat_ket_noi">Mất kết nối</option>
+        </select>
+
+        <select
+          v-model="filters.trangThai"
+          class="filter-select"
+          aria-label="Lọc trạng thái"
+        >
+          <option value="ALL">Tất cả trạng thái</option>
+          <option value="CHUA_XU_LY">Chưa xử lý</option>
+          <option value="DA_XU_LY">Đã xử lý</option>
+        </select>
+
+        <button
+          v-if="hasActiveFilters"
+          type="button"
+          class="clear-btn"
+          @click="clearFilters"
+        >
+          Xóa bộ lọc
+        </button>
+      </div>
+
+      <!-- MESSAGES -->
+      <div v-if="error" class="notice notice-error" role="alert">
+        <div>
+          <strong>Không thể hoàn thành thao tác</strong>
+          <p>{{ error }}</p>
+        </div>
+        <button type="button" @click="fetchData">
+          Thử tải lại
+        </button>
+      </div>
+
+      <div
+        v-if="success"
+        class="notice notice-success"
+        role="status"
+      >
+        <span>✓ {{ success }}</span>
+        <button
+          type="button"
+          aria-label="Đóng thông báo"
+          @click="success = ''"
+        >
+          ×
+        </button>
+      </div>
+
+      <!-- LOADING -->
+      <div
+        v-if="loading && !hasLoaded"
+        class="state-box"
+        role="status"
+      >
+        <div class="spinner"></div>
+        <strong>Đang tải cảnh báo...</strong>
+        <p>Hệ thống đang lấy dữ liệu từ máy chủ.</p>
+      </div>
+
+      <!-- EMPTY -->
+      <div
+        v-else-if="hasLoaded && alerts.length === 0"
+        class="state-box"
+      >
+        <div class="state-icon">🛡️</div>
+        <strong>Chưa có cảnh báo vi phạm</strong>
+        <p>
+          Không có cảnh báo nào trong danh sách
+          được Backend trả về.
+        </p>
+      </div>
+
+      <div
+        v-else-if="hasLoaded && filteredAlerts.length === 0"
+        class="state-box"
+      >
+        <div class="state-icon">⌕</div>
+        <strong>Không tìm thấy cảnh báo phù hợp</strong>
+        <p>Hãy thay đổi từ khóa hoặc bộ lọc.</p>
+        <button
+          type="button"
+          class="btn-outline"
+          @click="clearFilters"
+        >
+          Xóa bộ lọc
+        </button>
+      </div>
+
+      <!-- TABLE -->
+      <div v-else-if="hasLoaded" class="table-scroll">
+        <table class="alerts-table">
+          <thead>
             <tr>
               <th>STT</th>
-              <th>Thời gian</th>
-              <th>Sinh viên</th>
-              <th>Máy trạm</th>
-              <th>Nội dung cảnh báo</th>
-              <th>Mức độ</th>
-              <th>Trạng thái</th>
-              <th>Thao tác</th>
+              <th>SINH VIÊN</th>
+              <th>LOẠI VI PHẠM</th>
+              <th>THỜI GIAN</th>
+              <th>TRẠNG THÁI</th>
+              <th>THAO TÁC</th>
             </tr>
           </thead>
 
           <tbody>
             <tr
               v-for="(item, index) in filteredAlerts"
-              :key="item.id ?? index"
+              :key="item.id"
+              :class="{ 'pending-row': isPending(item) }"
             >
-              <td>{{ index + 1 }}</td>
+              <td class="muted">{{ index + 1 }}</td>
 
-              <td class="text-muted small">
+              <td>
+                <div class="student-cell">
+                  <span class="avatar">
+                    {{ initials(item.tenSinhVien) }}
+                  </span>
+
+                  <div class="student-info">
+                    <strong>
+                      {{ item.tenSinhVien || "Chưa cập nhật" }}
+                    </strong>
+                    <small>
+                      {{ item.mssv || "Chưa có MSSV" }}
+                    </small>
+                  </div>
+                </div>
+              </td>
+
+              <td>
+                <div class="violation-cell">
+                  <span class="violation-icon">
+                    {{ typeInfo(item.loaiCanhBao).icon }}
+                  </span>
+                  <div>
+                    <strong>
+                      {{ typeInfo(item.loaiCanhBao).text }}
+                    </strong>
+                    <small :title="item.chiTiet || ''">
+                      {{ item.chiTiet || "Chưa có mô tả" }}
+                    </small>
+                  </div>
+                </div>
+              </td>
+
+              <td class="time-cell">
                 {{ formatDate(item.thoiGian) }}
               </td>
 
               <td>
-                <div class="fw-bold">
-                  {{ item.tenSinhVien || 'Chưa cập nhật' }}
-                </div>
-
-                <div class="text-muted small">
-                  {{ item.mssv || 'Chưa có MSSV' }}
-                </div>
-              </td>
-
-              <td>
-                <span class="badge bg-light text-dark border">
-                  {{ item.tenMay || 'Chưa xác định' }}
-                </span>
-              </td>
-
-              <td>
-                <div class="fw-semibold">
-                  {{ item.tieuDe || 'Cảnh báo hệ thống' }}
-                </div>
-
-                <div class="small text-muted">
-                  {{ item.chiTiet || 'Không có mô tả' }}
-                </div>
-              </td>
-
-              <td>
                 <span
-                  class="badge"
-                  :class="getMucDo(item).className"
+                  class="status-pill"
+                  :class="statusInfo(item).className"
                 >
-                  {{ getMucDo(item).text }}
+                  <span class="status-dot"></span>
+                  {{ statusInfo(item).text }}
                 </span>
               </td>
 
               <td>
-                <span
-                  class="badge"
-                  :class="getStatus(item).className"
-                >
-                  {{ getStatus(item).text }}
-                </span>
-              </td>
+                <div class="row-actions">
+                  <button
+                    type="button"
+                    class="detail-btn"
+                    @click="openDetail(item)"
+                  >
+                    Chi tiết
+                  </button>
 
-              <td>
-                <div class="d-flex gap-1">
-
-                  <!-- Xử lý cảnh báo -->
                   <button
                     v-if="isPending(item)"
-                    class="btn btn-outline-success btn-sm"
+                    type="button"
+                    class="process-btn"
                     :disabled="isBusy || item.id == null"
-                    :title="item.id == null ? 'Cảnh báo thiếu ID' : 'Đánh dấu đã xử lý'"
-                    @click="xuLyAlert(item)"
+                    @click="openSingleConfirm(item)"
                   >
                     {{
-                      isProcessing(item.id)
-                        ? 'Đang xử lý...'
-                        : 'Xử lý'
+                      processingId === item.id
+                        ? "Đang xử lý..."
+                        : "Xử lý"
                     }}
                   </button>
 
-                  <!-- Chưa có API nhắc nhở -->
-                  <button
-                    class="btn btn-outline-warning btn-sm"
-                    disabled
-                    title="Chưa có API gửi nhắc nhở"
-                  >
-                    <i class="bi bi-bell"></i>
-                  </button>
-
-                  <!-- Chưa có API khóa máy -->
-                  <button
-                    class="btn btn-outline-danger btn-sm"
-                    disabled
-                    title="Chưa có API khóa máy"
-                  >
-                    <i class="bi bi-lock"></i>
-                  </button>
-
+                  <span v-else class="processed-label">
+                    Hoàn tất
+                  </span>
                 </div>
               </td>
             </tr>
-
-            <tr v-if="filteredAlerts.length === 0">
-              <td colspan="8" class="text-center py-5">
-                <i class="bi bi-inbox fs-1 text-muted"></i>
-
-                <h6 class="mt-3">
-                  Không có cảnh báo phù hợp
-                </h6>
-
-                <p class="text-muted mb-0">
-                  {{
-                    alerts.length === 0
-                      ? 'Hệ thống chưa có dữ liệu cảnh báo.'
-                      : 'Không tìm thấy cảnh báo theo bộ lọc.'
-                  }}
-                </p>
-              </td>
-            </tr>
-
           </tbody>
         </table>
       </div>
+
+      <footer class="panel-footer">
+        <span>
+          Hiển thị {{ filteredAlerts.length }}
+          / {{ alerts.length }} cảnh báo
+        </span>
+        <span v-if="lastUpdatedAt">
+          Cập nhật lần cuối: {{ lastUpdatedAt }}
+        </span>
+      </footer>
+    </section>
+
+    <!-- GHI CHÚ -->
+    <div class="info-note">
+      <span class="info-symbol">i</span>
+      <p>
+        Việc đánh dấu <strong>Đã xử lý</strong> chỉ cập nhật
+        trạng thái cảnh báo. Chức năng nhắc nhở sinh viên
+        hoặc khóa máy chưa có API nên không được thực hiện
+        tại trang này.
+      </p>
     </div>
 
+    <!-- MODAL CHI TIẾT -->
+    <div
+      v-if="selectedAlert"
+      class="modal-overlay"
+      @click.self="selectedAlert = null"
+    >
+      <div
+        class="detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="detail-title"
+      >
+        <header class="modal-header">
+          <div>
+            <span class="eyebrow">
+              CẢNH BÁO #{{ selectedAlert.id }}
+            </span>
+            <h2 id="detail-title">Chi tiết vi phạm</h2>
+          </div>
+          <button
+            type="button"
+            class="close-btn"
+            aria-label="Đóng"
+            @click="selectedAlert = null"
+          >
+            ×
+          </button>
+        </header>
+
+        <div class="modal-body">
+          <div class="detail-summary">
+            <span class="detail-type-icon">
+              {{ typeInfo(selectedAlert.loaiCanhBao).icon }}
+            </span>
+            <div>
+              <strong>
+                {{ typeInfo(selectedAlert.loaiCanhBao).text }}
+              </strong>
+              <span
+                class="status-pill"
+                :class="statusInfo(selectedAlert).className"
+              >
+                {{ statusInfo(selectedAlert).text }}
+              </span>
+            </div>
+          </div>
+
+          <div class="detail-grid">
+            <div>
+              <small>Sinh viên</small>
+              <strong>
+                {{ selectedAlert.tenSinhVien || "Chưa cập nhật" }}
+              </strong>
+            </div>
+            <div>
+              <small>MSSV</small>
+              <strong>
+                {{ selectedAlert.mssv || "Chưa cập nhật" }}
+              </strong>
+            </div>
+            <div>
+              <small>Thời gian</small>
+              <strong>{{ formatDate(selectedAlert.thoiGian) }}</strong>
+            </div>
+            <div>
+              <small>Phiên giám sát</small>
+              <strong>
+                {{
+                  selectedAlert.phienId
+                    ? `#${selectedAlert.phienId}`
+                    : "Chưa có dữ liệu"
+                }}
+              </strong>
+            </div>
+          </div>
+
+          <div class="description-box">
+            <small>Nội dung cảnh báo</small>
+            <p>
+              {{ selectedAlert.chiTiet || "Chưa có mô tả." }}
+            </p>
+          </div>
+        </div>
+
+        <footer class="modal-footer">
+          <button
+            type="button"
+            class="btn-outline"
+            @click="selectedAlert = null"
+          >
+            Đóng
+          </button>
+          <button
+            v-if="isPending(selectedAlert)"
+            type="button"
+            class="btn-primary"
+            :disabled="isBusy"
+            @click="processFromDetail"
+          >
+            ✓ Đánh dấu đã xử lý
+          </button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- XÁC NHẬN XỬ LÝ -->
+    <div
+      v-if="confirmAction"
+      class="modal-overlay"
+      @click.self="closeConfirm"
+    >
+      <div
+        class="confirm-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+      >
+        <div class="confirm-icon">✓</div>
+
+        <h2 id="confirm-title">Xác nhận xử lý cảnh báo</h2>
+
+        <p v-if="confirmAction.type === 'single'">
+          Đánh dấu cảnh báo
+          <strong>#{{ confirmAction.items[0].id }}</strong>
+          là đã xử lý?
+        </p>
+
+        <p v-else>
+          Đánh dấu
+          <strong>{{ confirmAction.items.length }} cảnh báo</strong>
+          chưa xử lý đang hiển thị là đã xử lý?
+        </p>
+
+        <div v-if="actionError" class="form-error">
+          {{ actionError }}
+        </div>
+
+        <div class="confirm-actions">
+          <button
+            type="button"
+            class="btn-outline"
+            :disabled="isBusy"
+            @click="closeConfirm"
+          >
+            Hủy
+          </button>
+
+          <button
+            type="button"
+            class="btn-primary"
+            :disabled="isBusy"
+            @click="confirmProcess"
+          >
+            {{
+              isBusy
+                ? "Đang xử lý..."
+                : "Xác nhận"
+            }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
-<script>
-import giangVienService from '../../../services/giangVienService'
+<script setup>
+import {
+  ref,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+} from "vue"
+import api from "../../../services/api"
 
-export default {
-  name: 'CanhBao',
+const alerts = ref([])
+const loading = ref(false)
+const hasLoaded = ref(false)
+const bulkProcessing = ref(false)
+const processingId = ref(null)
 
-  data() {
+const error = ref("")
+const success = ref("")
+const actionError = ref("")
+const lastUpdatedAt = ref("")
+
+const selectedAlert = ref(null)
+const confirmAction = ref(null)
+
+const filters = ref({
+  search: "",
+  loai: "ALL",
+  trangThai: "ALL",
+})
+
+let requestId = 0
+
+/* API */
+function extractList(response) {
+  const body = response?.data
+
+  if (body?.success === false || body?.status === false) {
+    throw new Error(body.message || "API trả về lỗi")
+  }
+
+  const data = body?.data ?? body
+
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data?.data)) return data.data
+
+  throw new Error("API không trả về danh sách hợp lệ")
+}
+
+/* CHUẨN HÓA CẢNH BÁO */
+function normalizeAlert(item) {
+  const status =
+    item.trangThai ??
+    item.trang_thai ??
+    (
+      item.da_xu_ly === true || item.da_xu_ly === 1
+        ? "DA_XU_LY"
+        : item.da_xu_ly === false || item.da_xu_ly === 0
+          ? "CHUA_XU_LY"
+          : ""
+    )
+
+  return {
+    id: item.id,
+    sinhVienId:
+      item.sinhVienId ??
+      item.sinh_vien_id ??
+      null,
+    tenSinhVien:
+      item.tenSinhVien ??
+      item.ho_ten ??
+      "",
+    mssv:
+      item.mssv ??
+      item.ma_sinh_vien ??
+      "",
+    phienId:
+      item.phienId ??
+      item.phien_id ??
+      null,
+    loaiCanhBao:
+      item.loaiCanhBao ??
+      item.loai_canh_bao ??
+      "",
+    tieuDe:
+      item.tieuDe ??
+      "",
+    chiTiet:
+      item.chiTiet ??
+      item.noi_dung ??
+      "",
+    thoiGian:
+      item.thoiGian ??
+      item.thoi_gian ??
+      null,
+    trangThai: String(status).toUpperCase(),
+  }
+}
+
+/* LOẠI VI PHẠM */
+const alertTypes = {
+  ung_dung_khong_cho_phep: {
+    text: "Ứng dụng không cho phép",
+    icon: "▣",
+  },
+  website_khong_cho_phep: {
+    text: "Website không cho phép",
+    icon: "◎",
+  },
+  copy_paste: {
+    text: "Sao chép / Dán",
+    icon: "▤",
+  },
+  roi_phien: {
+    text: "Rời phiên giám sát",
+    icon: "↗",
+  },
+  mat_ket_noi: {
+    text: "Mất kết nối",
+    icon: "⌁",
+  },
+}
+
+function typeInfo(value) {
+  return alertTypes[value] || {
+    text: "Chưa xác định",
+    icon: "!",
+  }
+}
+
+/* TRẠNG THÁI */
+function statusCode(item) {
+  return String(item?.trangThai || "").toUpperCase()
+}
+
+function isPending(item) {
+  return statusCode(item) === "CHUA_XU_LY"
+}
+
+function statusInfo(item) {
+  const status = statusCode(item)
+
+  if (status === "CHUA_XU_LY") {
     return {
-      alerts: [],
-
-      filters: {
-        phongLab: 'ALL',
-        mucDo: 'ALL',
-        search: ''
-      },
-
-      loading: false,
-      bulkProcessing: false,
-      processingIds: [],
-
-      error: '',
-      success: '',
-
-      requestId: 0
+      text: "Chưa xử lý",
+      className: "status-pending",
     }
-  },
+  }
 
-  computed: {
-    isBusy() {
-      return (
-        this.loading ||
-        this.bulkProcessing ||
-        this.processingIds.length > 0
-      )
-    },
-
-    // Thống kê từ dữ liệu API
-    stats() {
-      return {
-        tong: this.alerts.length,
-
-        chuaXuLy: this.alerts.filter(
-          item => this.isPending(item)
-        ).length,
-
-        nghiemTrong: this.alerts.filter(
-          item => String(item.mucDo ?? '').toUpperCase() === 'HIGH'
-        ).length,
-
-        daXuLy: this.alerts.filter(
-          item => this.getStatusCode(item) === 'DA_XU_LY'
-        ).length
-      }
-    },
-
-    // Danh sách phòng Lab lấy từ API
-    danhSachPhong() {
-      return [
-        ...new Set(
-          this.alerts
-            .map(item => String(item.phongLab ?? '').trim())
-            .filter(Boolean)
-        )
-      ].sort()
-    },
-
-    // Lọc dữ liệu đã tải
-    filteredAlerts() {
-      const keyword = this.normalizeText(this.filters.search)
-
-      return this.alerts.filter(item => {
-        const name = this.normalizeText(item.tenSinhVien)
-        const mssv = this.normalizeText(item.mssv)
-        const machine = this.normalizeText(item.tenMay)
-
-        const matchSearch =
-          name.includes(keyword) ||
-          mssv.includes(keyword) ||
-          machine.includes(keyword)
-
-        const matchSeverity =
-          this.filters.mucDo === 'ALL' ||
-          String(item.mucDo ?? '').toUpperCase() ===
-          this.filters.mucDo
-
-        const matchRoom =
-          this.filters.phongLab === 'ALL' ||
-          String(item.phongLab ?? '') ===
-          this.filters.phongLab
-
-        return matchSearch && matchSeverity && matchRoom
-      })
-    },
-
-    pendingCount() {
-      return this.filteredAlerts.filter(
-        item => this.isPending(item) && item.id != null
-      ).length
+  if (status === "DA_XU_LY") {
+    return {
+      text: "Đã xử lý",
+      className: "status-complete",
     }
-  },
+  }
 
-  mounted() {
-    this.fetchData()
-  },
+  return {
+    text: "Chưa xác định",
+    className: "status-unknown",
+  }
+}
 
-  beforeUnmount() {
-    this.requestId++
-  },
+const isBusy = computed(
+  () =>
+    loading.value ||
+    bulkProcessing.value ||
+    processingId.value !== null
+)
 
-  methods: {
-    // Chuẩn hóa phản hồi API
-    extractList(response) {
-      const body = response?.data
-      const value = body?.data ?? body
+/* TÌM KIẾM KHÔNG DẤU */
+function normalizeText(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .trim()
+}
 
-      if (Array.isArray(value)) {
-        return value
-      }
+const filteredAlerts = computed(() => {
+  const keyword = normalizeText(filters.value.search)
 
-      if (Array.isArray(value?.data)) {
-        return value.data
-      }
+  return alerts.value.filter((item) => {
+    const content = normalizeText(
+      [
+        item.tenSinhVien,
+        item.mssv,
+        item.tieuDe,
+        item.chiTiet,
+        typeInfo(item.loaiCanhBao).text,
+      ].join(" ")
+    )
 
-      throw new Error('API không trả về danh sách hợp lệ')
-    },
+    const matchSearch = content.includes(keyword)
 
-    // Lấy dữ liệu cảnh báo
-    async fetchData() {
-      if (this.isBusy) return
+    const matchType =
+      filters.value.loai === "ALL" ||
+      item.loaiCanhBao === filters.value.loai
 
-      const currentRequest = ++this.requestId
+    const matchStatus =
+      filters.value.trangThai === "ALL" ||
+      statusCode(item) === filters.value.trangThai
 
-      this.loading = true
-      this.error = ''
-      this.success = ''
-      this.alerts = []
+    return matchSearch && matchType && matchStatus
+  })
+})
 
-      try {
-        const response =
-          await giangVienService.getCanhBao()
+const hasActiveFilters = computed(
+  () =>
+    filters.value.search.trim() !== "" ||
+    filters.value.loai !== "ALL" ||
+    filters.value.trangThai !== "ALL"
+)
 
-        if (currentRequest !== this.requestId) return
+function clearFilters() {
+  filters.value = {
+    search: "",
+    loai: "ALL",
+    trangThai: "ALL",
+  }
+}
 
-        this.alerts = this.extractList(response)
+/* THỐNG KÊ */
+function statValue(value) {
+  return hasLoaded.value
+    ? Number(value).toLocaleString("vi-VN")
+    : "—"
+}
 
-      } catch (err) {
-        if (currentRequest !== this.requestId) return
+const soChuaXuLy = computed(() =>
+  alerts.value.filter(isPending).length
+)
 
-        console.error('Lỗi tải cảnh báo:', err)
+const soDaXuLy = computed(() =>
+  alerts.value.filter(
+    (item) => statusCode(item) === "DA_XU_LY"
+  ).length
+)
 
-        this.error =
-          'Không thể tải danh sách cảnh báo. ' +
-          'Vui lòng kiểm tra kết nối API.'
-      } finally {
-        if (currentRequest === this.requestId) {
-          this.loading = false
-        }
-      }
-    },
+const soSinhVienText = computed(() => {
+  if (!hasLoaded.value) return "—"
 
-    // Chuẩn hóa tìm kiếm tiếng Việt
-    normalizeText(value) {
-      return String(value ?? '')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/đ/g, 'd')
-        .replace(/Đ/g, 'D')
-        .toLowerCase()
-        .trim()
-    },
+  const identifiers = new Set()
 
-    getStatusCode(item) {
-      return String(item.trangThai ?? '').toUpperCase()
-    },
+  for (const item of alerts.value) {
+    const id =
+      item.sinhVienId != null
+        ? `id:${item.sinhVienId}`
+        : item.mssv
+          ? `mssv:${item.mssv}`
+          : null
 
-    isPending(item) {
-      return this.getStatusCode(item) === 'CHUA_XU_LY'
-    },
+    if (id) identifiers.add(id)
+  }
 
-    isProcessing(id) {
-      return this.processingIds.includes(id)
-    },
+  return identifiers.size > 0
+    ? identifiers.size.toLocaleString("vi-VN")
+    : alerts.value.length === 0 ? "0" : "—"
+})
 
-    // Hiển thị trạng thái
-    getStatus(item) {
-      const status = this.getStatusCode(item)
+const pendingVisible = computed(() =>
+  filteredAlerts.value.filter(
+    (item) => isPending(item) && item.id != null
+  )
+)
 
-      if (status === 'CHUA_XU_LY') {
-        return {
-          text: 'Chưa xử lý',
-          className: 'bg-danger'
-        }
-      }
+/* THÔNG TIN HIỂN THỊ */
+function initials(name) {
+  const words = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
 
-      if (status === 'DA_XU_LY') {
-        return {
-          text: 'Đã xử lý',
-          className: 'bg-success'
-        }
-      }
+  if (words.length === 0) return "SV"
 
-      return {
-        text: 'Chưa xác định',
-        className: 'bg-secondary'
-      }
-    },
+  return words
+    .slice(-2)
+    .map((word) =>
+      word.charAt(0).toLocaleUpperCase("vi-VN")
+    )
+    .join("")
+}
 
-    // Hiển thị mức độ
-    getMucDo(item) {
-      const level = String(item.mucDo ?? '').toUpperCase()
+function formatDate(value) {
+  if (!value) return "Chưa cập nhật"
 
-      if (level === 'HIGH') {
-        return {
-          text: 'Nghiêm trọng',
-          className: 'bg-danger'
-        }
-      }
+  const date = new Date(
+    typeof value === "string"
+      ? value.replace(" ", "T")
+      : value
+  )
 
-      if (level === 'MEDIUM') {
-        return {
-          text: 'Trung bình',
-          className: 'bg-warning text-dark'
-        }
-      }
+  if (Number.isNaN(date.getTime())) {
+    return String(value)
+  }
 
-      if (level === 'LOW') {
-        return {
-          text: 'Thấp',
-          className: 'bg-info text-dark'
-        }
-      }
+  return date.toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  })
+}
 
-      return {
-        text: 'Chưa xác định',
-        className: 'bg-secondary'
-      }
-    },
+function getErrorMessage(err, fallback) {
+  const status = err.response?.status
 
-    // Gọi API đánh dấu đã xử lý
-    async sendProcessRequest(id) {
-      const response =
-        await giangVienService.xuLyCanhBao(id)
+  if (status === 401) {
+    return "Phiên đăng nhập đã hết hạn."
+  }
+  if (status === 403) {
+    return "Bạn không có quyền xử lý cảnh báo."
+  }
+  if (status === 404) {
+    return "Không tìm thấy cảnh báo hoặc API."
+  }
+  if (status === 422) {
+    return "Dữ liệu gửi lên không hợp lệ."
+  }
+  if (status >= 500) {
+    return "Máy chủ gặp lỗi khi xử lý dữ liệu."
+  }
 
-      if (response?.data?.success === false) {
-        throw new Error('API từ chối xử lý cảnh báo')
-      }
+  return err.message || fallback
+}
 
-      // Chỉ thay đổi khi API trả về thành công
-      this.alerts = this.alerts.map(item => {
-        if (String(item.id) === String(id)) {
-          return {
-            ...item,
-            trangThai: 'DA_XU_LY'
-          }
-        }
+/* TẢI CẢNH BÁO */
+async function fetchData() {
+  if (isBusy.value) return
 
-        return item
-      })
-    },
+  const current = ++requestId
 
-    // Xử lý một cảnh báo
-    async xuLyAlert(item) {
-      if (
-        this.isBusy ||
-        item.id == null ||
-        !this.isPending(item)
-      ) {
-        return
-      }
+  loading.value = true
+  error.value = ""
 
-      this.error = ''
-      this.success = ''
+  try {
+    const response = await api.get("/giang-vien/canh-bao")
 
-      this.processingIds = [item.id]
+    if (current !== requestId) return
 
-      try {
-        await this.sendProcessRequest(item.id)
+    alerts.value =
+      extractList(response).map(normalizeAlert)
 
-        this.success = 'Đã xử lý cảnh báo thành công.'
+    hasLoaded.value = true
 
-      } catch (err) {
-        console.error('Lỗi xử lý cảnh báo:', err)
+    lastUpdatedAt.value =
+      new Date().toLocaleString("vi-VN")
+  } catch (err) {
+    if (current !== requestId) return
 
-        this.error =
-          'Không thể xử lý cảnh báo. ' +
-          'Vui lòng kiểm tra kết nối API.'
-      } finally {
-        this.processingIds = []
-      }
-    },
+    console.error("Lỗi tải cảnh báo:", err)
 
-    // Xử lý các cảnh báo đang hiển thị
-    async xuLyTatCa() {
-      if (this.isBusy || this.pendingCount === 0) {
-        return
-      }
+    error.value = getErrorMessage(
+      err,
+      "Không thể tải danh sách cảnh báo."
+    )
 
-      const pendingItems = this.filteredAlerts.filter(
-        item => this.isPending(item) && item.id != null
-      )
-
-      const confirmed = window.confirm(
-        `Bạn có muốn xử lý ${pendingItems.length} cảnh báo đang hiển thị?`
-      )
-
-      if (!confirmed) return
-
-      this.bulkProcessing = true
-      this.error = ''
-      this.success = ''
-
-      let successCount = 0
-      let failureCount = 0
-
-      try {
-        // Service chưa có API xử lý hàng loạt.
-        // Gọi API xử lý từng cảnh báo.
-        for (const item of pendingItems) {
-          try {
-            await this.sendProcessRequest(item.id)
-            successCount++
-          } catch (err) {
-            console.error(
-              'Không thể xử lý cảnh báo:',
-              item.id,
-              err
-            )
-
-            failureCount++
-          }
-        }
-
-        if (successCount > 0) {
-          this.success =
-            `Đã xử lý thành công ${successCount}/${pendingItems.length} cảnh báo.`
-        }
-
-        if (failureCount > 0) {
-          this.error =
-            `Có ${failureCount} cảnh báo xử lý thất bại. ` +
-            'Vui lòng thử lại hoặc kiểm tra API.'
-        }
-
-      } finally {
-        this.bulkProcessing = false
-      }
-    },
-
-    // Hiển thị thời gian
-    formatDate(value) {
-      if (!value) return 'Chưa cập nhật'
-
-      if (/^\d{2}:\d{2}(:\d{2})?$/.test(String(value))) {
-        return String(value)
-      }
-
-      const date = new Date(value)
-
-      if (Number.isNaN(date.getTime())) {
-        return String(value)
-      }
-
-      return date.toLocaleString('vi-VN', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      })
+    hasLoaded.value = false
+  } finally {
+    if (current === requestId) {
+      loading.value = false
     }
   }
 }
+
+/* XEM CHI TIẾT */
+function openDetail(item) {
+  selectedAlert.value = item
+}
+
+/* MỞ XÁC NHẬN */
+function openSingleConfirm(item) {
+  if (!isPending(item) || isBusy.value || item.id == null) {
+    return
+  }
+
+  actionError.value = ""
+  confirmAction.value = {
+    type: "single",
+    items: [item],
+  }
+}
+
+function openBulkConfirm() {
+  if (isBusy.value || pendingVisible.value.length === 0) {
+    return
+  }
+
+  actionError.value = ""
+
+  confirmAction.value = {
+    type: "bulk",
+    items: [...pendingVisible.value],
+  }
+}
+
+function processFromDetail() {
+  const item = selectedAlert.value
+  if (!item) return
+
+  selectedAlert.value = null
+  openSingleConfirm(item)
+}
+
+function closeConfirm() {
+  if (isBusy.value) return
+
+  confirmAction.value = null
+  actionError.value = ""
+}
+
+/* GỌI API XỬ LÝ */
+async function sendProcessRequest(id) {
+  const response = await api.put(
+    `/giang-vien/canh-bao/${encodeURIComponent(id)}/xu-ly`
+  )
+
+  if (
+    response.data?.success === false ||
+    response.data?.status === false
+  ) {
+    throw new Error(
+      response.data?.message ||
+      "Backend không xác nhận xử lý cảnh báo."
+    )
+  }
+
+  // Chỉ cập nhật giao diện sau khi server phản hồi thành công.
+  alerts.value = alerts.value.map((item) =>
+    String(item.id) === String(id)
+      ? { ...item, trangThai: "DA_XU_LY" }
+      : item
+  )
+}
+
+/* XỬ LÝ CẢNH BÁO */
+async function confirmProcess() {
+  const action = confirmAction.value
+
+  if (!action || isBusy.value) return
+
+  actionError.value = ""
+  error.value = ""
+  success.value = ""
+
+  if (action.type === "single") {
+    const item = action.items[0]
+    processingId.value = item.id
+
+    try {
+      await sendProcessRequest(item.id)
+
+      success.value =
+        `Đã xử lý cảnh báo #${item.id} thành công.`
+
+      confirmAction.value = null
+    } catch (err) {
+      console.error("Lỗi xử lý cảnh báo:", err)
+      actionError.value = getErrorMessage(
+        err,
+        "Không thể xử lý cảnh báo."
+      )
+    } finally {
+      processingId.value = null
+    }
+
+    return
+  }
+
+  // Backend chưa có API xử lý hàng loạt:
+  // gửi từng request và thống kê kết quả.
+  bulkProcessing.value = true
+
+  let completed = 0
+  let failed = 0
+
+  try {
+    for (const item of action.items) {
+      try {
+        await sendProcessRequest(item.id)
+        completed++
+      } catch (err) {
+        console.error(
+          `Không thể xử lý cảnh báo #${item.id}:`,
+          err
+        )
+        failed++
+      }
+    }
+
+    if (completed > 0) {
+      success.value =
+        `Đã xử lý ${completed}/${action.items.length} cảnh báo.`
+    }
+
+    if (failed > 0) {
+      error.value =
+        `${failed} cảnh báo xử lý thất bại. ` +
+        "Bạn có thể thử lại các cảnh báo còn lại."
+    }
+
+    confirmAction.value = null
+  } finally {
+    bulkProcessing.value = false
+  }
+}
+
+onMounted(fetchData)
+
+onBeforeUnmount(() => {
+  requestId++
+})
 </script>
 
 <style scoped>
-.canh-bao-container {
-  min-height: 400px;
+.alert-page {
+  min-height: calc(100vh - 80px);
+  width: 100%;
+  box-sizing: border-box;
+  padding: 28px;
+  background: #f5f7fb;
+  color: #172033;
+  font-family: Inter, system-ui, sans-serif;
 }
 
-.stat-card {
-  border-left: 4px solid #dee2e6 !important;
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 24px;
 }
 
-.table th,
-.table td {
-  padding: 13px;
-  vertical-align: middle;
+.eyebrow {
+  display: block;
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
 }
 
-.table th {
+.page-header h1 {
+  margin: 8px 0;
+  color: #172033;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.page-header p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.btn-primary,
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
   white-space: nowrap;
 }
 
-.table-responsive {
-  min-height: 160px;
+.btn-primary {
+  background: #2563eb;
+  color: #fff;
+  border: 1px solid #2563eb;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-outline {
+  background: #fff;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.spinning {
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+
+/* STATS */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 23px;
+}
+
+.stat-card {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 19px;
+  border: 1px solid #e5e7eb;
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.04);
+}
+
+.stat-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.stat-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.stat-content span {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.stat-content strong {
+  color: #172033;
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.stat-content small {
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.blue {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.red {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.green {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.purple {
+  background: #faf5ff;
+  color: #9333ea;
+}
+
+/* PANEL */
+.alerts-panel {
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.panel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 22px;
+}
+
+.panel-heading h2 {
+  margin: 0 0 6px;
+  color: #172033;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.panel-heading p {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.count-label {
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* FILTER */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 11px;
+  padding: 0 22px 21px;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.search-box:focus-within {
+  border-color: #60a5fa;
+}
+
+.search-icon {
+  color: #94a3b8;
+  font-size: 24px;
+}
+
+.search-box input {
+  width: 100%;
+  min-width: 0;
+  padding: 12px 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #172033;
+  font-size: 12px;
+}
+
+.filter-select {
+  min-width: 160px;
+  max-width: 240px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  outline: none;
+}
+
+.clear-btn {
+  padding: 11px 13px;
+  border: 0;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* TABLE */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.alerts-table {
+  width: 100%;
+  min-width: 950px;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.alerts-table thead {
+  background: #f8fafc;
+}
+
+.alerts-table th {
+  padding: 15px 18px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.alerts-table td {
+  padding: 16px 18px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+.alerts-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.pending-row td:first-child {
+  border-left: 3px solid #f59e0b;
+}
+
+.muted,
+.time-cell {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.student-cell,
+.violation-cell {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.avatar,
+.violation-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.violation-icon {
+  background: #fff7ed;
+  color: #ea580c;
+  font-size: 19px;
+}
+
+.student-info,
+.violation-cell > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.student-info strong,
+.violation-cell strong {
+  color: #172033;
+  font-size: 12px;
+}
+
+.student-info small,
+.violation-cell small {
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.violation-cell small {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-complete {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-unknown {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-btn,
+.process-btn {
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.detail-btn {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+}
+
+.process-btn {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.process-btn:hover:not(:disabled) {
+  background: #dcfce7;
+}
+
+.processed-label {
+  color: #16a34a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.panel-footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 17px 22px;
+  border-top: 1px solid #e5e7eb;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+/* STATES */
+.state-box {
+  min-height: 290px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 28px;
+  text-align: center;
+}
+
+.state-icon {
+  font-size: 35px;
+}
+
+.state-box strong {
+  font-size: 14px;
+}
+
+.state-box p {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid #dbeafe;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.notice {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 0 22px 19px;
+  padding: 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+
+.notice strong {
+  font-size: 12px;
+}
+
+.notice p {
+  margin: 5px 0 0;
+  font-size: 11px;
+}
+
+.notice button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.notice-error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.notice-success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+
+/* INFO */
+.info-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-top: 18px;
+  padding: 15px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #eff6ff;
+}
+
+.info-symbol {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.info-note p {
+  margin: 2px 0 0;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+/* MODALS */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(3px);
+}
+
+.detail-modal {
+  width: 100%;
+  max-width: 560px;
+  max-height: 92vh;
+  overflow-y: auto;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 20px 70px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 24px 26px 19px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-header h2 {
+  margin: 8px 0 0;
+  color: #172033;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.close-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 9px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 23px;
+  cursor: pointer;
+}
+
+.modal-body {
+  padding: 24px 26px;
+}
+
+.detail-summary {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 22px;
+}
+
+.detail-type-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #fff7ed;
+  color: #ea580c;
+  font-size: 22px;
+}
+
+.detail-summary > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.detail-summary strong {
+  font-size: 14px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+}
+
+.detail-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-grid small,
+.description-box small {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.detail-grid strong {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.description-box {
+  margin-top: 21px;
+  padding: 15px;
+  border: 1px solid #e5e7eb;
+  border-radius: 11px;
+  background: #f8fafc;
+}
+
+.description-box p {
+  margin: 9px 0 0;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 17px 26px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.confirm-modal {
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+  padding: 27px;
+  border-radius: 18px;
+  background: #fff;
+  text-align: center;
+}
+
+.confirm-icon {
+  display: grid;
+  place-items: center;
+  width: 55px;
+  height: 55px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: #f0fdf4;
+  color: #16a34a;
+  font-size: 25px;
+  font-weight: 900;
+}
+
+.confirm-modal h2 {
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.confirm-modal p {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 23px;
+}
+
+.form-error {
+  padding: 12px;
+  margin-top: 15px;
+  border-radius: 9px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 11px;
+}
+
+/* DARK MODE */
+:global(html.dark-theme) .alert-page {
+  background: #1f2124;
+  color: #fff;
+}
+
+:global(html.dark-theme) .page-header h1,
+:global(html.dark-theme) .stat-content strong,
+:global(html.dark-theme) .panel-heading h2,
+:global(html.dark-theme) .student-info strong,
+:global(html.dark-theme) .violation-cell strong,
+:global(html.dark-theme) .modal-header h2,
+:global(html.dark-theme) .confirm-modal h2 {
+  color: #fff;
+}
+
+:global(html.dark-theme) .stat-card,
+:global(html.dark-theme) .alerts-panel,
+:global(html.dark-theme) .detail-modal,
+:global(html.dark-theme) .confirm-modal {
+  background: #111;
+  border-color: rgba(255,255,255,0.14);
+}
+
+:global(html.dark-theme) .search-box,
+:global(html.dark-theme) .filter-select,
+:global(html.dark-theme) .btn-outline,
+:global(html.dark-theme) .detail-btn,
+:global(html.dark-theme) .description-box {
+  background: #202327;
+  color: #fff;
+  border-color: rgba(255,255,255,0.14);
+}
+
+:global(html.dark-theme) .search-box input {
+  color: #fff;
+}
+
+:global(html.dark-theme) .alerts-table thead,
+:global(html.dark-theme) .alerts-table tbody tr:hover {
+  background: #202327;
+}
+
+:global(html.dark-theme) .alerts-table td,
+:global(html.dark-theme) .panel-footer,
+:global(html.dark-theme) .modal-header,
+:global(html.dark-theme) .modal-footer {
+  border-color: rgba(255,255,255,0.12);
+}
+
+:global(html.dark-theme) .description-box p {
+  color: #cbd5e1;
+}
+
+:global(html.dark-theme) .info-note {
+  background: rgba(37,99,235,0.12);
+  border-color: rgba(96,165,250,0.3);
+}
+
+:global(html.dark-theme) .info-note p {
+  color: #cbd5e1;
+}
+
+:global(html.dark-theme) .blue {
+  background: rgba(37,99,235,0.15);
+  color: #60a5fa;
+}
+
+:global(html.dark-theme) .red {
+  background: rgba(220,38,38,0.15);
+  color: #f87171;
+}
+
+:global(html.dark-theme) .green {
+  background: rgba(22,163,74,0.15);
+  color: #4ade80;
+}
+
+:global(html.dark-theme) .purple {
+  background: rgba(147,51,234,0.15);
+  color: #c084fc;
+}
+
+/* RESPONSIVE */
+@media (max-width: 1200px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 750px) {
+  .alert-page {
+    padding: 16px;
+  }
+
+  .page-header {
+    flex-direction: column;
+  }
+
+  .page-header h1 {
+    font-size: 23px;
+  }
+
+  .toolbar {
+    flex-direction: column;
+  }
+
+  .search-box,
+  .filter-select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    box-sizing: border-box;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .confirm-actions {
+    flex-direction: column;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>

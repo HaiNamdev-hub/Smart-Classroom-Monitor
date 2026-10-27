@@ -61,16 +61,42 @@ function saveUser(user) {
 | LẤY ROLE
 |--------------------------------------------------------------------------
 */
+
 function getRole(user) {
-  if (user?.vai_tro?.ten_vai_tro) {
-    return user.vai_tro.ten_vai_tro;
+  if (!user) return null;
+
+  const rawRole =
+    user.vai_tro?.ten_vai_tro ??
+    user.vaiTro?.ten_vai_tro ??
+    user.role ??
+    null;
+
+  if (typeof rawRole === "string") {
+    const role = rawRole
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d")
+      .replace(/[\s-]+/g, "_");
+
+    const roleMap = {
+      admin: "quan_tri_vien",
+      administrator: "quan_tri_vien",
+      quan_tri_vien: "quan_tri_vien",
+      giang_vien: "giang_vien",
+      lecturer: "giang_vien",
+      teacher: "giang_vien",
+      sinh_vien: "sinh_vien",
+      student: "sinh_vien",
+    };
+
+    if (roleMap[role]) {
+      return roleMap[role];
+    }
   }
 
-  if (user?.vaiTro?.ten_vai_tro) {
-    return user.vaiTro.ten_vai_tro;
-  }
-
-  const roleId = Number(user?.vai_tro_id);
+  const roleId = Number(user.vai_tro_id);
 
   if (roleId === 1) return "quan_tri_vien";
   if (roleId === 2) return "giang_vien";
@@ -78,6 +104,7 @@ function getRole(user) {
 
   return null;
 }
+
 
 /*
 |--------------------------------------------------------------------------
@@ -115,19 +142,27 @@ async function fetchCurrentUser() {
 | CHECK TOKEN
 |--------------------------------------------------------------------------
 */
+
 export default async function checkToken(to) {
   const token = getToken();
 
+  // Chưa đăng nhập
   if (!token) {
     clearAuth();
+
     return {
       path: "/dang-nhap",
-      query: { redirect: to.fullPath },
+      query: {
+        redirect: to.fullPath,
+      },
     };
   }
 
   try {
+    // Kiểm tra token với backend
     await api.get("/check-token");
+
+    // Lấy thông tin người dùng
     const user = await fetchCurrentUser();
 
     if (!user?.id) {
@@ -135,7 +170,10 @@ export default async function checkToken(to) {
       return "/dang-nhap";
     }
 
+    // Lưu thông tin mới nhất
     saveUser(user);
+
+    // Xác định vai trò
     const role = getRole(user);
 
     if (!role || !roleRoutes[role]) {
@@ -143,6 +181,7 @@ export default async function checkToken(to) {
       return "/dang-nhap";
     }
 
+    // Chỉ chuyển hướng nếu sai quyền
     if (!canAccessRoute(to.path, role)) {
       return roleRoutes[role];
     }
@@ -150,14 +189,32 @@ export default async function checkToken(to) {
     return true;
 
   } catch (error) {
-    console.error("Không thể xác thực tài khoản:", error);
-    clearAuth();
-    return {
-      path: "/dang-nhap",
-      query: { redirect: to.fullPath },
-    };
+    console.error(
+      "Lỗi kiểm tra đăng nhập:",
+      error
+    );
+
+    const status = error.response?.status;
+
+    // Token hết hạn hoặc không có quyền
+    if (status === 401 || status === 403) {
+      clearAuth();
+
+      return {
+        path: "/dang-nhap",
+        query: {
+          redirect: to.fullPath,
+        },
+      };
+    }
+
+    // Lỗi mạng/server:
+    // Không xóa token, nhưng cũng không cho truy cập
+    // trang bảo vệ khi chưa xác minh được.
+    return false;
   }
 }
+
 
 /*
 |--------------------------------------------------------------------------

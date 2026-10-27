@@ -13,7 +13,9 @@ use App\Models\PhienGiamSat;
 use App\Models\ThanhVienLop;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+
 
 class GiangVienApiController extends Controller
 {
@@ -88,16 +90,16 @@ class GiangVienApiController extends Controller
             'lop_hoc_id',
             $this->classIds($request)
         )
-        ->where('trang_thai', 'dang_hoc')
-        ->distinct()
-        ->count('sinh_vien_id');
+            ->where('trang_thai', 'dang_hoc')
+            ->distinct()
+            ->count('sinh_vien_id');
 
         $sessions = PhienGiamSat::whereIn(
             'lop_hoc_id',
             $this->classIds($request)
         )
-        ->where('trang_thai', 'dang_dien_ra')
-        ->count();
+            ->where('trang_thai', 'dang_dien_ra')
+            ->count();
 
         $alerts = CanhBao::whereHas(
             'phien',
@@ -108,8 +110,8 @@ class GiangVienApiController extends Controller
                 );
             }
         )
-        ->where('da_xu_ly', false)
-        ->count();
+            ->where('da_xu_ly', false)
+            ->count();
 
         return response()->json([
             'data' => [
@@ -135,16 +137,16 @@ class GiangVienApiController extends Controller
             'giang_vien_id',
             $request->user()->id
         )
-        ->withCount([
-            'thanhViens as si_so' => function ($q) {
-                $q->where('trang_thai', 'dang_hoc');
-            }
-        ])
-        ->orderBy('id')
-        ->get();
+            ->withCount([
+                'thanhViens as si_so' => function ($q) {
+                    $q->where('trang_thai', 'dang_hoc');
+                }
+            ])
+            ->orderBy('id')
+            ->get();
 
         return $this->listData(
-            $classes->map(fn ($c) => [
+            $classes->map(fn($c) => [
                 'id' => $c->id,
                 'tenLop' => $c->ten_lop,
                 'maHocPhan' => $c->ma_lop,
@@ -160,30 +162,41 @@ class GiangVienApiController extends Controller
     |--------------------------------------------------------------------------
     */
 
+
     public function thanhVien(
         Request $request,
         int $lopId
     ): JsonResponse {
+
+        // Kiểm tra lớp thuộc giảng viên đang đăng nhập
         $this->ownClass($request, $lopId);
 
+        // Lấy thành viên cùng thông tin người dùng
         $members = ThanhVienLop::where(
             'lop_hoc_id',
             $lopId
         )
-        ->where('trang_thai', 'dang_hoc')
-        ->with('sinhVien:id,ho_ten,email')
-        ->get();
+            ->with([
+                'sinhVien:id,nguoi_dung_id,ma_sinh_vien',
+                'sinhVien.nguoiDung:id,ho_ten,email'
+            ])
+            ->get();
 
         return $this->listData(
-            $members->map(fn ($m) => [
-                'id' => $m->sinh_vien_id,
-                'hoTen' => $m->sinhVien?->ho_ten,
-                'email' => $m->sinhVien?->email,
-                'mssv' => null,
-                'trangThaiAgent' => null
+            $members->map(fn($m) => [
+                'id' => $m->id,
+                'ma_sinh_vien' =>
+                $m->sinhVien?->ma_sinh_vien,
+                'ho_ten' =>
+                $m->sinhVien?->nguoiDung?->ho_ten,
+                'email' =>
+                $m->sinhVien?->nguoiDung?->email,
+                'trang_thai' => $m->trang_thai,
+                'trang_thai_agent' => null
             ])
         );
     }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -220,7 +233,7 @@ class GiangVienApiController extends Controller
         return $this->listData(
             $query->latest('id')
                 ->get()
-                ->map(fn ($a) => [
+                ->map(fn($a) => [
                     'id' => $a->id,
                     'lopId' => $a->lop_hoc_id,
                     'tieuDe' => $a->tieu_de,
@@ -300,21 +313,21 @@ class GiangVienApiController extends Controller
             'bai_tap_id',
             $assignment->id
         )
-        ->with('sinhVien:id,ho_ten,email')
-        ->latest('id')
-        ->get();
+            ->with('sinhVien:id,ho_ten,email')
+            ->latest('id')
+            ->get();
 
         return $this->listData(
-            $submissions->map(fn ($s) => [
+            $submissions->map(fn($s) => [
                 'id' => $s->id,
                 'tenSinhVien' =>
-                    $s->sinhVien?->ho_ten,
+                $s->sinhVien?->ho_ten,
                 'tenBaiTap' =>
-                    $assignment->tieu_de,
+                $assignment->tieu_de,
                 'thoiGianNop' =>
-                    $this->dateValue(
-                        $s->thoi_gian_nop
-                    ),
+                $this->dateValue(
+                    $s->thoi_gian_nop
+                ),
                 'trangThai' => $s->trang_thai
             ])
         );
@@ -347,20 +360,20 @@ class GiangVienApiController extends Controller
                 );
             }
         )
-        ->with([
-            'baiNop.sinhVien:id,ho_ten,email',
-            'baiNop.baiTap:id,tieu_de'
-        ])
-        ->latest('id')
-        ->get();
+            ->with([
+                'baiNop.sinhVien:id,ho_ten,email',
+                'baiNop.baiTap:id,tieu_de'
+            ])
+            ->latest('id')
+            ->get();
 
         return $this->listData(
-            $scores->map(fn ($g) => [
+            $scores->map(fn($g) => [
                 'id' => $g->id,
                 'hoTen' =>
-                    $g->baiNop?->sinhVien?->ho_ten,
+                $g->baiNop?->sinhVien?->ho_ten,
                 'tenBaiTap' =>
-                    $g->baiNop?->baiTap?->tieu_de,
+                $g->baiNop?->baiTap?->tieu_de,
                 'diem' => $g->diem,
                 'nhanXet' => $g->nhan_xet,
                 'ketQua' => $g->ket_qua
@@ -381,22 +394,22 @@ class GiangVienApiController extends Controller
             'lop_hoc_id',
             $this->classIds($request)
         )
-        ->with('lopHoc:id,ten_lop')
-        ->latest('id')
-        ->get();
+            ->with('lopHoc:id,ten_lop')
+            ->latest('id')
+            ->get();
 
         return $this->listData(
-            $sessions->map(fn ($s) => [
+            $sessions->map(fn($s) => [
                 'id' => $s->id,
                 'tenPhien' => $s->ten_phien,
                 'tenLop' => $s->lopHoc?->ten_lop,
                 'lopId' => $s->lop_hoc_id,
                 'thoigianBatDau' =>
-                    $this->dateValue(
-                        $s->thoi_gian_bat_dau
-                    ),
+                $this->dateValue(
+                    $s->thoi_gian_bat_dau
+                ),
                 'trangThai' =>
-                    strtoupper($s->trang_thai)
+                strtoupper($s->trang_thai)
             ])
         );
     }
@@ -472,16 +485,16 @@ class GiangVienApiController extends Controller
         $updated = PhienGiamSat::whereKey(
             $session->id
         )
-        ->where('trang_thai', 'dang_dien_ra')
-        ->update([
-            'trang_thai' => 'da_ket_thuc',
-            'thoi_gian_ket_thuc' => now()
-        ]);
+            ->where('trang_thai', 'dang_dien_ra')
+            ->update([
+                'trang_thai' => 'da_ket_thuc',
+                'thoi_gian_ket_thuc' => now()
+            ]);
 
         if ($updated === 0) {
             return response()->json([
                 'message' =>
-                    'Phiên không ở trạng thái đang diễn ra ' .
+                'Phiên không ở trạng thái đang diễn ra ' .
                     'hoặc đã được kết thúc.'
             ], 409);
         }
@@ -493,14 +506,14 @@ class GiangVienApiController extends Controller
             'data' => [
                 'id' => $session->id,
                 'trangThai' =>
-                    strtoupper($session->trang_thai),
+                strtoupper($session->trang_thai),
                 'thoigianKetThuc' =>
-                    $this->dateValue(
-                        $session->thoi_gian_ket_thuc
-                    )
+                $this->dateValue(
+                    $session->thoi_gian_ket_thuc
+                )
             ],
             'message' =>
-                'Đã kết thúc phiên giám sát thành công.'
+            'Đã kết thúc phiên giám sát thành công.'
         ], 200);
     }
 
@@ -510,42 +523,84 @@ class GiangVienApiController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    public function hoatDong(
-        Request $request
-    ): JsonResponse {
-        $items = HoatDong::whereHas(
-            'phien',
-            function ($q) use ($request) {
-                $q->whereIn(
-                    'lop_hoc_id',
-                    $this->classIds($request)
-                );
-            }
+    
+public function hoatDong(
+    Request $request
+): JsonResponse {
+
+    // Lấy hoạt động thuộc những lớp
+    // mà giảng viên đang phụ trách.
+    $activities = \Illuminate\Support\Facades\DB::table('hoat_dong')
+        ->join(
+            'phien_giam_sat',
+            'hoat_dong.phien_id',
+            '=',
+            'phien_giam_sat.id'
         )
-        ->with('sinhVien:id,ho_ten,email')
-        ->latest('thoi_gian')
+        ->join(
+            'lop_hoc',
+            'phien_giam_sat.lop_hoc_id',
+            '=',
+            'lop_hoc.id'
+        )
+        ->join(
+            'sinh_vien',
+            'hoat_dong.sinh_vien_id',
+            '=',
+            'sinh_vien.id'
+        )
+        ->join(
+            'nguoi_dung',
+            'sinh_vien.nguoi_dung_id',
+            '=',
+            'nguoi_dung.id'
+        )
+        ->where(
+            'lop_hoc.giang_vien_id',
+            $request->user()->id
+        )
+        ->select(
+            'hoat_dong.id',
+            'hoat_dong.phien_id',
+            'hoat_dong.sinh_vien_id',
+            'hoat_dong.loai_hoat_dong',
+            'hoat_dong.ten_ung_dung',
+            'hoat_dong.website_url',
+            'hoat_dong.thoi_gian',
+            'sinh_vien.ma_sinh_vien',
+            'nguoi_dung.ho_ten'
+        )
+        ->orderByDesc('hoat_dong.thoi_gian')
         ->limit(500)
         ->get();
 
-        return $this->listData(
-            $items->map(fn ($a) => [
-                'id' => $a->id,
-                'tenSinhVien' =>
-                    $a->sinhVien?->ho_ten,
-                'mssv' => null,
+    return response()->json([
+        'data' => $activities->map(function ($item) {
+            return [
+                'id' => $item->id,
+
+                'phienId' => $item->phien_id,
+
+                'sinhVienId' => $item->sinh_vien_id,
+
+                'tenSinhVien' => $item->ho_ten,
+
+                'mssv' => $item->ma_sinh_vien,
+
                 'tenMay' => null,
-                'hanhDong' =>
-                    $a->loai_hoat_dong,
-                'chiTiet' =>
-                    $a->ten_ung_dung ??
-                    $a->website_url,
-                'thoiGian' =>
-                    $this->dateValue(
-                        $a->thoi_gian
-                    )
-            ])
-        );
-    }
+
+                'hanhDong' => $item->loai_hoat_dong,
+
+                'tenUngDung' => $item->ten_ung_dung,
+
+                'websiteUrl' => $item->website_url,
+
+                'thoiGian' => $item->thoi_gian
+            ];
+        })
+    ]);
+}
+
 
     /*
     |--------------------------------------------------------------------------
@@ -553,52 +608,78 @@ class GiangVienApiController extends Controller
     |--------------------------------------------------------------------------
     */
 
+
     public function anhManHinh(
         Request $request
     ): JsonResponse {
+
+        // 1. Kiểm tra dữ liệu đầu vào
         $data = $request->validate([
-            'phienId' => ['required', 'integer']
+            'phienId' => ['required', 'integer', 'min:1']
         ]);
 
+        // 2. Kiểm tra phiên giám sát thuộc giảng viên
         $this->ownSession(
             $request,
             (int) $data['phienId']
         );
 
+        // 3. Lấy danh sách ảnh và thông tin sinh viên
         $images = AnhManHinh::where(
             'phien_id',
             $data['phienId']
         )
-        ->with('sinhVien:id,ho_ten,email')
-        ->latest('thoi_gian_chup')
-        ->limit(200)
-        ->get();
+            ->with([
+                'sinhVien:id,nguoi_dung_id,ma_sinh_vien',
+                'sinhVien.nguoiDung:id,ho_ten,email'
+            ])
+            ->latest('thoi_gian_chup')
+            ->limit(200)
+            ->get();
 
+        // 4. Trả dữ liệu phù hợp Frontend
         return $this->listData(
-            $images->map(fn ($a) => [
-                'id' => $a->id,
-                'tenSinhVien' =>
-                    $a->sinhVien?->ho_ten,
-                'mssv' => null,
-                'tenMay' => null,
-                'trangThai' => null,
+            $images->map(function ($a) {
 
-                'imageUrl' =>
+                $imageUrl = null;
+
+                if (
+                    $a->duong_dan &&
                     Storage::disk('public')->exists(
                         $a->duong_dan
                     )
-                    ? url(
+                ) {
+                    $imageUrl = url(
                         Storage::url($a->duong_dan)
-                    )
-                    : null,
+                    );
+                }
 
-                'thoiGianCapNhat' =>
+                return [
+                    'id' => $a->id,
+
+                    'sinhVienId' => $a->sinh_vien_id,
+
+                    'tenSinhVien' =>
+                    $a->sinhVien?->nguoiDung?->ho_ten,
+
+                    'mssv' =>
+                    $a->sinhVien?->ma_sinh_vien,
+
+                    'tenMay' => null,
+
+                    'trangThai' => null,
+
+                    'imageUrl' => $imageUrl,
+
+                    'thoiGianCapNhat' =>
                     $this->dateValue(
                         $a->thoi_gian_chup
                     )
-            ])
+                ];
+            })
         );
     }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -606,50 +687,84 @@ class GiangVienApiController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    public function canhBao(
-        Request $request
-    ): JsonResponse {
-        $items = CanhBao::whereHas(
-            'phien',
-            function ($q) use ($request) {
-                $q->whereIn(
-                    'lop_hoc_id',
-                    $this->classIds($request)
-                );
-            }
+    
+public function canhBao(
+    Request $request
+): JsonResponse {
+
+    // Chỉ lấy cảnh báo trong các lớp
+    // do giảng viên hiện tại phụ trách.
+    $alerts = DB::table('canh_bao')
+        ->join(
+            'phien_giam_sat',
+            'canh_bao.phien_id',
+            '=',
+            'phien_giam_sat.id'
         )
-        ->with('sinhVien:id,ho_ten,email')
-        ->latest('thoi_gian')
+        ->join(
+            'lop_hoc',
+            'phien_giam_sat.lop_hoc_id',
+            '=',
+            'lop_hoc.id'
+        )
+        ->join(
+            'sinh_vien',
+            'canh_bao.sinh_vien_id',
+            '=',
+            'sinh_vien.id'
+        )
+        ->join(
+            'nguoi_dung',
+            'sinh_vien.nguoi_dung_id',
+            '=',
+            'nguoi_dung.id'
+        )
+        ->where(
+            'lop_hoc.giang_vien_id',
+            $request->user()->id
+        )
+        ->select(
+            'canh_bao.id',
+            'canh_bao.phien_id',
+            'canh_bao.sinh_vien_id',
+            'canh_bao.loai_canh_bao',
+            'canh_bao.noi_dung',
+            'canh_bao.thoi_gian',
+            'canh_bao.da_xu_ly',
+            'sinh_vien.ma_sinh_vien',
+            'nguoi_dung.ho_ten'
+        )
+        ->orderByDesc('canh_bao.thoi_gian')
         ->limit(500)
         ->get();
 
-        return $this->listData(
-            $items->map(fn ($w) => [
-                'id' => $w->id,
-                'tenSinhVien' =>
-                    $w->sinhVien?->ho_ten,
-                'mssv' => null,
-                'tenMay' => null,
-                'phongLab' => null,
-                'mucDo' => null,
-                'tieuDe' =>
-                    str_replace(
-                        '_',
-                        ' ',
-                        $w->loai_canh_bao
-                    ),
-                'chiTiet' => $w->noi_dung,
-                'trangThai' =>
-                    $w->da_xu_ly
+    return response()->json([
+        'data' => $alerts->map(function ($item) {
+            return [
+                'id' => $item->id,
+
+                'phienId' => $item->phien_id,
+
+                'sinhVienId' => $item->sinh_vien_id,
+
+                'tenSinhVien' => $item->ho_ten,
+
+                'mssv' => $item->ma_sinh_vien,
+
+                'loaiCanhBao' => $item->loai_canh_bao,
+
+                'chiTiet' => $item->noi_dung,
+
+                'thoiGian' => $item->thoi_gian,
+
+                'trangThai' => $item->da_xu_ly
                     ? 'DA_XU_LY'
-                    : 'CHUA_XU_LY',
-                'thoiGian' =>
-                    $this->dateValue(
-                        $w->thoi_gian
-                    )
-            ])
-        );
-    }
+                    : 'CHUA_XU_LY'
+            ];
+        })
+    ]);
+}
+
 
     /*
     |--------------------------------------------------------------------------

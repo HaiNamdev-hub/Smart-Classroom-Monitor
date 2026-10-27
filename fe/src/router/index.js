@@ -120,8 +120,8 @@ const routes = [
   {
     path: "/giang-vien",
 
-    component: () =>
-      import("../layout/wrapper/admin.vue"),
+   component: () =>
+  import("../layout/wrapper/lecturer.vue"),
 
     beforeEnter: checkToken,
 
@@ -394,4 +394,27 @@ const router = createRouter({
 });
 
 
-export default router;
+const protectedPrefixes = [
+  "/admin",
+  "/giang-vien",
+  "/sinh-vien",
+]
+
+router.beforeEach(async (to) => {
+  const requiresAuth = protectedPrefixes.some(
+    (prefix) =>
+      to.path === prefix ||
+      to.path.startsWith(prefix + "/")
+  )
+
+  if (!requiresAuth) {
+    return true
+  }
+
+  return await checkToken(to)
+})
+
+export default router
+
+
+
