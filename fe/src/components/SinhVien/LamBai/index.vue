@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 <template>
   <div class="exam-page">
 
@@ -1490,5 +1489,3 @@ onBeforeUnmount(() => {
 
 }
 </style>
-=======
->>>>>>> Stashed changes

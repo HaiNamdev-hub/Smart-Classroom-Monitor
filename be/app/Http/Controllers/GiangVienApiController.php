@@ -15,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Carbon;
 
 
 class GiangVienApiController extends Controller
@@ -70,10 +71,17 @@ class GiangVienApiController extends Controller
         ]);
     }
 
+
     private function dateValue($date): ?string
     {
-        return $date?->toIso8601String();
+        if (!$date) {
+            return null;
+        }
+
+        return \Illuminate\Support\Carbon::parse($date)
+            ->format('Y-m-d H:i:s');
     }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -204,11 +212,16 @@ class GiangVienApiController extends Controller
     |--------------------------------------------------------------------------
     */
 
+
     public function baiTap(
         Request $request
     ): JsonResponse {
+
         $filters = $request->validate([
-            'lopId' => ['nullable', 'integer']
+            'lopId' => [
+                'nullable',
+                'integer'
+            ]
         ]);
 
         if (!empty($filters['lopId'])) {
@@ -230,21 +243,43 @@ class GiangVienApiController extends Controller
             );
         }
 
-        return $this->listData(
-            $query->latest('id')
-                ->get()
-                ->map(fn($a) => [
+        $baiTaps = $query
+            ->latest('id')
+            ->get()
+            ->map(function ($a) {
+                return [
                     'id' => $a->id,
+
                     'lopId' => $a->lop_hoc_id,
+
                     'tieuDe' => $a->tieu_de,
+
                     'moTa' => $a->mo_ta,
+
                     'hanNop' => $this->dateValue(
                         $a->han_nop
                     ),
+
+                    'thoiGianBatDau' =>
+                    $this->dateValue(
+                        $a->thoi_gian_bat_dau
+                    ),
+
+                    'thoiGianKetThuc' =>
+                    $this->dateValue(
+                        $a->thoi_gian_ket_thuc
+                    ),
+
                     'daNop' => $a->bai_nops_count
-                ])
-        );
+                ];
+            });
+
+        return response()->json([
+            'status' => true,
+            'data' => $baiTaps
+        ]);
     }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -252,47 +287,142 @@ class GiangVienApiController extends Controller
     |--------------------------------------------------------------------------
     */
 
+
     public function createBaiTap(
         Request $request
     ): JsonResponse {
+
+        // Kiểm tra dữ liệu do Frontend gửi lên
         $data = $request->validate([
-            'lopId' => ['required', 'integer'],
+            'lopId' => [
+                'required',
+                'integer'
+            ],
+
             'tieuDe' => [
                 'required',
                 'string',
                 'max:255'
             ],
-            'moTa' => ['nullable', 'string'],
-            'hanNop' => [
+
+            'moTa' => [
+                'nullable',
+                'string'
+            ],
+
+            'thoiGianBatDau' => [
                 'required',
-                'date',
-                'after:now'
+                'date_format:Y-m-d H:i:s'
+            ],
+
+            'thoiGianKetThuc' => [
+                'required',
+                'date_format:Y-m-d H:i:s'
             ]
         ]);
 
+        // Kiểm tra Giảng viên có quản lý lớp này không
         $this->ownClass(
             $request,
             (int) $data['lopId']
         );
 
+        // Múi giờ của hệ thống
+        $timezone = 'Asia/Ho_Chi_Minh';
+
+        // Chuyển chuỗi thời gian thành Carbon
+        $start = Carbon::createFromFormat(
+            '!Y-m-d H:i:s',
+            $data['thoiGianBatDau'],
+            $timezone
+        );
+
+        $end = Carbon::createFromFormat(
+            '!Y-m-d H:i:s',
+            $data['thoiGianKetThuc'],
+            $timezone
+        );
+
+        // Kiểm tra giờ bắt đầu
+        if (
+            $start->lessThanOrEqualTo(
+                Carbon::now($timezone)
+            )
+        ) {
+            return response()->json([
+                'status' => false,
+                'message' =>
+                'Thời gian bắt đầu phải ở tương lai.',
+                'errors' => [
+                    'thoiGianBatDau' => [
+                        'Vui lòng chọn giờ bắt đầu trong tương lai.'
+                    ]
+                ]
+            ], 422);
+        }
+
+        // Kiểm tra giờ kết thúc
+        if ($end->lessThanOrEqualTo($start)) {
+            return response()->json([
+                'status' => false,
+                'message' =>
+                'Thời gian kết thúc phải sau thời gian bắt đầu.',
+                'errors' => [
+                    'thoiGianKetThuc' => [
+                        'Giờ kết thúc phải lớn hơn giờ bắt đầu.'
+                    ]
+                ]
+            ], 422);
+        }
+
+        // Tạo bài tập / bài kiểm tra
         $item = BaiTap::create([
-            'lop_hoc_id' => $data['lopId'],
-            'nguoi_tao_id' => $request->user()->id,
-            'tieu_de' => $data['tieuDe'],
-            'mo_ta' => $data['moTa'] ?? null,
-            'thoi_gian_bat_dau' => now(),
-            'thoi_gian_ket_thuc' => $data['hanNop'],
-            'han_nop' => $data['hanNop'],
-            'cho_phep_nop_tre' => false
+            'lop_hoc_id' =>
+            $data['lopId'],
+
+            'nguoi_tao_id' =>
+            $request->user()->id,
+
+            'tieu_de' =>
+            trim($data['tieuDe']),
+
+            'mo_ta' =>
+            $data['moTa'] ?? null,
+
+            'thoi_gian_bat_dau' =>
+            $start->format('Y-m-d H:i:s'),
+
+            'thoi_gian_ket_thuc' =>
+            $end->format('Y-m-d H:i:s'),
+
+            'han_nop' =>
+            $end->format('Y-m-d H:i:s'),
+
+            'cho_phep_nop_tre' =>
+            false
         ]);
 
         return response()->json([
+            'status' => true,
+
+            'message' =>
+            'Đã tạo bài tập và đặt lịch thành công.',
+
             'data' => [
-                'id' => $item->id
-            ],
-            'message' => 'Đã tạo bài tập.'
+                'id' => $item->id,
+
+                'tieuDe' =>
+                $item->tieu_de,
+
+                'thoiGianBatDau' =>
+                $start->toIso8601String(),
+
+                'thoiGianKetThuc' =>
+                $end->toIso8601String()
+            ]
         ], 201);
     }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -300,38 +430,347 @@ class GiangVienApiController extends Controller
     |--------------------------------------------------------------------------
     */
 
+
+
+
     public function baiNop(
         Request $request,
         int $baiTapId
     ): JsonResponse {
+        // Kiểm tra quyền
         $assignment = $this->ownAssignment(
             $request,
             $baiTapId
         );
 
-        $submissions = BaiNop::where(
-            'bai_tap_id',
-            $assignment->id
-        )
-            ->with('sinhVien:id,ho_ten,email')
-            ->latest('id')
+        // Lấy bài nộp kèm điểm và thông tin Sinh viên
+        $submissions = DB::table('bai_nop as bn')
+            ->leftJoin(
+                'sinh_vien as sv',
+                'bn.sinh_vien_id',
+                '=',
+                'sv.id'
+            )
+            ->leftJoin(
+                'nguoi_dung as nd',
+                'sv.nguoi_dung_id',
+                '=',
+                'nd.id'
+            )
+            ->leftJoin(
+                'diem as d',
+                'bn.id',
+                '=',
+                'd.bai_nop_id'
+            )
+            ->where(
+                'bn.bai_tap_id',
+                $assignment->id
+            )
+            ->select([
+                'bn.id',
+                'bn.sinh_vien_id',
+                'bn.thoi_gian_nop',
+                'bn.trang_thai',
+                'bn.loai_file',
+
+                'sv.ma_sinh_vien',
+
+                'nd.ho_ten',
+                'nd.email',
+
+                'd.id as diem_id',
+                'd.diem',
+                'd.nhan_xet',
+                'd.ket_qua',
+            ])
+            ->orderByDesc('bn.id')
             ->get();
 
-        return $this->listData(
-            $submissions->map(fn($s) => [
-                'id' => $s->id,
-                'tenSinhVien' =>
-                $s->sinhVien?->ho_ten,
-                'tenBaiTap' =>
-                $assignment->tieu_de,
-                'thoiGianNop' =>
-                $this->dateValue(
-                    $s->thoi_gian_nop
-                ),
-                'trangThai' => $s->trang_thai
-            ])
+        $result = $submissions->map(
+            function ($item) use ($assignment) {
+                return [
+                    'id' => $item->id,
+
+                    'sinhVienId' =>
+                    $item->sinh_vien_id,
+
+                    'maSinhVien' =>
+                    $item->ma_sinh_vien,
+
+                    'tenSinhVien' =>
+                    $item->ho_ten,
+
+                    'email' =>
+                    $item->email,
+
+                    'tenBaiTap' =>
+                    $assignment->tieu_de,
+
+                    'thoiGianNop' =>
+                    $this->dateValue(
+                        $item->thoi_gian_nop
+                    ),
+
+                    'trangThai' =>
+                    $item->trang_thai,
+
+                    'loaiFile' =>
+                    $item->loai_file,
+
+                    'diemId' =>
+                    $item->diem_id,
+
+                    'diem' =>
+                    $item->diem !== null
+                        ? (float) $item->diem
+                        : null,
+
+                    'nhanXet' =>
+                    $item->nhan_xet,
+
+                    'ketQua' =>
+                    $item->ket_qua,
+
+                    'daCham' =>
+                    $item->diem_id !== null,
+                ];
+            }
         );
+
+        return response()->json([
+            'status' => true,
+            'data' => $result,
+        ]);
     }
+
+    public function chiTietBaiNop(
+        Request $request,
+        int $baiNopId
+    ): JsonResponse {
+        // Tìm bài nộp và bài tập tương ứng
+        $baiNop = DB::table('bai_nop as bn')
+            ->join(
+                'bai_tap as bt',
+                'bn.bai_tap_id',
+                '=',
+                'bt.id'
+            )
+            ->join(
+                'lop_hoc as lh',
+                'bt.lop_hoc_id',
+                '=',
+                'lh.id'
+            )
+            ->where('bn.id', $baiNopId)
+            ->where(
+                'lh.giang_vien_id',
+                $request->user()->id
+            )
+            ->select([
+                'bn.id',
+                'bn.bai_tap_id',
+                'bn.sinh_vien_id',
+                'bn.loai_file',
+                'bn.thoi_gian_nop',
+                'bt.tieu_de',
+            ])
+            ->first();
+
+        if (!$baiNop) {
+            return response()->json([
+                'status' => false,
+                'message' =>
+                'Không tìm thấy bài nộp hoặc bạn không có quyền xem.',
+            ], 404);
+        }
+
+        $laBaiTrucTuyen =
+            $baiNop->loai_file === 'online_exam';
+
+        // Lấy câu hỏi của bài kiểm tra
+        $questions = DB::table('cau_hoi')
+            ->where(
+                'bai_tap_id',
+                $baiNop->bai_tap_id
+            )
+            ->orderBy('thu_tu')
+            ->orderBy('id')
+            ->get();
+
+        // Lấy đáp án của từng câu
+        $answerOptions = DB::table('dap_an')
+            ->whereIn(
+                'cau_hoi_id',
+                $questions->pluck('id')
+            )
+            ->orderBy('thu_tu')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('cau_hoi_id');
+
+        // Lấy câu trả lời của Sinh viên
+        $studentAnswers = DB::table('cau_tra_loi')
+            ->where(
+                'bai_nop_id',
+                $baiNopId
+            )
+            ->get()
+            ->keyBy('cau_hoi_id');
+
+        $totalPoints = (float) $questions->sum('diem');
+        $earnedPoints = 0.0;
+
+        $coTuLuan = false;
+        $soCauDung = 0;
+        $soCauTracNghiem = 0;
+
+        $result = $questions->map(
+            function ($question) use (
+                $answerOptions,
+                $studentAnswers,
+                &$earnedPoints,
+                &$coTuLuan,
+                &$soCauDung,
+                &$soCauTracNghiem
+            ) {
+                $studentAnswer =
+                    $studentAnswers->get($question->id);
+
+                $selectedId = $studentAnswer
+                    ? $studentAnswer->dap_an_id
+                    : null;
+
+                $options = $answerOptions->get(
+                    $question->id,
+                    collect()
+                );
+
+                $isMultipleChoice =
+                    $question->loai_cau_hoi === 'trac_nghiem';
+
+                $isCorrect = false;
+
+                if ($isMultipleChoice) {
+                    $soCauTracNghiem++;
+
+                    $correctOptions = $options->filter(
+                        fn($option) =>
+                        (bool) $option->la_dap_an_dung
+                    );
+
+                    // Theo logic đề một đáp án đúng
+                    if (
+                        $correctOptions->count() === 1 &&
+                        $selectedId !== null &&
+                        (int) $selectedId ===
+                        (int) $correctOptions->first()->id
+                    ) {
+                        $isCorrect = true;
+                        $soCauDung++;
+
+                        $earnedPoints +=
+                            (float) $question->diem;
+                    }
+                } elseif (
+                    $question->loai_cau_hoi === 'tu_luan'
+                ) {
+                    $coTuLuan = true;
+                }
+
+                return [
+                    'id' => $question->id,
+
+                    'noiDung' => $question->noi_dung,
+
+                    'loaiCauHoi' =>
+                    $question->loai_cau_hoi,
+
+                    'diem' =>
+                    (float) $question->diem,
+
+                    'dung' => $isCorrect,
+
+                    'traLoiTuLuan' =>
+                    $studentAnswer
+                        ? $studentAnswer->noi_dung_tra_loi
+                        : null,
+
+                    'dapAn' => $options->map(
+                        function ($option) use ($selectedId) {
+                            return [
+                                'id' => $option->id,
+
+                                'noiDung' =>
+                                $option->noi_dung,
+
+                                'dung' =>
+                                (bool) $option->la_dap_an_dung,
+
+                                'daChon' =>
+                                $selectedId !== null &&
+                                    (int) $selectedId ===
+                                    (int) $option->id,
+                            ];
+                        }
+                    )->values()->all(),
+                ];
+            }
+        )->values()->all();
+
+        // Điểm trắc nghiệm quy đổi
+        // theo tổng trọng số toàn đề.
+        $diemTracNghiem = $totalPoints > 0
+            ? round(
+                10 * $earnedPoints / $totalPoints,
+                2
+            )
+            : 0;
+
+        // Lấy điểm chính thức nếu đã có
+        $diemDaLuu = DB::table('diem')
+            ->where(
+                'bai_nop_id',
+                $baiNopId
+            )
+            ->first();
+
+        return response()->json([
+            'status' => true,
+
+            'data' => [
+                'baiNopId' => $baiNop->id,
+
+                'baiTapId' => $baiNop->bai_tap_id,
+
+                'tieuDe' => $baiNop->tieu_de,
+
+                'laBaiTrucTuyen' => $laBaiTrucTuyen,
+
+                'coTuLuan' => $coTuLuan,
+
+                'soCauTracNghiem' => $soCauTracNghiem,
+
+                'soCauDung' => $soCauDung,
+
+                'diemTracNghiem' =>
+                $diemTracNghiem,
+
+                'diemChinhThuc' =>
+                $diemDaLuu
+                    ? (float) $diemDaLuu->diem
+                    : null,
+
+                'daCham' =>
+                $diemDaLuu !== null,
+
+                'cauHoi' => $result,
+            ],
+        ]);
+    }
+
+
+
 
     /*
     |--------------------------------------------------------------------------
@@ -339,47 +778,123 @@ class GiangVienApiController extends Controller
     |--------------------------------------------------------------------------
     */
 
+
+
     public function diem(
         Request $request
     ): JsonResponse {
+        // 1. Validate lớp học
         $data = $request->validate([
-            'lopId' => ['required', 'integer']
+            'lopId' => [
+                'required',
+                'integer',
+                'exists:lop_hoc,id',
+            ],
         ]);
 
-        $this->ownClass(
-            $request,
-            (int) $data['lopId']
-        );
+        $lopId = (int) $data['lopId'];
 
-        $scores = Diem::whereHas(
-            'baiNop.baiTap',
-            function ($q) use ($data) {
-                $q->where(
-                    'lop_hoc_id',
-                    $data['lopId']
-                );
-            }
-        )
-            ->with([
-                'baiNop.sinhVien:id,ho_ten,email',
-                'baiNop.baiTap:id,tieu_de'
+        // 2. Kiểm tra quyền của Giảng viên
+        $this->ownClass($request, $lopId);
+
+        // 3. Lấy các bài đã có điểm
+        $scores = DB::table('diem as d')
+            ->join(
+                'bai_nop as bn',
+                'd.bai_nop_id',
+                '=',
+                'bn.id'
+            )
+            ->join(
+                'bai_tap as bt',
+                'bn.bai_tap_id',
+                '=',
+                'bt.id'
+            )
+            ->join(
+                'sinh_vien as sv',
+                'bn.sinh_vien_id',
+                '=',
+                'sv.id'
+            )
+            ->join(
+                'nguoi_dung as nd',
+                'sv.nguoi_dung_id',
+                '=',
+                'nd.id'
+            )
+            ->where(
+                'bt.lop_hoc_id',
+                $lopId
+            )
+            ->select([
+                'd.id',
+                'd.bai_nop_id',
+                'd.diem',
+                'd.nhan_xet',
+                'd.ket_qua',
+                'd.thoi_gian_cham',
+
+                'bn.sinh_vien_id',
+                'bn.thoi_gian_nop',
+
+                'bt.id as bai_tap_id',
+                'bt.tieu_de',
+
+                'sv.ma_sinh_vien',
+
+                'nd.ho_ten',
+                'nd.email',
             ])
-            ->latest('id')
+            ->orderByDesc('d.id')
             ->get();
 
-        return $this->listData(
-            $scores->map(fn($g) => [
-                'id' => $g->id,
-                'hoTen' =>
-                $g->baiNop?->sinhVien?->ho_ten,
-                'tenBaiTap' =>
-                $g->baiNop?->baiTap?->tieu_de,
-                'diem' => $g->diem,
-                'nhanXet' => $g->nhan_xet,
-                'ketQua' => $g->ket_qua
-            ])
-        );
+        // 4. Chuẩn hóa cho Frontend
+        $result = $scores->map(function ($score) {
+            return [
+                'id' => $score->id,
+
+                'baiNopId' => $score->bai_nop_id,
+
+                'baiTapId' => $score->bai_tap_id,
+
+                'sinhVienId' => $score->sinh_vien_id,
+
+                'maSinhVien' => $score->ma_sinh_vien,
+
+                'hoTen' => $score->ho_ten,
+
+                'email' => $score->email,
+
+                'tenBaiTap' => $score->tieu_de,
+
+                'diem' => (float) $score->diem,
+
+                'nhanXet' => $score->nhan_xet,
+
+                'ketQua' => $score->ket_qua,
+
+                'thoiGianCham' => $this->dateValue(
+                    $score->thoi_gian_cham
+                ),
+
+                'thoiGianNop' => $this->dateValue(
+                    $score->thoi_gian_nop
+                ),
+            ];
+        });
+
+        return response()->json([
+            'status' => true,
+
+            'message' =>
+            'Lấy danh sách điểm thành công.',
+
+            'data' => $result,
+        ]);
     }
+
+
 
     /*
     |--------------------------------------------------------------------------
@@ -523,83 +1038,83 @@ class GiangVienApiController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    
-public function hoatDong(
-    Request $request
-): JsonResponse {
 
-    // Lấy hoạt động thuộc những lớp
-    // mà giảng viên đang phụ trách.
-    $activities = \Illuminate\Support\Facades\DB::table('hoat_dong')
-        ->join(
-            'phien_giam_sat',
-            'hoat_dong.phien_id',
-            '=',
-            'phien_giam_sat.id'
-        )
-        ->join(
-            'lop_hoc',
-            'phien_giam_sat.lop_hoc_id',
-            '=',
-            'lop_hoc.id'
-        )
-        ->join(
-            'sinh_vien',
-            'hoat_dong.sinh_vien_id',
-            '=',
-            'sinh_vien.id'
-        )
-        ->join(
-            'nguoi_dung',
-            'sinh_vien.nguoi_dung_id',
-            '=',
-            'nguoi_dung.id'
-        )
-        ->where(
-            'lop_hoc.giang_vien_id',
-            $request->user()->id
-        )
-        ->select(
-            'hoat_dong.id',
-            'hoat_dong.phien_id',
-            'hoat_dong.sinh_vien_id',
-            'hoat_dong.loai_hoat_dong',
-            'hoat_dong.ten_ung_dung',
-            'hoat_dong.website_url',
-            'hoat_dong.thoi_gian',
-            'sinh_vien.ma_sinh_vien',
-            'nguoi_dung.ho_ten'
-        )
-        ->orderByDesc('hoat_dong.thoi_gian')
-        ->limit(500)
-        ->get();
+    public function hoatDong(
+        Request $request
+    ): JsonResponse {
 
-    return response()->json([
-        'data' => $activities->map(function ($item) {
-            return [
-                'id' => $item->id,
+        // Lấy hoạt động thuộc những lớp
+        // mà giảng viên đang phụ trách.
+        $activities = \Illuminate\Support\Facades\DB::table('hoat_dong')
+            ->join(
+                'phien_giam_sat',
+                'hoat_dong.phien_id',
+                '=',
+                'phien_giam_sat.id'
+            )
+            ->join(
+                'lop_hoc',
+                'phien_giam_sat.lop_hoc_id',
+                '=',
+                'lop_hoc.id'
+            )
+            ->join(
+                'sinh_vien',
+                'hoat_dong.sinh_vien_id',
+                '=',
+                'sinh_vien.id'
+            )
+            ->join(
+                'nguoi_dung',
+                'sinh_vien.nguoi_dung_id',
+                '=',
+                'nguoi_dung.id'
+            )
+            ->where(
+                'lop_hoc.giang_vien_id',
+                $request->user()->id
+            )
+            ->select(
+                'hoat_dong.id',
+                'hoat_dong.phien_id',
+                'hoat_dong.sinh_vien_id',
+                'hoat_dong.loai_hoat_dong',
+                'hoat_dong.ten_ung_dung',
+                'hoat_dong.website_url',
+                'hoat_dong.thoi_gian',
+                'sinh_vien.ma_sinh_vien',
+                'nguoi_dung.ho_ten'
+            )
+            ->orderByDesc('hoat_dong.thoi_gian')
+            ->limit(500)
+            ->get();
 
-                'phienId' => $item->phien_id,
+        return response()->json([
+            'data' => $activities->map(function ($item) {
+                return [
+                    'id' => $item->id,
 
-                'sinhVienId' => $item->sinh_vien_id,
+                    'phienId' => $item->phien_id,
 
-                'tenSinhVien' => $item->ho_ten,
+                    'sinhVienId' => $item->sinh_vien_id,
 
-                'mssv' => $item->ma_sinh_vien,
+                    'tenSinhVien' => $item->ho_ten,
 
-                'tenMay' => null,
+                    'mssv' => $item->ma_sinh_vien,
 
-                'hanhDong' => $item->loai_hoat_dong,
+                    'tenMay' => null,
 
-                'tenUngDung' => $item->ten_ung_dung,
+                    'hanhDong' => $item->loai_hoat_dong,
 
-                'websiteUrl' => $item->website_url,
+                    'tenUngDung' => $item->ten_ung_dung,
 
-                'thoiGian' => $item->thoi_gian
-            ];
-        })
-    ]);
-}
+                    'websiteUrl' => $item->website_url,
+
+                    'thoiGian' => $item->thoi_gian
+                ];
+            })
+        ]);
+    }
 
 
     /*
@@ -687,83 +1202,207 @@ public function hoatDong(
     |--------------------------------------------------------------------------
     */
 
-    
-public function canhBao(
-    Request $request
-): JsonResponse {
 
-    // Chỉ lấy cảnh báo trong các lớp
-    // do giảng viên hiện tại phụ trách.
-    $alerts = DB::table('canh_bao')
-        ->join(
-            'phien_giam_sat',
-            'canh_bao.phien_id',
-            '=',
-            'phien_giam_sat.id'
-        )
-        ->join(
-            'lop_hoc',
-            'phien_giam_sat.lop_hoc_id',
-            '=',
-            'lop_hoc.id'
-        )
-        ->join(
-            'sinh_vien',
-            'canh_bao.sinh_vien_id',
-            '=',
-            'sinh_vien.id'
-        )
-        ->join(
-            'nguoi_dung',
-            'sinh_vien.nguoi_dung_id',
-            '=',
-            'nguoi_dung.id'
-        )
-        ->where(
-            'lop_hoc.giang_vien_id',
-            $request->user()->id
-        )
-        ->select(
-            'canh_bao.id',
-            'canh_bao.phien_id',
-            'canh_bao.sinh_vien_id',
-            'canh_bao.loai_canh_bao',
-            'canh_bao.noi_dung',
-            'canh_bao.thoi_gian',
-            'canh_bao.da_xu_ly',
-            'sinh_vien.ma_sinh_vien',
-            'nguoi_dung.ho_ten'
-        )
-        ->orderByDesc('canh_bao.thoi_gian')
-        ->limit(500)
-        ->get();
 
-    return response()->json([
-        'data' => $alerts->map(function ($item) {
-            return [
-                'id' => $item->id,
+    public function canhBao(
+        Request $request
+    ): JsonResponse {
+        $nguoiDung = $request->user();
 
-                'phienId' => $item->phien_id,
+        if (!$nguoiDung) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Bạn chưa đăng nhập.',
+            ], 401);
+        }
 
-                'sinhVienId' => $item->sinh_vien_id,
+        /*
+    |--------------------------------------------------------------------------
+    | 1. CẢNH BÁO TỪ PHIÊN GIÁM SÁT
+    |--------------------------------------------------------------------------
+    */
 
-                'tenSinhVien' => $item->ho_ten,
+        $canhBaoGiamSat = DB::table('canh_bao as cb')
+            ->join(
+                'phien_giam_sat as p',
+                'cb.phien_id',
+                '=',
+                'p.id'
+            )
+            ->join(
+                'lop_hoc as lh',
+                'p.lop_hoc_id',
+                '=',
+                'lh.id'
+            )
+            ->join(
+                'sinh_vien as sv',
+                'cb.sinh_vien_id',
+                '=',
+                'sv.id'
+            )
+            ->join(
+                'nguoi_dung as nd',
+                'sv.nguoi_dung_id',
+                '=',
+                'nd.id'
+            )
+            ->where(
+                'lh.giang_vien_id',
+                $nguoiDung->id
+            )
+            ->select([
+                'cb.id',
+                'cb.phien_id',
+                'cb.sinh_vien_id',
+                'cb.loai_canh_bao',
+                'cb.noi_dung',
+                'cb.thoi_gian',
+                'cb.da_xu_ly',
+                'sv.ma_sinh_vien',
+                'nd.ho_ten',
+                'lh.ten_lop',
+            ])
+            ->orderByDesc('cb.thoi_gian')
+            ->limit(500)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => 'GS-' . $item->id,
+                    'canhBaoId' => $item->id,
+                    'nguon' => 'giam_sat',
 
-                'mssv' => $item->ma_sinh_vien,
+                    'phienId' => $item->phien_id,
+                    'baiTapId' => null,
 
-                'loaiCanhBao' => $item->loai_canh_bao,
+                    'sinhVienId' => $item->sinh_vien_id,
+                    'tenSinhVien' => $item->ho_ten,
+                    'mssv' => $item->ma_sinh_vien,
+                    'tenLop' => $item->ten_lop,
 
-                'chiTiet' => $item->noi_dung,
+                    'loaiCanhBao' => $item->loai_canh_bao,
+                    'chiTiet' => $item->noi_dung,
+                    'thoiGian' => $item->thoi_gian,
 
-                'thoiGian' => $item->thoi_gian,
+                    'soLanViPham' => null,
+                    'biKhoa' => false,
 
-                'trangThai' => $item->da_xu_ly
-                    ? 'DA_XU_LY'
-                    : 'CHUA_XU_LY'
-            ];
-        })
-    ]);
-}
+                    'trangThai' => $item->da_xu_ly
+                        ? 'DA_XU_LY'
+                        : 'CHUA_XU_LY',
+                ];
+            });
+
+        /*
+    |--------------------------------------------------------------------------
+    | 2. CẢNH BÁO RỜI TAB KHI KIỂM TRA
+    |--------------------------------------------------------------------------
+    */
+
+        $viPhamKiemTra = DB::table('vi_pham_kiem_tra as vp')
+            ->join(
+                'bai_tap as bt',
+                'vp.bai_tap_id',
+                '=',
+                'bt.id'
+            )
+            ->join(
+                'lop_hoc as lh',
+                'bt.lop_hoc_id',
+                '=',
+                'lh.id'
+            )
+            ->join(
+                'sinh_vien as sv',
+                'vp.sinh_vien_id',
+                '=',
+                'sv.id'
+            )
+            ->join(
+                'nguoi_dung as nd',
+                'sv.nguoi_dung_id',
+                '=',
+                'nd.id'
+            )
+            ->where(
+                'lh.giang_vien_id',
+                $nguoiDung->id
+            )
+            ->select([
+                'vp.id',
+                'vp.bai_tap_id',
+                'vp.sinh_vien_id',
+                'vp.lan_thu',
+                'vp.loai_vi_pham',
+                'vp.created_at',
+                'bt.tieu_de',
+                'sv.ma_sinh_vien',
+                'nd.ho_ten',
+                'lh.ten_lop',
+            ])
+            ->orderByDesc('vp.created_at')
+            ->limit(500)
+            ->get()
+            ->map(function ($item) {
+                $lanThu = (int) $item->lan_thu;
+                $biKhoaTaiSuKien = $lanThu >= 3;
+
+                return [
+                    'id' => 'KT-' . $item->id,
+                    'viPhamId' => $item->id,
+                    'nguon' => 'kiem_tra',
+
+                    'phienId' => null,
+                    'baiTapId' => $item->bai_tap_id,
+
+                    'sinhVienId' => $item->sinh_vien_id,
+                    'tenSinhVien' => $item->ho_ten,
+                    'mssv' => $item->ma_sinh_vien,
+                    'tenLop' => $item->ten_lop,
+                    'tenBaiKiemTra' => $item->tieu_de,
+
+                    'loaiCanhBao' => $biKhoaTaiSuKien
+                        ? 'khoa_bai_kiem_tra'
+                        : 'roi_tab',
+
+                    'chiTiet' => $biKhoaTaiSuKien
+                        ? 'Sinh viên đã rời tab 3 lần. '
+                        . 'Bài kiểm tra bị khóa.'
+                        : 'Sinh viên rời tab khi làm bài '
+                        . 'kiểm tra (lần '
+                        . $lanThu . '/3).',
+
+                    'thoiGian' => $item->created_at,
+
+                    'soLanViPham' => $lanThu,
+                    'biKhoa' => $biKhoaTaiSuKien,
+
+                    // Bảng vi_pham_kiem_tra hiện chưa có
+                    // trường da_xu_ly, nên không giả định
+                    // là đã xử lý.
+                    'trangThai' => 'CHUA_XU_LY',
+                ];
+            });
+
+        /*
+    |--------------------------------------------------------------------------
+    | 3. GỘP DANH SÁCH
+    |--------------------------------------------------------------------------
+    */
+
+        $alerts = $canhBaoGiamSat
+            ->concat($viPhamKiemTra)
+            ->sortByDesc('thoiGian')
+            ->take(500)
+            ->values();
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Lấy danh sách cảnh báo thành công.',
+            'data' => $alerts,
+        ]);
+    }
+
 
 
     /*

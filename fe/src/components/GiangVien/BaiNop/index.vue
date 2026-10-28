@@ -1,4 +1,3 @@
-
 <template>
   <div class="submission-page">
     <!-- HEADER -->
@@ -12,12 +11,7 @@
         </p>
       </div>
 
-      <button
-        type="button"
-        class="primary-button"
-        :disabled="busy || !selectedBaiTapId"
-        @click="fetchBaiNop"
-      >
+      <button type="button" class="primary-button" :disabled="busy || !selectedBaiTapId" @click="fetchBaiNop">
         ↻ {{ loading ? "Đang tải..." : "Làm mới" }}
       </button>
     </header>
@@ -26,18 +20,9 @@
     <section class="filter-panel">
       <div class="field">
         <label for="lop">Lớp học</label>
-        <select
-          id="lop"
-          v-model="selectedLopId"
-          :disabled="loadingLop"
-          @change="changeLop"
-        >
+        <select id="lop" v-model="selectedLopId" :disabled="loadingLop" @change="changeLop">
           <option value="">-- Chọn lớp học --</option>
-          <option
-            v-for="lop in danhSachLop"
-            :key="lop.id"
-            :value="String(lop.id)"
-          >
+          <option v-for="lop in danhSachLop" :key="lop.id" :value="String(lop.id)">
             {{ lop.ten_lop }} ({{ lop.ma_lop || "—" }})
           </option>
         </select>
@@ -45,27 +30,16 @@
 
       <div class="field">
         <label for="bai-tap">Bài tập</label>
-        <select
-          id="bai-tap"
-          v-model="selectedBaiTapId"
-          :disabled="!selectedLopId || loadingBaiTap"
-          @change="changeBaiTap"
-        >
+        <select id="bai-tap" v-model="selectedBaiTapId" :disabled="!selectedLopId || loadingBaiTap"
+          @change="changeBaiTap">
           <option value="">-- Chọn bài tập --</option>
-          <option
-            v-for="bt in danhSachBaiTap"
-            :key="bt.id"
-            :value="String(bt.id)"
-          >
+          <option v-for="bt in danhSachBaiTap" :key="bt.id" :value="String(bt.id)">
             {{ bt.tieuDe }}
           </option>
         </select>
       </div>
 
-      <router-link
-        to="/giang-vien/bai-tap"
-        class="back-link"
-      >
+      <router-link to="/giang-vien/bai-tap" class="back-link">
         Quản lý bài tập →
       </router-link>
     </section>
@@ -129,12 +103,7 @@
       <div class="toolbar">
         <div class="search-box">
           <span>⌕</span>
-          <input
-            v-model="keyword"
-            type="search"
-            placeholder="Tìm tên hoặc MSSV..."
-            :disabled="!hasLoaded"
-          />
+          <input v-model="keyword" type="search" placeholder="Tìm tên hoặc MSSV..." :disabled="!hasLoaded" />
         </div>
 
         <select v-model="statusFilter" :disabled="!hasLoaded">
@@ -173,10 +142,7 @@
         <p>Chọn lớp để tải danh sách bài tập.</p>
       </div>
 
-      <div
-        v-else-if="danhSachBaiTap.length === 0"
-        class="empty-state"
-      >
+      <div v-else-if="danhSachBaiTap.length === 0" class="empty-state">
         <div class="empty-icon">📝</div>
         <strong>Chưa có bài tập</strong>
         <p>Lớp được chọn chưa có bài tập nào.</p>
@@ -188,19 +154,13 @@
         <p>Chọn bài tập để xem và chấm bài nộp.</p>
       </div>
 
-      <div
-        v-else-if="hasLoaded && danhSach.length === 0"
-        class="empty-state"
-      >
+      <div v-else-if="hasLoaded && danhSach.length === 0" class="empty-state">
         <div class="empty-icon">📥</div>
         <strong>Chưa có bài nộp</strong>
         <p>Hiện chưa có sinh viên nộp bài tập này.</p>
       </div>
 
-      <div
-        v-else-if="hasLoaded && danhSachHienThi.length === 0"
-        class="empty-state"
-      >
+      <div v-else-if="hasLoaded && danhSachHienThi.length === 0" class="empty-state">
         <div class="empty-icon">⌕</div>
         <strong>Không tìm thấy kết quả</strong>
         <p>Hãy thử thay đổi từ khóa hoặc bộ lọc.</p>
@@ -216,16 +176,13 @@
               <th>THỜI GIAN NỘP</th>
               <th>TRẠNG THÁI</th>
               <th>ĐIỂM</th>
-              <th>TỆP BÀI LÀM</th>
+              <th>BÀI LÀM</th>
               <th>THAO TÁC</th>
             </tr>
           </thead>
 
           <tbody>
-            <tr
-              v-for="(item, index) in danhSachHienThi"
-              :key="item.id"
-            >
+            <tr v-for="(item, index) in danhSachHienThi" :key="item.id">
               <td class="muted">{{ index + 1 }}</td>
 
               <td>
@@ -249,46 +206,30 @@
               </td>
 
               <td>
-                <span
-                  class="status-pill"
-                  :class="submissionStatus(item).className"
-                >
+                <span class="status-pill" :class="submissionStatus(item).className">
                   {{ submissionStatus(item).text }}
                 </span>
               </td>
 
               <td>
-                <span
-                  v-if="item.diem !== null"
-                  class="score-pill"
-                >
+                <span v-if="item.diem !== null" class="score-pill">
                   {{ formatScore(item.diem) }} / 10
                 </span>
                 <span v-else class="muted">Chưa chấm</span>
               </td>
 
               <td>
-                <a
-                  v-if="item.fileUrl"
-                  :href="item.fileUrl"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="file-link"
-                >
+                <a v-if="item.fileUrl" :href="item.fileUrl" target="_blank" rel="noopener noreferrer" class="file-link">
                   Xem tệp ↗
                 </a>
-                <span v-else class="muted">
-                  Chưa có liên kết
-                </span>
+                <button v-else-if="item.loaiFile === 'online_exam'" type="button" class="file-link online-link"
+                  @click="openGrade(item)">Xem bài trực tuyến →</button>
+                <span v-else class="muted">Chưa có liên kết</span>
               </td>
 
               <td>
-                <button
-                  type="button"
-                  class="grade-btn"
-                  @click="openGrade(item)"
-                >
-                  {{ item.diem !== null ? "Sửa điểm" : "Chấm điểm" }}
+                <button type="button" class="grade-btn" @click="openGrade(item)">
+                  {{ item.diem !== null ? "Xem điểm" : "Xem & chấm" }}
                   →
                 </button>
               </td>
@@ -309,33 +250,19 @@
     </section>
 
     <!-- MODAL CHẤM ĐIỂM -->
-    <div
-      v-if="showGradeModal"
-      class="modal-overlay"
-      @click.self="closeGrade"
-    >
-      <div
-        class="grade-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="grade-title"
-      >
+    <div v-if="showGradeModal" class="modal-overlay" @click.self="closeGrade">
+      <div class="grade-modal" role="dialog" aria-modal="true" aria-labelledby="grade-title">
         <header class="modal-header">
           <div>
             <span class="eyebrow">ĐÁNH GIÁ BÀI LÀM</span>
-            <h2 id="grade-title">Chấm điểm sinh viên</h2>
+            <h2 id="grade-title">Bài làm & chấm điểm</h2>
             <p>
               {{ gradingItem?.tenSinhVien }} ·
               {{ gradingItem?.mssv || "Chưa có MSSV" }}
             </p>
           </div>
 
-          <button
-            type="button"
-            class="close-btn"
-            :disabled="saving"
-            @click="closeGrade"
-          >
+          <button type="button" class="close-btn" :disabled="saving" @click="closeGrade">
             ×
           </button>
         </header>
@@ -357,44 +284,64 @@
               </div>
             </div>
 
-            <div class="form-field">
-              <label for="score">Điểm số (0–10) *</label>
-              <input
-                id="score"
-                v-model="gradeForm.diem"
-                type="number"
-                min="0"
-                max="10"
-                step="0.01"
-                placeholder="Nhập điểm, ví dụ 8.5"
-                required
-                :disabled="saving"
-              />
-            </div>
+            <!-- Chi tiết câu hỏi lấy từ API có xác thực quyền giảng viên -->
+            <div v-if="detailLoading" class="exam-detail-state">Đang tải câu trả lời của sinh viên...</div>
+            <div v-else-if="detailError" class="grade-error">{{ detailError }}</div>
+            <template v-else-if="examDetail">
+              <div v-if="examDetail.laBaiTrucTuyen" class="exam-detail-summary">
+                <strong>{{ isPureMultipleChoice ? 'Bài trắc nghiệm' : 'Bài kiểm tra trực tuyến' }}</strong>
+                <span v-if="isPureMultipleChoice">Điểm hệ thống tính: <b>{{ formatScore(examDetail.diemTracNghiem)
+                    }}/10</b></span>
+                <span v-else>Điểm trắc nghiệm đã đạt: <b>{{ formatScore(examDetail.diemTracNghiem) }}/10</b> (chưa gồm
+                  tự luận)</span>
+                <p v-if="isPureMultipleChoice && gradingItem?.diem === null" class="muted">Bài cũ chưa có bản ghi điểm.
+                  Hãy dùng chức năng chấm lại ở Backend, không nhập điểm thủ công thay kết quả tự động.</p>
+                <p v-if="!isPureMultipleChoice && examDetail.coTuLuan" class="muted">Giảng viên cần đánh giá câu tự luận
+                  rồi nhập điểm cuối cùng.</p>
+              </div>
+              <div v-if="examDetail.cauHoi?.length" class="question-review">
+                <h3>Chi tiết câu trả lời</h3>
+                <article v-for="(q, index) in examDetail.cauHoi" :key="q.id" class="review-question">
+                  <div class="review-heading"><strong>Câu {{ index + 1 }} · {{ q.diem }} điểm</strong><span
+                      :class="q.loaiCauHoi === 'trac_nghiem' ? (q.dung ? 'correct-answer' : 'incorrect-answer') : ''">{{
+                        q.loaiCauHoi === 'trac_nghiem' ? (q.dung ? '✓ Đúng' : '✕ Sai / chưa trả lời') : 'Tự luận · chờ  chấm' }}</span></div>
+                  <p>{{ q.noiDung }}</p>
+                  <template v-if="q.loaiCauHoi === 'trac_nghiem'">
+                    <div v-for="(a, k) in q.dapAn" :key="a.id" class="review-option"
+                      :class="{ chosen: a.daChon, correct: a.dung }">
+                      <span>{{ String.fromCharCode(65 + k) }}.</span> {{ a.noiDung }} <strong v-if="a.dung">✓ Đáp án
+                        đúng</strong><em v-if="a.daChon">(Sinh viên chọn)</em>
+                    </div>
+                  </template>
+                  <div v-else class="essay-answer">{{ q.traLoiTuLuan || 'Sinh viên chưa trả lời câu này.' }}</div>
+                </article>
+              </div>
+              <p v-else-if="examDetail.laBaiTrucTuyen" class="muted">Chưa có câu hỏi trong bài kiểm tra.</p>
+            </template>
 
-            <div class="form-field">
-              <label for="result">Kết quả đánh giá</label>
-              <select
-                id="result"
-                v-model="gradeForm.ketQua"
-                :disabled="saving"
-              >
-                <option value="">Chưa đánh giá</option>
-                <option value="dat">Đạt</option>
-                <option value="khong_dat">Không đạt</option>
-              </select>
-            </div>
+            <template v-if="!detailLoading && !detailError && (!examDetail?.laBaiTrucTuyen || !isPureMultipleChoice)">
+              <div class="form-field">
+                <label for="score">Điểm số (0–10) *</label>
+                <input id="score" v-model="gradeForm.diem" type="number" min="0" max="10" step="0.01"
+                  placeholder="Nhập điểm, ví dụ 8.5" required :disabled="saving" />
+              </div>
 
-            <div class="form-field">
-              <label for="comment">Nhận xét của giảng viên</label>
-              <textarea
-                id="comment"
-                v-model="gradeForm.nhanXet"
-                rows="5"
-                placeholder="Nhập nhận xét về bài làm..."
-                :disabled="saving"
-              ></textarea>
-            </div>
+              <div class="form-field">
+                <label for="result">Kết quả đánh giá</label>
+                <select id="result" v-model="gradeForm.ketQua" :disabled="saving">
+                  <option value="">Chưa đánh giá</option>
+                  <option value="dat">Đạt</option>
+                  <option value="khong_dat">Không đạt</option>
+                </select>
+              </div>
+
+              <div class="form-field">
+                <label for="comment">Nhận xét của giảng viên</label>
+                <textarea id="comment" v-model="gradeForm.nhanXet" rows="5" placeholder="Nhập nhận xét về bài làm..."
+                  :disabled="saving"></textarea>
+              </div>
+
+            </template>
 
             <div v-if="gradeError" class="grade-error">
               {{ gradeError }}
@@ -402,19 +349,11 @@
           </div>
 
           <footer class="modal-footer">
-            <button
-              type="button"
-              class="secondary-button"
-              :disabled="saving"
-              @click="closeGrade"
-            >
+            <button type="button" class="secondary-button" :disabled="saving" @click="closeGrade">
               Hủy
             </button>
-            <button
-              type="submit"
-              class="primary-button"
-              :disabled="saving"
-            >
+            <button type="submit" class="primary-button" :disabled="saving || detailLoading || !!detailError"
+              v-if="!detailLoading && !detailError && (!examDetail?.laBaiTrucTuyen || !isPureMultipleChoice)">
               {{ saving ? "Đang lưu..." : "Lưu điểm" }}
             </button>
           </footer>
@@ -460,6 +399,15 @@ const showGradeModal = ref(false)
 const gradingItem = ref(null)
 const saving = ref(false)
 const gradeError = ref("")
+const detailLoading = ref(false)
+const detailError = ref("")
+const examDetail = ref(null)
+let detailRequestId = 0
+const isPureMultipleChoice = computed(() => {
+  const detail = examDetail.value
+  return !!detail?.laBaiTrucTuyen && !!detail.cauHoi?.length &&
+    detail.cauHoi.every(q => q.loaiCauHoi === 'trac_nghiem')
+})
 
 const gradeForm = ref({
   diem: "",
@@ -473,8 +421,8 @@ let baiNopRequestId = 0
 
 const busy = computed(
   () => loadingLop.value ||
-        loadingBaiTap.value ||
-        loading.value
+    loadingBaiTap.value ||
+    loading.value
 )
 
 const selectedBaiTap = computed(() =>
@@ -535,6 +483,7 @@ function normalizeBaiNop(item) {
       "",
     mssv:
       item.mssv ??
+      item.maSinhVien ??
       item.ma_sinh_vien ??
       "",
     thoiGianNop:
@@ -560,6 +509,7 @@ function normalizeBaiNop(item) {
       item.fileUrl ??
       item.file_url ??
       null,
+    loaiFile: item.loaiFile ?? item.loai_file ?? null,
   }
 }
 
@@ -609,14 +559,14 @@ function submissionStatus(item) {
 const soDungHan = computed(() =>
   danhSach.value.filter(
     (item) => item.trangThai === "dung_han" ||
-              item.trangThai === "on_time"
+      item.trangThai === "on_time"
   ).length
 )
 
 const soTreHan = computed(() =>
   danhSach.value.filter(
     (item) => item.trangThai === "tre_han" ||
-              item.trangThai === "late"
+      item.trangThai === "late"
   ).length
 )
 
@@ -823,7 +773,24 @@ function refreshData() {
   }
 }
 
-/* POPUP CHẤM ĐIỂM */
+/* POPUP CHẤM ĐIỂM / XEM BÀI LÀM */
+async function loadExamDetail(item) {
+  const current = ++detailRequestId
+  detailLoading.value = true
+  detailError.value = ''
+  examDetail.value = null
+  try {
+    const response = await api.get(`/giang-vien/bai-nop/${encodeURIComponent(item.id)}/chi-tiet`)
+    if (current !== detailRequestId) return
+    if (response.data?.status === false) throw new Error(response.data.message || 'Không thể tải bài làm')
+    examDetail.value = response.data?.data ?? null
+  } catch (err) {
+    if (current !== detailRequestId) return
+    detailError.value = err.response?.data?.message || err.message || 'Không thể tải chi tiết bài làm.'
+  } finally {
+    if (current === detailRequestId) detailLoading.value = false
+  }
+}
 function openGrade(item) {
   gradingItem.value = item
   gradeForm.value = {
@@ -833,10 +800,15 @@ function openGrade(item) {
   }
   gradeError.value = ""
   showGradeModal.value = true
+  loadExamDetail(item)
 }
 
 function closeGrade() {
   if (saving.value) return
+  ++detailRequestId
+  examDetail.value = null
+  detailError.value = ''
+  detailLoading.value = false
   showGradeModal.value = false
   gradingItem.value = null
   gradeError.value = ""
@@ -845,6 +817,11 @@ function closeGrade() {
 /* GỬI ĐIỂM VỀ BACKEND */
 async function saveGrade() {
   gradeError.value = ""
+  if (detailLoading.value || detailError.value) return
+  if (isPureMultipleChoice.value) {
+    gradeError.value = 'Đề 100% trắc nghiệm phải được chấm tự động ở Backend.'
+    return
+  }
 
   if (!gradingItem.value || gradeForm.value.diem === "") {
     gradeError.value = "Vui lòng nhập điểm."
@@ -904,6 +881,7 @@ onBeforeUnmount(() => {
   lopRequestId++
   baiTapRequestId++
   baiNopRequestId++
+  detailRequestId++
 })
 </script>
 
@@ -1062,7 +1040,7 @@ button:disabled {
   font-weight: 900;
 }
 
-.summary-card > div:last-child {
+.summary-card>div:last-child {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -1085,10 +1063,25 @@ button:disabled {
   font-size: 10px;
 }
 
-.blue { background: #eff6ff; color: #2563eb; }
-.green { background: #f0fdf4; color: #16a34a; }
-.orange { background: #fff7ed; color: #ea580c; }
-.purple { background: #faf5ff; color: #9333ea; }
+.blue {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.green {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.orange {
+  background: #fff7ed;
+  color: #ea580c;
+}
+
+.purple {
+  background: #faf5ff;
+  color: #9333ea;
+}
 
 .table-panel {
   overflow: hidden;
@@ -1216,7 +1209,7 @@ button:disabled {
   font-weight: 800;
 }
 
-.student-cell > div {
+.student-cell>div {
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -1376,7 +1369,7 @@ button:disabled {
   overflow-y: auto;
   background: #fff;
   border-radius: 18px;
-  box-shadow: 0 20px 70px rgba(0,0,0,0.2);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.2);
 }
 
 .modal-header {
@@ -1424,7 +1417,7 @@ button:disabled {
   background: #f8fafc;
 }
 
-.assignment-summary > div {
+.assignment-summary>div {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1472,7 +1465,9 @@ button:disabled {
 }
 
 @keyframes rotate {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* DARK MODE */
@@ -1494,7 +1489,7 @@ button:disabled {
 :global(html.dark-theme) .table-panel,
 :global(html.dark-theme) .grade-modal {
   background: #111;
-  border-color: rgba(255,255,255,0.14);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 :global(html.dark-theme) .field select,
@@ -1506,7 +1501,7 @@ button:disabled {
 :global(html.dark-theme) .assignment-summary {
   background: #202327;
   color: #fff;
-  border-color: rgba(255,255,255,0.14);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 :global(html.dark-theme) .search-box input {
@@ -1522,13 +1517,13 @@ button:disabled {
 :global(html.dark-theme) .table-footer,
 :global(html.dark-theme) .modal-header,
 :global(html.dark-theme) .modal-footer {
-  border-color: rgba(255,255,255,0.12);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 /* RESPONSIVE */
 @media (max-width: 1200px) {
   .summary-grid {
-    grid-template-columns: repeat(2, minmax(0,1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1568,5 +1563,133 @@ button:disabled {
   .summary-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ONLINE EXAM DETAIL */
+.online-link {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.exam-detail-state {
+  padding: 20px 12px;
+  text-align: center;
+  color: #64748b;
+}
+
+.exam-detail-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  margin-bottom: 17px;
+  border: 1px solid #bfdbfe;
+  border-radius: 11px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+}
+
+.exam-detail-summary p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.question-review {
+  margin-bottom: 18px;
+}
+
+.question-review h3 {
+  margin: 12px 0;
+  font-size: 15px;
+}
+
+.review-question {
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 11px;
+}
+
+.review-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.review-question p {
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.review-option {
+  padding: 9px;
+  margin: 6px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.review-option.chosen {
+  border-color: #60a5fa;
+}
+
+.review-option.correct {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.review-option strong,
+.review-option em {
+  margin-left: 8px;
+  font-size: 11px;
+}
+
+.correct-answer {
+  color: #16a34a;
+}
+
+.incorrect-answer {
+  color: #dc2626;
+}
+
+.essay-answer {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 14px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+:global(html.dark-theme) .exam-detail-summary {
+  background: #1e293b;
+  border-color: #334155;
+  color: #bfdbfe;
+}
+
+:global(html.dark-theme) .review-question,
+:global(html.dark-theme) .review-option {
+  border-color: #334155;
+}
+
+:global(html.dark-theme) .review-option.correct {
+  background: #153b29;
+  border-color: #166534;
+  color: #86efac;
+}
+
+:global(html.dark-theme) .essay-answer {
+  background: #202327;
+  color: #f8fafc;
 }
 </style>

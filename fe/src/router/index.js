@@ -199,6 +199,14 @@ const routes = [
         component: () =>
           import("../components/GiangVien/BaiTap/index.vue"),
       },
+      {
+  path: "bai-tap/:baiTapId/cau-hoi",
+  name: "GiangVienQuanLyCauHoi",
+  component: () =>
+    import(
+      "../components/GiangVien/BaiTap/TaoBaiKiemTra.vue"
+    ),
+},
 
 
       // ---------------------------
@@ -333,6 +341,14 @@ const routes = [
   component: () =>
     import("../components/SinhVien/LamBai/index.vue"),
 },
+
+{
+  path: "lam-bai-kiem-tra",
+  name: "SinhVienLamBaiKiemTra",
+  component: () =>
+    import("../components/SinhVien/LamBaiKiemTra/index.vue"),
+},
+
 
     {
       path: "bai-nop",

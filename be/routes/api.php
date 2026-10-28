@@ -17,6 +17,12 @@ use App\Http\Controllers\ChucNangController;
 use App\Http\Controllers\PhanQuyenController;
 use App\Http\Controllers\SinhVienController;
 use App\Http\Controllers\GiangVienApiController;
+use App\Http\Controllers\GiangVienCauHoiController;
+use App\Http\Controllers\GiangVienChamDiemController;
+use App\Http\Controllers\GiangVienLichKiemTraController;
+use App\Http\Controllers\GiangVienNhapCauHoiController;
+use App\Http\Controllers\GiangVienViPhamKiemTraController;
+use App\Http\Controllers\SinhVienKiemTraController;
 use App\Http\Middleware\QuanTriVien;
 use App\Http\Middleware\GiangVien;
 use Illuminate\Support\Facades\Route;
@@ -44,7 +50,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
 
-    
+
     //SINH VIÊN
     Route::get(
         '/sinh-vien/trang-chu/get-data',
@@ -69,6 +75,32 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get(
         '/sinh-vien/diem',
         [DiemController::class, 'getDiemSinhVien']
+    );
+
+    Route::get(
+        '/sinh-vien/bai-kiem-tra/{baiTapId}',
+        [SinhVienKiemTraController::class, 'show']
+    );
+
+    Route::put(
+        '/sinh-vien/bai-kiem-tra/{baiTapId}/nhap',
+        [SinhVienKiemTraController::class, 'saveDraft']
+    );
+
+    Route::post(
+        '/sinh-vien/bai-kiem-tra/{baiTapId}/nop',
+        [SinhVienKiemTraController::class, 'submit']
+    );
+
+
+    Route::get(
+        '/sinh-vien/bai-kiem-tra/{baiTapId}/trang-thai',
+        [SinhVienKiemTraController::class, 'examViolationState']
+    );
+
+    Route::post(
+        '/sinh-vien/bai-kiem-tra/{baiTapId}/roi-tab',
+        [SinhVienKiemTraController::class, 'reportTabLeave']
     );
 
     // Chỉ tài khoản quản trị viên đang hoạt động được dùng các API này.
@@ -271,6 +303,74 @@ Route::middleware([
         '/phien-giam-sat',
         [$controller, 'createPhien']
     );
+    Route::get(
+    '/bai-tap/{baiTapId}/lich-kiem-tra',
+    [GiangVienLichKiemTraController::class, 'show']
+);
+
+Route::put(
+    '/bai-tap/{baiTapId}/lich-kiem-tra',
+    [GiangVienLichKiemTraController::class, 'update']
+);
+    
+Route::post(
+    '/bai-tap/{baiTapId}/cau-hoi/import-preview',
+    [GiangVienNhapCauHoiController::class, 'preview']
+);
+
+Route::post(
+    '/bai-tap/{baiTapId}/cau-hoi/import-save',
+    [GiangVienNhapCauHoiController::class, 'save']
+);
+Route::get(
+    '/bai-nop/{baiNopId}/chi-tiet',
+    [
+        GiangVienApiController::class,
+        'chiTietBaiNop'
+    ]
+);
+Route::put(
+    '/bai-nop/{baiNopId}/cham-diem',
+    [GiangVienChamDiemController::class, 'update']
+);
+    
+    // ==========================================
+    // GIẢNG VIÊN - CÂU HỎI KIỂM TRA
+    // ==========================================
+
+    // Danh sách câu hỏi
+    Route::get(
+        '/bai-tap/{baiTapId}/cau-hoi',
+        [GiangVienCauHoiController::class, 'index']
+    );
+
+    // Thêm câu hỏi
+    Route::post(
+        '/bai-tap/{baiTapId}/cau-hoi',
+        [GiangVienCauHoiController::class, 'store']
+    );
+
+    // Chỉnh sửa câu hỏi
+    Route::put(
+        '/bai-tap/{baiTapId}/cau-hoi/{cauHoiId}',
+        [GiangVienCauHoiController::class, 'update']
+    );
+
+    // Xóa câu hỏi
+    Route::delete(
+        '/bai-tap/{baiTapId}/cau-hoi/{cauHoiId}',
+        [GiangVienCauHoiController::class, 'destroy']
+    );
+
+    // ==========================================
+    // GIẢNG VIÊN - VI PHẠM KIỂM TRA
+    // ==========================================
+
+    Route::get(
+        '/vi-pham-kiem-tra',
+        [GiangVienViPhamKiemTraController::class, 'index']
+    );
+
 
     /*
     |--------------------------------------------------------------------------

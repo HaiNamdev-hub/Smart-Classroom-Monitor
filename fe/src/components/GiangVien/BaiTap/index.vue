@@ -1,49 +1,36 @@
-
 <template>
   <div class="assignment-page">
-
     <!-- HEADER -->
     <header class="page-header">
-      <div class="page-heading">
+      <div>
         <span class="eyebrow">QUẢN LÝ GIẢNG DẠY</span>
-        <h1>📝 Quản lý bài tập</h1>
+        <h1>📝 Quản lý bài tập & kiểm tra</h1>
         <p>
-          Tạo bài tập, quản lý thời hạn và theo dõi
-          tiến độ nộp bài của sinh viên.
+          Tạo bài tập, thiết lập câu hỏi, đặt lịch kiểm tra
+          và theo dõi tiến độ nộp bài của sinh viên.
         </p>
       </div>
 
       <div class="header-actions">
-        <button
-          type="button"
-          class="btn-secondary"
-          :disabled="loading"
-          @click="fetchBaiTap"
-        >
-          <span :class="{ spinning: loading }">↻</span>
-          Làm mới
+        <button type="button" class="btn-secondary" :disabled="loading" @click="fetchBaiTap">
+          ↻ Làm mới
         </button>
 
-        <button
-          type="button"
-          class="btn-primary"
-          :disabled="loadingLop || danhSachLop.length === 0"
-          @click="openCreateForm"
-        >
-          <span class="plus-icon">+</span>
-          Tạo bài tập mới
+        <button type="button" class="btn-primary" :disabled="loadingLop || danhSachLop.length === 0"
+          @click="openCreateForm">
+          + Tạo bài tập mới
         </button>
       </div>
     </header>
 
     <!-- THỐNG KÊ -->
-    <div class="summary-grid">
+    <section class="summary-grid">
       <div class="summary-card">
         <div class="summary-icon blue">BT</div>
         <div class="summary-content">
           <span>Tổng bài tập</span>
           <strong>{{ summaryText(danhSachBaiTap.length) }}</strong>
-          <small>Trong phạm vi lớp đã chọn</small>
+          <small>Tất cả bài tập đã tạo</small>
         </div>
       </div>
 
@@ -52,7 +39,7 @@
         <div class="summary-content">
           <span>Còn hạn nộp</span>
           <strong>{{ summaryText(soConHan) }}</strong>
-          <small>Bài tập đang nhận bài</small>
+          <small>Bài tập chưa quá hạn</small>
         </div>
       </div>
 
@@ -61,7 +48,7 @@
         <div class="summary-content">
           <span>Đã quá hạn</span>
           <strong>{{ summaryText(soQuaHan) }}</strong>
-          <small>Bài tập đã đến hạn nộp</small>
+          <small>Bài tập hết hạn nộp</small>
         </div>
       </div>
 
@@ -70,19 +57,19 @@
         <div class="summary-content">
           <span>Lượt bài đã nộp</span>
           <strong>{{ tongBaiNopText }}</strong>
-          <small>Thống kê từ dữ liệu Backend</small>
+          <small>Dữ liệu từ Backend</small>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- DANH SÁCH BÀI TẬP -->
+    <!-- DANH SÁCH -->
     <section class="assignment-panel">
-
       <div class="panel-header">
         <div>
           <h2>Danh sách bài tập</h2>
           <p>
-            Quản lý bài tập trong các lớp đang phụ trách
+            Quản lý bài tập và lịch kiểm tra của các lớp
+            bạn đang phụ trách.
           </p>
         </div>
 
@@ -91,42 +78,22 @@
         </span>
       </div>
 
-      <!-- BỘ LỌC -->
+      <!-- FILTER -->
       <div class="toolbar">
         <div class="search-box">
-          <span class="search-icon">⌕</span>
-
-          <input
-            v-model="searchKeyword"
-            type="search"
-            placeholder="Tìm tiêu đề hoặc nội dung bài tập..."
-            aria-label="Tìm kiếm bài tập"
-          />
+          <span>⌕</span>
+          <input v-model="searchKeyword" type="search" placeholder="Tìm tên hoặc nội dung bài tập..." />
         </div>
 
-        <select
-          v-model="selectedLopId"
-          class="filter-select"
-          :disabled="loadingLop"
-          aria-label="Lọc theo lớp học"
-          @change="changeClass"
-        >
+        <select v-model="selectedLopId" class="filter-select" :disabled="loadingLop" @change="changeClass">
           <option value="">Tất cả lớp học</option>
 
-          <option
-            v-for="lop in danhSachLop"
-            :key="lop.id"
-            :value="String(lop.id)"
-          >
+          <option v-for="lop in danhSachLop" :key="lop.id" :value="String(lop.id)">
             {{ lop.ten_lop }}
           </option>
         </select>
 
-        <select
-          v-model="statusFilter"
-          class="filter-select status-select"
-          aria-label="Lọc theo hạn nộp"
-        >
+        <select v-model="statusFilter" class="filter-select">
           <option value="all">Tất cả thời hạn</option>
           <option value="con_han">Còn hạn nộp</option>
           <option value="qua_han">Đã quá hạn</option>
@@ -134,98 +101,64 @@
         </select>
       </div>
 
-      <!-- THÔNG BÁO -->
-      <div v-if="error" class="alert error-alert">
+      <!-- MESSAGES -->
+      <div v-if="error" class="alert error-alert" role="alert">
         <div>
           <strong>Không thể tải dữ liệu</strong>
           <p>{{ error }}</p>
         </div>
+
         <button type="button" @click="fetchBaiTap">
           Thử lại
         </button>
       </div>
 
-      <div v-if="success" class="alert success-alert" role="status">
-        <span>✓</span>
-        {{ success }}
-        <button
-          type="button"
-          aria-label="Đóng thông báo"
-          @click="success = ''"
-        >
+      <div v-if="success" class="alert success-alert">
+        <span>✓ {{ success }}</span>
+        <button type="button" @click="success = ''">
           ×
         </button>
       </div>
 
       <!-- LOADING -->
-      <div
-        v-if="loading && !hasLoaded"
-        class="state-box"
-        role="status"
-      >
+      <div v-if="loading && !hasLoaded" class="state-box">
         <div class="spinner"></div>
         <strong>Đang tải danh sách bài tập...</strong>
-        <p>Hệ thống đang lấy dữ liệu từ máy chủ.</p>
       </div>
 
-      <!-- DANH SÁCH TRỐNG -->
-      <div
-        v-else-if="hasLoaded && danhSachBaiTap.length === 0"
-        class="state-box"
-      >
+      <!-- EMPTY -->
+      <div v-else-if="hasLoaded && danhSachBaiTap.length === 0" class="state-box">
         <div class="empty-symbol">📝</div>
         <strong>Chưa có bài tập</strong>
+
         <p>
-          Hiện chưa có bài tập nào trong phạm vi lớp
-          học đã chọn.
+          Bạn chưa tạo bài tập nào cho phạm vi lớp đang chọn.
         </p>
 
-        <button
-          type="button"
-          class="btn-primary"
-          :disabled="danhSachLop.length === 0"
-          @click="openCreateForm"
-        >
-          + Tạo bài tập đầu tiên
+        <button type="button" class="btn-primary" @click="openCreateForm">
+          + Tạo bài tập
         </button>
       </div>
 
-      <!-- KHÔNG CÓ KẾT QUẢ TÌM KIẾM -->
-      <div
-        v-else-if="hasLoaded && danhSachHienThi.length === 0"
-        class="state-box"
-      >
+      <div v-else-if="hasLoaded && danhSachHienThi.length === 0" class="state-box">
         <div class="empty-symbol">⌕</div>
         <strong>Không tìm thấy bài tập</strong>
-        <p>Hãy thử thay đổi từ khóa hoặc bộ lọc.</p>
+        <p>Thử thay đổi từ khóa hoặc bộ lọc.</p>
 
-        <button
-          type="button"
-          class="btn-secondary"
-          @click="resetFilters"
-        >
+        <button type="button" class="btn-secondary" @click="resetFilters">
           Xóa bộ lọc
         </button>
       </div>
 
-      <!-- GRID BÀI TẬP -->
+      <!-- ASSIGNMENT GRID -->
       <div v-else-if="hasLoaded" class="assignment-grid">
-
-        <article
-          v-for="bt in danhSachHienThi"
-          :key="bt.id"
-          class="assignment-card"
-        >
-
+        <article v-for="bt in danhSachHienThi" :key="bt.id" class="assignment-card">
           <div class="card-header">
-            <div class="assignment-icon">
-              BT
+            <div class="assignment-icon" :class="{ exam: bt.laBaiKiemTra }">
+              {{ bt.laBaiKiemTra ? "KT" : "BT" }}
             </div>
 
-            <span
-              class="status-badge"
-              :class="assignmentStatus(bt).className"
-            >
+            <span class="status-badge" :class="assignmentStatus(bt).className">
               <span class="status-dot"></span>
               {{ assignmentStatus(bt).text }}
             </span>
@@ -243,53 +176,98 @@
             <p class="description">
               {{
                 bt.moTa ||
-                "Bài tập chưa có phần mô tả nội dung."
+                "Bài tập chưa có phần mô tả."
               }}
             </p>
           </div>
 
           <div class="card-divider"></div>
 
+          <!-- THÔNG TIN THỜI GIAN -->
           <div class="card-details">
 
-            <div class="detail-row">
+            <div v-if="bt.thoiGianBatDau" class="detail-row">
               <div class="detail-left">
-                <span class="detail-symbol">▦</span>
-                <span>Hạn nộp</span>
+                <span class="detail-symbol">🕒</span>
+                <span>Giờ bắt đầu</span>
               </div>
 
               <strong>
-                {{ formatDate(bt.hanNop) }}
+                {{ formatDate(bt.thoiGianBatDau) }}
+              </strong>
+            </div>
+
+            <div v-if="bt.thoiGianKetThuc" class="detail-row">
+              <div class="detail-left">
+                <span class="detail-symbol">⏰</span>
+                <span>Giờ kết thúc</span>
+              </div>
+
+              <strong>
+                {{ formatDate(bt.thoiGianKetThuc) }}
               </strong>
             </div>
 
             <div class="detail-row">
-              <div class="detail-left">
-                <span class="detail-symbol">▤</span>
-                <span>Bài đã nộp</span>
-              </div>
+              <span>📅 Hạn nộp</span>
+              <strong>{{ formatDate(bt.hanNop) }}</strong>
+            </div>
 
+            <div class="detail-row">
+              <span>📤 Bài đã nộp</span>
               <strong class="submission-count">
                 {{ formatCount(bt.daNop) }}
               </strong>
             </div>
 
+            <template v-if="bt.thoiGianBatDau">
+              <div class="detail-row">
+                <span>🕒 Bắt đầu</span>
+                <strong>
+                  {{ formatDate(bt.thoiGianBatDau) }}
+                </strong>
+              </div>
+            </template>
+
+            <template v-if="bt.thoiGianKetThuc">
+              <div class="detail-row">
+                <span>⏰ Kết thúc</span>
+                <strong>
+                  {{ formatDate(bt.thoiGianKetThuc) }}
+                </strong>
+              </div>
+            </template>
+
+            <div v-if="bt.laBaiKiemTra" class="exam-state" :class="examStatus(bt).className">
+              <span>◉</span>
+              {{ examStatus(bt).text }}
+            </div>
           </div>
 
-          <!-- XEM BÀI NỘP -->
-          <router-link
-            :to="{
+          <!-- BUTTONS -->
+          <div class="card-actions">
+            <router-link :to="{
+              name: 'GiangVienQuanLyCauHoi',
+              params: { baiTapId: bt.id }
+            }" class="card-action questions-action">
+              <span>📝 Quản lý câu hỏi</span>
+              <span>→</span>
+            </router-link>
+
+            <button type="button" class="card-action schedule-action" @click="openSchedule(bt)">
+              <span>🕒 Đặt lịch kiểm tra</span>
+              <span>→</span>
+            </button>
+
+            <router-link :to="{
               path: '/giang-vien/bai-nop',
               query: { baiTapId: bt.id }
-            }"
-            class="card-action"
-          >
-            Xem bài nộp
-            <span>→</span>
-          </router-link>
-
+            }" class="card-action submissions-action">
+              <span>📋 Xem bài nộp</span>
+              <span>→</span>
+            </router-link>
+          </div>
         </article>
-
       </div>
 
       <footer class="panel-footer">
@@ -304,60 +282,34 @@
       </footer>
     </section>
 
-    <!-- POPUP TẠO BÀI TẬP -->
-    <div
-      v-if="showCreateForm"
-      class="modal-overlay"
-      @click.self="closeCreateForm"
-    >
-      <div
-        class="create-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="create-title"
-      >
-
+    <!-- MODAL TẠO BÀI TẬP -->
+    <div v-if="showCreateForm" class="modal-overlay" @click.self="closeCreateForm">
+      <div class="create-modal" role="dialog" aria-modal="true" aria-labelledby="create-title">
         <div class="modal-header">
           <div>
             <span class="eyebrow">QUẢN LÝ BÀI TẬP</span>
             <h2 id="create-title">Tạo bài tập mới</h2>
-            <p>
-              Nhập thông tin bài tập để giao cho lớp học.
-            </p>
+            <p>Nhập thông tin bài tập để giao cho lớp.</p>
           </div>
 
-          <button
-            type="button"
-            class="close-modal"
-            aria-label="Đóng"
-            :disabled="saving"
-            @click="closeCreateForm"
-          >
+          <button type="button" class="close-modal" :disabled="saving" @click="closeCreateForm">
             ×
           </button>
         </div>
 
         <form @submit.prevent="createBaiTap">
           <div class="modal-body">
-
             <div class="form-group">
               <label for="assignment-class">
                 Lớp học <span>*</span>
               </label>
 
-              <select
-                id="assignment-class"
-                v-model="form.lopId"
-                required
-                :disabled="saving"
-              >
-                <option value="">-- Chọn lớp học --</option>
+              <select id="assignment-class" v-model="form.lopId" required :disabled="saving">
+                <option value="">
+                  -- Chọn lớp học --
+                </option>
 
-                <option
-                  v-for="lop in danhSachLop"
-                  :key="lop.id"
-                  :value="String(lop.id)"
-                >
+                <option v-for="lop in danhSachLop" :key="lop.id" :value="String(lop.id)">
                   {{ lop.ten_lop }}
                   ({{ lop.ma_lop || "Chưa có mã" }})
                 </option>
@@ -369,82 +321,121 @@
                 Tiêu đề bài tập <span>*</span>
               </label>
 
-              <input
-                id="assignment-title"
-                v-model.trim="form.tieuDe"
-                type="text"
-                maxlength="200"
-                placeholder="Ví dụ: Bài tập thực hành tuần 3"
-                required
-                :disabled="saving"
-              />
+              <input id="assignment-title" v-model.trim="form.tieuDe" type="text" maxlength="200" required
+                :disabled="saving" placeholder="Ví dụ: Kiểm tra giữa kỳ lập trình Web" />
             </div>
 
             <div class="form-group">
               <label for="assignment-description">
-                Mô tả bài tập
+                Mô tả
               </label>
 
-              <textarea
-                id="assignment-description"
-                v-model.trim="form.moTa"
-                rows="5"
-                placeholder="Nhập yêu cầu và hướng dẫn thực hiện bài tập..."
-                :disabled="saving"
-              ></textarea>
+              <textarea id="assignment-description" v-model.trim="form.moTa" rows="5" :disabled="saving"
+                placeholder="Nhập nội dung và hướng dẫn..."></textarea>
             </div>
 
+
+            <!-- THỜI GIAN BẮT ĐẦU -->
             <div class="form-group">
-              <label for="assignment-deadline">
-                Hạn nộp <span>*</span>
+              <label for="exam-start">
+                Thời gian bắt đầu <span>*</span>
               </label>
 
-              <input
-                id="assignment-deadline"
-                v-model="form.hanNop"
-                type="datetime-local"
-                required
-                :disabled="saving"
-              />
+              <input id="exam-start" v-model="form.thoiGianBatDau" type="datetime-local" required :disabled="saving" />
 
               <small>
-                Hạn nộp phải là thời gian trong tương lai.
+                Bài kiểm tra sẽ bắt đầu mở cho Sinh viên
+                từ thời điểm này.
               </small>
             </div>
 
-            <div
-              v-if="formError"
-              class="form-error"
-              role="alert"
-            >
-              {{ formError }}
+            <!-- THỜI GIAN KẾT THÚC -->
+            <div class="form-group">
+              <label for="exam-end">
+                Thời gian kết thúc / Hạn nộp <span>*</span>
+              </label>
+
+              <input id="exam-end" v-model="form.thoiGianKetThuc" type="datetime-local" required :disabled="saving" />
+
+              <small>
+                Thời gian kết thúc phải sau thời gian bắt đầu.
+                Hạn nộp sẽ tự động bằng thời gian kết thúc.
+              </small>
             </div>
 
+
+            <div v-if="formError" class="form-error" role="alert">
+              {{ formError }}
+            </div>
           </div>
 
           <div class="modal-footer">
-            <button
-              type="button"
-              class="btn-secondary"
-              :disabled="saving"
-              @click="closeCreateForm"
-            >
+            <button type="button" class="btn-secondary" :disabled="saving" @click="closeCreateForm">
               Hủy
             </button>
 
-            <button
-              type="submit"
-              class="btn-primary"
-              :disabled="saving"
-            >
-              {{ saving ? "Đang tạo..." : "Tạo bài tập" }}
+            <button type="submit" class="btn-primary" :disabled="saving">
+              {{
+                saving
+                  ? "Đang tạo..."
+                  : "Tạo bài tập"
+              }}
             </button>
           </div>
         </form>
-
       </div>
     </div>
 
+    <!-- MODAL ĐẶT LỊCH KIỂM TRA -->
+    <div v-if="showSchedule && selectedAssignment" class="modal-overlay" @click.self="closeSchedule">
+      <div class="schedule-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-title">
+        <div class="modal-header">
+          <div>
+            <span class="eyebrow">
+              LỊCH KIỂM TRA TỰ ĐỘNG
+            </span>
+
+            <h2 id="schedule-title">
+              {{ selectedAssignment.tieuDe }}
+            </h2>
+
+            <p>
+              Thiết lập thời gian mở và đóng bài kiểm tra.
+            </p>
+          </div>
+
+          <button type="button" class="close-modal" @click="closeSchedule">
+            ×
+          </button>
+        </div>
+
+        <div class="schedule-content">
+          <LichKiemTra :key="selectedAssignment.id" :bai-tap-id="selectedAssignment.id" />
+
+          <div class="schedule-note">
+            <strong>ℹ Cách hoạt động</strong>
+
+            <p>
+              Khi đến giờ bắt đầu, Backend cho phép
+              Sinh viên truy cập bài thi.
+              Đến giờ kết thúc, hệ thống sẽ chặn
+              việc bắt đầu bài mới.
+            </p>
+
+            <p>
+              Sinh viên đang mở trang Bài tập sẽ thấy
+              bài mới khi danh sách được làm mới.
+            </p>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-primary" @click="closeSchedule">
+            Đóng & làm mới
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -457,10 +448,12 @@ import {
 } from "vue"
 
 import api from "../../../services/api"
+import LichKiemTra from "./LichKiemTra.vue"
 
-/* ==========================
+/* ==================================
    STATE
-========================== */
+================================== */
+
 const danhSachLop = ref([])
 const danhSachBaiTap = ref([])
 
@@ -480,24 +473,37 @@ const lastUpdatedAt = ref("")
 
 const showCreateForm = ref(false)
 
+const showSchedule = ref(false)
+const selectedAssignment = ref(null)
+
+const nowMs = ref(Date.now())
+
 const form = ref({
   lopId: "",
   tieuDe: "",
   moTa: "",
-  hanNop: "",
+  thoiGianBatDau: "",
+  thoiGianKetThuc: "",
 })
 
 let requestId = 0
 let classRequestId = 0
+let clockTimer = null
 
-/* ==========================
+/* ==================================
    API HELPERS
-========================== */
+================================== */
+
 function extractList(response) {
   const body = response?.data
 
-  if (body?.success === false || body?.status === false) {
-    throw new Error(body.message || "API trả về lỗi")
+  if (
+    body?.success === false ||
+    body?.status === false
+  ) {
+    throw new Error(
+      body.message || "API trả về lỗi."
+    )
   }
 
   const data = body?.data ?? body
@@ -510,15 +516,52 @@ function extractList(response) {
     return data.data
   }
 
-  throw new Error("API không trả về danh sách hợp lệ")
+  throw new Error(
+    "API không trả về danh sách hợp lệ."
+  )
 }
 
-/* ==========================
-   CHUẨN HÓA LỚP HỌC
-========================== */
+function getErrorMessage(err, fallback) {
+  const status = err.response?.status
+
+  const validationErrors =
+    err.response?.data?.errors
+
+  if (validationErrors) {
+    const first = Object.values(
+      validationErrors
+    ).flat()[0]
+
+    if (first) return first
+  }
+
+  if (status === 401) {
+    return "Phiên đăng nhập đã hết hạn."
+  }
+
+  if (status === 403) {
+    return "Bạn không có quyền thực hiện thao tác này."
+  }
+
+  if (status === 404) {
+    return "Không tìm thấy API hoặc tài nguyên."
+  }
+
+  return (
+    err.response?.data?.message ||
+    err.message ||
+    fallback
+  )
+}
+
+/* ==================================
+   NORMALIZE DATA
+================================== */
+
 function normalizeLop(item) {
   return {
     id: item.id,
+
     ten_lop:
       item.ten_lop ??
       item.tenLop ??
@@ -529,22 +572,6 @@ function normalizeLop(item) {
       item.maLop ??
       item.maHocPhan ??
       "",
-  }
-}
-
-/* ==========================
-   CHUẨN HÓA BÀI TẬP
-========================== */
-function normalizeBaiTap(item) {
-  return {
-    id: item.id,
-    lopId: item.lopId ?? item.lop_hoc_id ?? null,
-    tieuDe: item.tieuDe ?? item.tieu_de ?? "",
-    moTa: item.moTa ?? item.mo_ta ?? "",
-    hanNop: item.hanNop ?? item.han_nop ?? null,
-    daNop: normalizeCount(
-      item.daNop ?? item.bai_nops_count ?? null
-    ),
   }
 }
 
@@ -559,9 +586,108 @@ function normalizeCount(value) {
 
   const number = Number(value)
 
-  return Number.isInteger(number) && number >= 0
+  return Number.isInteger(number) &&
+    number >= 0
     ? number
     : null
+}
+
+
+function normalizeBaiTap(item) {
+  return {
+    id: item.id,
+
+    lopId:
+      item.lopId ??
+      item.lop_hoc_id ??
+      null,
+
+    tieuDe:
+      item.tieuDe ??
+      item.tieu_de ??
+      "",
+
+    moTa:
+      item.moTa ??
+      item.mo_ta ??
+      "",
+
+    hanNop:
+      item.hanNop ??
+      item.han_nop ??
+      null,
+
+    thoiGianBatDau:
+      item.thoiGianBatDau ??
+      item.thoi_gian_bat_dau ??
+      null,
+
+    thoiGianKetThuc:
+      item.thoiGianKetThuc ??
+      item.thoi_gian_ket_thuc ??
+      null,
+
+    daNop: normalizeCount(
+      item.daNop ??
+      item.bai_nops_count ??
+      null
+    ),
+  }
+}
+
+
+/* ==================================
+   FORMAT
+================================== */
+
+function className(lopId) {
+  const lop = danhSachLop.value.find(
+    item => String(item.id) === String(lopId)
+  )
+
+  return lop
+    ? `${lop.ten_lop} · ${lop.ma_lop || "Chưa có mã"}`
+    : "Lớp học"
+}
+
+/*
+  Laravel/MySQL thường trả về:
+  2026-10-28 08:00:00
+
+  Chuẩn hóa để trình duyệt đọc theo giờ địa phương.
+*/
+function parseDate(value) {
+  if (!value) return null
+
+  const normalized =
+    String(value).includes("T")
+      ? String(value)
+      : String(value).replace(" ", "T")
+
+  const date = new Date(normalized)
+
+  return Number.isNaN(date.getTime())
+    ? null
+    : date
+}
+
+function formatDate(value) {
+  const date = parseDate(value)
+
+  if (!date) {
+    return "Chưa cập nhật"
+  }
+
+  return new Intl.DateTimeFormat(
+    "vi-VN",
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }
+  ).format(date)
 }
 
 function formatCount(value) {
@@ -570,48 +696,14 @@ function formatCount(value) {
     : value.toLocaleString("vi-VN")
 }
 
-/* ==========================
-   TÊN LỚP HỌC
-========================== */
-function className(lopId) {
-  const lop = danhSachLop.value.find(
-    (item) => String(item.id) === String(lopId)
-  )
-
-  return lop
-    ? `${lop.ten_lop} · ${lop.ma_lop || "Chưa có mã"}`
-    : "Lớp học"
-}
-
-/* ==========================
-   HẠN NỘP
-========================== */
-function parseDate(value) {
-  if (!value) return null
-
-  const date = new Date(value)
-
-  return Number.isNaN(date.getTime()) ? null : date
-}
-
-function formatDate(value) {
-  const date = parseDate(value)
-
-  if (!date) return "Chưa cập nhật"
-
-  return new Intl.DateTimeFormat("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(date)
-}
+/* ==================================
+   ASSIGNMENT STATUS
+================================== */
 
 function assignmentStatus(bt) {
-  const date = parseDate(bt.hanNop)
+  const deadline = parseDate(bt.hanNop)
 
-  if (!date) {
+  if (!deadline) {
     return {
       text: "Chưa xác định",
       className: "status-unknown",
@@ -619,7 +711,7 @@ function assignmentStatus(bt) {
     }
   }
 
-  if (date.getTime() < Date.now()) {
+  if (deadline.getTime() <= nowMs.value) {
     return {
       text: "Đã quá hạn",
       className: "status-expired",
@@ -634,9 +726,41 @@ function assignmentStatus(bt) {
   }
 }
 
-/* ==========================
-   THỐNG KÊ
-========================== */
+function examStatus(bt) {
+  const start = parseDate(bt.thoiGianBatDau)
+  const end = parseDate(bt.thoiGianKetThuc)
+
+  if (!start || !end) {
+    return {
+      text: "Chưa có lịch kiểm tra",
+      className: "exam-unscheduled",
+    }
+  }
+
+  if (nowMs.value < start.getTime()) {
+    return {
+      text: "Sắp diễn ra",
+      className: "exam-upcoming",
+    }
+  }
+
+  if (nowMs.value >= end.getTime()) {
+    return {
+      text: "Đã kết thúc",
+      className: "exam-ended",
+    }
+  }
+
+  return {
+    text: "Đang diễn ra",
+    className: "exam-running",
+  }
+}
+
+/* ==================================
+   SUMMARY
+================================== */
+
 function summaryText(value) {
   return hasLoaded.value
     ? Number(value).toLocaleString("vi-VN")
@@ -645,48 +769,58 @@ function summaryText(value) {
 
 const soConHan = computed(() =>
   danhSachBaiTap.value.filter(
-    (bt) => assignmentStatus(bt).value === "con_han"
+    bt => assignmentStatus(bt).value === "con_han"
   ).length
 )
 
 const soQuaHan = computed(() =>
   danhSachBaiTap.value.filter(
-    (bt) => assignmentStatus(bt).value === "qua_han"
+    bt => assignmentStatus(bt).value === "qua_han"
   ).length
 )
 
 const tongBaiNopText = computed(() => {
-  if (!hasLoaded.value) return "—"
+  if (!hasLoaded.value) {
+    return "—"
+  }
 
   if (
-    danhSachBaiTap.value.some((bt) => bt.daNop === null)
+    danhSachBaiTap.value.some(
+      bt => bt.daNop === null
+    )
   ) {
     return "—"
   }
 
   return danhSachBaiTap.value
-    .reduce((total, bt) => total + bt.daNop, 0)
+    .reduce(
+      (sum, bt) => sum + bt.daNop,
+      0
+    )
     .toLocaleString("vi-VN")
 })
 
-/* ==========================
-   TÌM KIẾM
-========================== */
+/* ==================================
+   SEARCH
+================================== */
+
 const danhSachHienThi = computed(() => {
   const keyword = searchKeyword.value
     .trim()
     .toLocaleLowerCase("vi-VN")
 
-  return danhSachBaiTap.value.filter((bt) => {
+  return danhSachBaiTap.value.filter(bt => {
     const content =
       `${bt.tieuDe} ${bt.moTa}`
         .toLocaleLowerCase("vi-VN")
 
-    const matchKeyword = content.includes(keyword)
+    const matchKeyword =
+      content.includes(keyword)
 
     const matchStatus =
       statusFilter.value === "all" ||
-      assignmentStatus(bt).value === statusFilter.value
+      assignmentStatus(bt).value ===
+      statusFilter.value
 
     return matchKeyword && matchStatus
   })
@@ -697,9 +831,10 @@ function resetFilters() {
   statusFilter.value = "all"
 }
 
-/* ==========================
-   LOAD DANH SÁCH LỚP
-========================== */
+/* ==================================
+   FETCH CLASSES
+================================== */
+
 async function fetchLopHoc() {
   const currentRequest = ++classRequestId
 
@@ -710,15 +845,17 @@ async function fetchLopHoc() {
       "/giang-vien/lop-hoc"
     )
 
-    if (currentRequest !== classRequestId) return
+    if (currentRequest !== classRequestId) {
+      return
+    }
 
     danhSachLop.value =
       extractList(response).map(normalizeLop)
 
   } catch (err) {
-    if (currentRequest !== classRequestId) return
-
-    console.error("Lỗi tải lớp học:", err)
+    if (currentRequest !== classRequestId) {
+      return
+    }
 
     error.value = getErrorMessage(
       err,
@@ -731,11 +868,14 @@ async function fetchLopHoc() {
   }
 }
 
-/* ==========================
-   LOAD DANH SÁCH BÀI TẬP
-========================== */
+/* ==================================
+   FETCH ASSIGNMENTS
+================================== */
+
 async function fetchBaiTap() {
-  if (loading.value) return
+  if (loading.value) {
+    return
+  }
 
   const currentRequest = ++requestId
 
@@ -752,7 +892,9 @@ async function fetchBaiTap() {
       { params }
     )
 
-    if (currentRequest !== requestId) return
+    if (currentRequest !== requestId) {
+      return
+    }
 
     danhSachBaiTap.value =
       extractList(response).map(normalizeBaiTap)
@@ -763,13 +905,13 @@ async function fetchBaiTap() {
       new Date().toLocaleString("vi-VN")
 
   } catch (err) {
-    if (currentRequest !== requestId) return
-
-    console.error("Lỗi tải bài tập:", err)
+    if (currentRequest !== requestId) {
+      return
+    }
 
     error.value = getErrorMessage(
       err,
-      "Không thể tải danh sách bài tập."
+      "Không thể tải bài tập."
     )
   } finally {
     if (currentRequest === requestId) {
@@ -782,27 +924,30 @@ function changeClass() {
   hasLoaded.value = false
   danhSachBaiTap.value = []
 
-  // Hủy hiệu lực các request cũ nếu đang tải.
   requestId++
   loading.value = false
 
   fetchBaiTap()
 }
 
-/* ==========================
-   FORM TẠO BÀI TẬP
-========================== */
+/* ==================================
+   CREATE ASSIGNMENT
+================================== */
+
+
 function openCreateForm() {
   form.value = {
     lopId: selectedLopId.value,
     tieuDe: "",
     moTa: "",
-    hanNop: "",
+    thoiGianBatDau: "",
+    thoiGianKetThuc: "",
   }
 
   formError.value = ""
   showCreateForm.value = true
 }
+
 
 function closeCreateForm() {
   if (saving.value) return
@@ -811,134 +956,202 @@ function closeCreateForm() {
   formError.value = ""
 }
 
-/* ==========================
-   TẠO BÀI TẬP
-========================== */
+
+function toSqlDateTime(value) {
+  if (!value) return ""
+
+  // Chuyển:
+  // 2026-10-28T08:00
+  // thành:
+  // 2026-10-28 08:00:00
+  return value.replace("T", " ") + ":00"
+}
+
 async function createBaiTap() {
   formError.value = ""
 
+  // Kiểm tra dữ liệu bắt buộc
   if (
     !form.value.lopId ||
     !form.value.tieuDe.trim() ||
-    !form.value.hanNop
+    !form.value.thoiGianBatDau ||
+    !form.value.thoiGianKetThuc
   ) {
     formError.value =
       "Vui lòng nhập đầy đủ các trường bắt buộc."
+
     return
   }
 
-  const deadline = new Date(form.value.hanNop)
+  // Lấy thời gian từ form
+  const start = new Date(
+    form.value.thoiGianBatDau
+  )
 
+  const end = new Date(
+    form.value.thoiGianKetThuc
+  )
+
+  // Kiểm tra giờ bắt đầu
   if (
-    Number.isNaN(deadline.getTime()) ||
-    deadline.getTime() <= Date.now()
+    Number.isNaN(start.getTime()) ||
+    start.getTime() <= Date.now()
   ) {
     formError.value =
-      "Hạn nộp phải là thời gian trong tương lai."
+      "Giờ bắt đầu phải ở tương lai."
+
+    return
+  }
+
+  // Kiểm tra giờ kết thúc
+  if (
+    Number.isNaN(end.getTime()) ||
+    end.getTime() <= start.getTime()
+  ) {
+    formError.value =
+      "Giờ kết thúc phải sau giờ bắt đầu."
+
     return
   }
 
   saving.value = true
 
   try {
+    // Chuẩn bị dữ liệu gửi Laravel
     const payload = {
       lopId: Number(form.value.lopId),
-      tieuDe: form.value.tieuDe.trim(),
-      moTa: form.value.moTa.trim() || null,
-      hanNop: form.value.hanNop,
+
+      tieuDe:
+        form.value.tieuDe.trim(),
+
+      moTa:
+        form.value.moTa.trim() || null,
+
+      thoiGianBatDau:
+        toSqlDateTime(
+          form.value.thoiGianBatDau
+        ),
+
+      thoiGianKetThuc:
+        toSqlDateTime(
+          form.value.thoiGianKetThuc
+        ),
     }
 
+    // Gọi API tạo bài tập
     const response = await api.post(
       "/giang-vien/bai-tap",
       payload
     )
 
+    // Kiểm tra kết quả
     if (
       response.data?.success === false ||
       response.data?.status === false
     ) {
       throw new Error(
-        response.data.message || "Tạo bài tập thất bại"
+        response.data?.message ||
+        "Tạo bài tập thất bại."
       )
     }
 
-    selectedLopId.value = String(form.value.lopId)
+    // Cập nhật lớp đang chọn
+    selectedLopId.value = String(
+      form.value.lopId
+    )
 
+    // Đóng modal
     showCreateForm.value = false
-    success.value = "Đã tạo bài tập thành công."
+
+    // Thông báo
+    success.value =
+      "Đã tạo bài tập và đặt lịch thành công. " +
+      "Hãy thêm câu hỏi trước giờ bắt đầu."
 
     hasLoaded.value = false
+
+    // Tải lại danh sách bài tập
     await fetchBaiTap()
 
   } catch (err) {
-    console.error("Lỗi tạo bài tập:", err)
+    console.error(
+      "Lỗi tạo bài tập:",
+      err
+    )
 
     if (err.response?.status === 422) {
-      const errors = err.response.data?.errors
+      const errors =
+        err.response.data?.errors
+
       const firstMessage = errors
         ? Object.values(errors).flat()[0]
         : null
 
       formError.value =
         firstMessage ||
-        "Dữ liệu không hợp lệ. Vui lòng kiểm tra lại."
+        "Thời gian hoặc dữ liệu không hợp lệ."
+
     } else {
       formError.value = getErrorMessage(
         err,
         "Không thể tạo bài tập."
       )
     }
+
   } finally {
     saving.value = false
   }
 }
 
-/* ==========================
-   LỖI API
-========================== */
-function getErrorMessage(err, fallback) {
-  const status = err.response?.status
 
-  if (status === 401) {
-    return "Phiên đăng nhập không hợp lệ hoặc đã hết hạn."
-  }
+/* ==================================
+   SCHEDULE MODAL
+================================== */
 
-  if (status === 403) {
-    return "Bạn không có quyền thực hiện thao tác này."
-  }
-
-  if (status === 404) {
-    return "Không tìm thấy API hoặc tài nguyên."
-  }
-
-  if (status >= 500) {
-    return "Máy chủ gặp lỗi khi xử lý dữ liệu."
-  }
-
-  return err.message || fallback
+function openSchedule(bt) {
+  selectedAssignment.value = bt
+  showSchedule.value = true
 }
 
-/* ==========================
+function closeSchedule() {
+  showSchedule.value = false
+  selectedAssignment.value = null
+
+  // Sau khi đóng, lấy lịch mới nhất từ Backend.
+  fetchBaiTap()
+}
+
+/* ==================================
    LIFECYCLE
-========================== */
+================================== */
+
 onMounted(() => {
   fetchLopHoc()
   fetchBaiTap()
+
+  clockTimer = setInterval(() => {
+    nowMs.value = Date.now()
+  }, 1000)
 })
 
 onBeforeUnmount(() => {
   requestId++
   classRequestId++
+
+  clearInterval(clockTimer)
 })
 </script>
 
 <style scoped>
+* {
+  box-sizing: border-box;
+}
+
 /* PAGE */
 .assignment-page {
   width: 100%;
   min-height: calc(100vh - 80px);
   padding: 28px;
-  box-sizing: border-box;
   background: #f5f7fb;
   color: #172033;
   font-family: Inter, system-ui, sans-serif;
@@ -960,44 +1173,44 @@ onBeforeUnmount(() => {
   letter-spacing: 1px;
 }
 
-.page-heading h1 {
+.page-header h1 {
   margin: 8px 0;
-  font-size: 28px;
+  font-size: 27px;
   font-weight: 800;
 }
 
-.page-heading p {
+.page-header p {
   margin: 0;
   color: #64748b;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.7;
 }
 
 .header-actions {
   display: flex;
-  align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
+/* BUTTONS */
 .btn-primary,
 .btn-secondary {
   display: inline-flex;
-  justify-content: center;
   align-items: center;
-  gap: 8px;
-  padding: 11px 16px;
+  justify-content: center;
+  padding: 11px 15px;
   border-radius: 10px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 750;
   cursor: pointer;
-  text-decoration: none;
   white-space: nowrap;
+  text-decoration: none;
 }
 
 .btn-primary {
   border: 1px solid #2563eb;
   background: #2563eb;
-  color: #fff;
+  color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -1006,23 +1219,14 @@ onBeforeUnmount(() => {
 
 .btn-secondary {
   border: 1px solid #e2e8f0;
-  background: #fff;
+  background: white;
   color: #334155;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #f8fafc;
 }
 
 .btn-primary:disabled,
 .btn-secondary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.plus-icon {
-  font-size: 19px;
-  line-height: 1;
 }
 
 /* SUMMARY */
@@ -1034,49 +1238,25 @@ onBeforeUnmount(() => {
 }
 
 .summary-card {
-  min-width: 0;
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 19px;
+  min-width: 0;
+  padding: 20px;
   border: 1px solid #e5e7eb;
   border-radius: 15px;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  background: white;
 }
 
 .summary-icon {
-  width: 47px;
-  height: 47px;
-  flex-shrink: 0;
   display: grid;
   place-items: center;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
   border-radius: 12px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
-}
-
-.summary-content {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.summary-content span {
-  color: #64748b;
-  font-size: 11px;
-}
-
-.summary-content strong {
-  color: #172033;
-  font-size: 26px;
-  font-weight: 800;
-}
-
-.summary-content small {
-  color: #94a3b8;
-  font-size: 10px;
 }
 
 .blue {
@@ -1099,13 +1279,34 @@ onBeforeUnmount(() => {
   color: #9333ea;
 }
 
-/* MAIN PANEL */
+.summary-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 5px;
+}
+
+.summary-content span {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.summary-content strong {
+  font-size: 25px;
+  font-weight: 800;
+}
+
+.summary-content small {
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+/* PANEL */
 .assignment-panel {
   overflow: hidden;
   border: 1px solid #e5e7eb;
   border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  background: white;
 }
 
 .panel-header {
@@ -1119,7 +1320,6 @@ onBeforeUnmount(() => {
 .panel-header h2 {
   margin: 0 0 6px;
   font-size: 17px;
-  font-weight: 800;
 }
 
 .panel-header p {
@@ -1134,36 +1334,31 @@ onBeforeUnmount(() => {
   background: #eff6ff;
   color: #2563eb;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
-/* FILTERS */
+/* TOOLBAR */
 .toolbar {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
   gap: 12px;
   padding: 0 22px 22px;
 }
 
 .search-box {
-  flex: 1;
-  min-width: 230px;
   display: flex;
   align-items: center;
   gap: 9px;
+  flex: 1;
+  min-width: 220px;
   padding: 0 13px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
 }
 
-.search-box:focus-within {
-  border-color: #60a5fa;
-}
-
-.search-icon {
+.search-box span {
   color: #94a3b8;
-  font-size: 24px;
+  font-size: 23px;
 }
 
 .search-box input {
@@ -1172,23 +1367,21 @@ onBeforeUnmount(() => {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #172033;
+  color: inherit;
   font-size: 12px;
 }
 
 .filter-select {
-  min-width: 160px;
-  max-width: 240px;
+  min-width: 175px;
   padding: 12px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  background: #fff;
+  background: white;
   color: #334155;
   font-size: 12px;
-  outline: 0;
 }
 
-/* CARDS */
+/* GRID */
 .assignment-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1197,20 +1390,20 @@ onBeforeUnmount(() => {
 }
 
 .assignment-card {
-  min-width: 0;
   display: flex;
   flex-direction: column;
+  min-width: 0;
   padding: 19px;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
-  background: #fff;
+  background: white;
   transition: 0.2s ease;
 }
 
 .assignment-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-2px);
   border-color: #bfdbfe;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.07);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
 }
 
 .card-header {
@@ -1221,17 +1414,23 @@ onBeforeUnmount(() => {
 }
 
 .assignment-icon {
-  width: 43px;
-  height: 43px;
   display: grid;
   place-items: center;
+  width: 43px;
+  height: 43px;
   border-radius: 11px;
   background: #eff6ff;
   color: #2563eb;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
 }
 
+.assignment-icon.exam {
+  background: #faf5ff;
+  color: #9333ea;
+}
+
+/* STATUS */
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -1239,8 +1438,7 @@ onBeforeUnmount(() => {
   padding: 7px 10px;
   border-radius: 999px;
   font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
+  font-weight: 800;
 }
 
 .status-dot {
@@ -1265,6 +1463,7 @@ onBeforeUnmount(() => {
   color: #92400e;
 }
 
+/* CARD CONTENT */
 .card-main {
   flex: 1;
   margin-top: 16px;
@@ -1273,15 +1472,13 @@ onBeforeUnmount(() => {
 .class-label {
   color: #2563eb;
   font-size: 10px;
-  font-weight: 700;
-  line-height: 1.5;
+  font-weight: 800;
 }
 
 .card-main h3 {
   margin: 8px 0;
   color: #172033;
   font-size: 16px;
-  font-weight: 800;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -1291,15 +1488,11 @@ onBeforeUnmount(() => {
   font-size: 11px;
   line-height: 1.8;
   overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
 }
 
 .card-divider {
   height: 1px;
-  margin: 18px 0 14px;
+  margin: 17px 0;
   background: #e5e7eb;
 }
 
@@ -1311,65 +1504,121 @@ onBeforeUnmount(() => {
 
 .detail-row {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
   font-size: 11px;
 }
 
-.detail-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.detail-row span {
   color: #64748b;
 }
 
-.detail-symbol {
-  color: #94a3b8;
-  font-size: 16px;
-}
-
 .detail-row strong {
-  font-size: 11px;
   color: #334155;
   text-align: right;
+  font-size: 11px;
 }
 
 .submission-count {
   color: #2563eb !important;
 }
 
-.card-action {
-  display: flex;
-  justify-content: space-between;
+/* EXAM STATUS */
+.exam-state {
+  display: inline-flex;
+  align-self: flex-start;
   align-items: center;
-  margin-top: 19px;
-  padding: 12px 14px;
+  gap: 7px;
+  padding: 9px 12px;
   border-radius: 9px;
-  background: #eff6ff;
-  color: #2563eb;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 800;
-  text-decoration: none;
 }
 
-.card-action:hover {
+.exam-unscheduled {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.exam-upcoming {
   background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.exam-running {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.exam-ended {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* ACTIONS */
+.card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 19px;
+}
+
+.card-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.questions-action {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.questions-action:hover {
+  background: #dbeafe;
+}
+
+.schedule-action {
+  background: #faf5ff;
+  color: #9333ea;
+}
+
+.schedule-action:hover {
+  background: #f3e8ff;
+}
+
+.submissions-action {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.submissions-action:hover {
+  background: #dcfce7;
 }
 
 /* FOOTER */
 .panel-footer {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
   padding: 16px 22px;
   border-top: 1px solid #e5e7eb;
   color: #94a3b8;
   font-size: 11px;
 }
 
-/* MESSAGES */
+/* ALERTS */
 .alert {
   display: flex;
   justify-content: space-between;
@@ -1377,8 +1626,19 @@ onBeforeUnmount(() => {
   gap: 12px;
   margin: 0 22px 20px;
   padding: 15px;
-  border-radius: 11px;
+  border-radius: 10px;
   font-size: 12px;
+}
+
+.alert p {
+  margin: 5px 0 0;
+}
+
+.alert button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
 }
 
 .error-alert {
@@ -1388,46 +1648,26 @@ onBeforeUnmount(() => {
 }
 
 .success-alert {
+  border: 1px solid #bbf7d0;
   background: #f0fdf4;
   color: #15803d;
-  border: 1px solid #bbf7d0;
-}
-
-.alert strong {
-  font-size: 12px;
-}
-
-.alert p {
-  margin: 4px 0 0;
-}
-
-.alert button {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
 }
 
 /* EMPTY */
 .state-box {
-  min-height: 280px;
-  padding: 35px;
   display: flex;
+  min-height: 250px;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
   gap: 12px;
+  padding: 35px;
   text-align: center;
-}
-
-.state-box strong {
-  font-size: 14px;
 }
 
 .state-box p {
   color: #64748b;
   font-size: 11px;
-  line-height: 1.7;
 }
 
 .empty-symbol {
@@ -1438,7 +1678,7 @@ onBeforeUnmount(() => {
   width: 30px;
   height: 30px;
   border: 3px solid #dbeafe;
-  border-top: 3px solid #2563eb;
+  border-top-color: #2563eb;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -1452,18 +1692,26 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(15, 23, 42, 0.7);
   backdrop-filter: blur(3px);
 }
 
-.create-modal {
+.create-modal,
+.schedule-modal {
   width: 100%;
-  max-width: 590px;
   max-height: 92vh;
   overflow-y: auto;
   border-radius: 18px;
-  background: #fff;
+  background: white;
   box-shadow: 0 20px 70px rgba(0, 0, 0, 0.2);
+}
+
+.create-modal {
+  max-width: 590px;
+}
+
+.schedule-modal {
+  max-width: 740px;
 }
 
 .modal-header {
@@ -1476,15 +1724,15 @@ onBeforeUnmount(() => {
 }
 
 .modal-header h2 {
-  margin: 7px 0 6px;
-  font-size: 21px;
-  font-weight: 800;
+  margin: 7px 0;
+  font-size: 20px;
 }
 
 .modal-header p {
   margin: 0;
   color: #64748b;
   font-size: 11px;
+  line-height: 1.7;
 }
 
 .close-modal {
@@ -1510,7 +1758,7 @@ onBeforeUnmount(() => {
   display: block;
   margin-bottom: 8px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .form-group label span {
@@ -1521,26 +1769,24 @@ onBeforeUnmount(() => {
 .form-group select,
 .form-group textarea {
   width: 100%;
-  box-sizing: border-box;
   padding: 12px 14px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   outline: none;
-  background: #fff;
+  background: white;
   color: #172033;
   font: inherit;
   font-size: 12px;
 }
 
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-  border-color: #60a5fa;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
-}
-
 .form-group textarea {
   resize: vertical;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  border-color: #2563eb;
 }
 
 .form-group small {
@@ -1548,6 +1794,7 @@ onBeforeUnmount(() => {
   margin-top: 7px;
   color: #94a3b8;
   font-size: 10px;
+  line-height: 1.7;
 }
 
 .form-error {
@@ -1566,27 +1813,49 @@ onBeforeUnmount(() => {
   border-top: 1px solid #e5e7eb;
 }
 
+/* SCHEDULE MODAL */
+.schedule-content {
+  padding: 20px 23px;
+}
+
+.schedule-content :deep(.schedule-panel) {
+  margin-bottom: 15px;
+}
+
+.schedule-note {
+  padding: 15px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 11px;
+  line-height: 1.8;
+}
+
+.schedule-note p {
+  margin: 8px 0 0;
+}
+
 /* DARK MODE */
 :global(html.dark-theme) .assignment-page {
   background: #1f2124;
-  color: #fff;
-}
-
-:global(html.dark-theme) .page-heading h1,
-:global(html.dark-theme) .summary-content strong,
-:global(html.dark-theme) .panel-header h2,
-:global(html.dark-theme) .card-main h3,
-:global(html.dark-theme) .modal-header h2,
-:global(html.dark-theme) .detail-row strong {
-  color: #fff;
+  color: white;
 }
 
 :global(html.dark-theme) .summary-card,
 :global(html.dark-theme) .assignment-panel,
 :global(html.dark-theme) .assignment-card,
-:global(html.dark-theme) .create-modal {
+:global(html.dark-theme) .create-modal,
+:global(html.dark-theme) .schedule-modal {
   background: #111;
   border-color: rgba(255, 255, 255, 0.14);
+}
+
+:global(html.dark-theme) .card-main h3,
+:global(html.dark-theme) .summary-content strong,
+:global(html.dark-theme) .detail-row strong,
+:global(html.dark-theme) .modal-header h2 {
+  color: white;
 }
 
 :global(html.dark-theme) .search-box,
@@ -1596,47 +1865,59 @@ onBeforeUnmount(() => {
 :global(html.dark-theme) .form-group textarea,
 :global(html.dark-theme) .btn-secondary {
   background: #202327;
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.14);
-}
-
-:global(html.dark-theme) .search-box input {
-  color: #fff;
+  color: white;
+  border-color: #334155;
 }
 
 :global(html.dark-theme) .card-divider {
-  background: rgba(255, 255, 255, 0.14);
+  background: #334155;
 }
 
+:global(html.dark-theme) .panel-footer,
 :global(html.dark-theme) .modal-header,
-:global(html.dark-theme) .modal-footer,
-:global(html.dark-theme) .panel-footer {
-  border-color: rgba(255, 255, 255, 0.14);
+:global(html.dark-theme) .modal-footer {
+  border-color: #334155;
 }
 
-:global(html.dark-theme) .card-action {
-  background: rgba(37, 99, 235, 0.15);
-  color: #60a5fa;
+:global(html.dark-theme) .questions-action {
+  background: #1e3a5f;
+  color: #93c5fd;
 }
 
-:global(html.dark-theme) .blue {
-  background: rgba(37, 99, 235, 0.15);
-  color: #60a5fa;
+:global(html.dark-theme) .schedule-action {
+  background: #392456;
+  color: #d8b4fe;
 }
 
-:global(html.dark-theme) .green {
-  background: rgba(22, 163, 74, 0.15);
-  color: #4ade80;
+:global(html.dark-theme) .submissions-action {
+  background: #153b29;
+  color: #86efac;
 }
 
-:global(html.dark-theme) .orange {
-  background: rgba(234, 88, 12, 0.15);
-  color: #fb923c;
+:global(html.dark-theme) .schedule-note {
+  background: #1e293b;
+  border-color: #334155;
+  color: #bfdbfe;
 }
 
-:global(html.dark-theme) .purple {
-  background: rgba(147, 51, 234, 0.15);
-  color: #c084fc;
+:global(html.dark-theme) .exam-unscheduled {
+  background: #202327;
+  color: #cbd5e1;
+}
+
+:global(html.dark-theme) .exam-upcoming {
+  background: #1e3a5f;
+  color: #93c5fd;
+}
+
+:global(html.dark-theme) .exam-running {
+  background: #153b29;
+  color: #86efac;
+}
+
+:global(html.dark-theme) .exam-ended {
+  background: #451a1a;
+  color: #fca5a5;
 }
 
 /* RESPONSIVE */
@@ -1659,27 +1940,17 @@ onBeforeUnmount(() => {
     flex-direction: column;
   }
 
-  .page-heading h1 {
+  .page-header h1 {
     font-size: 23px;
-  }
-
-  .header-actions {
-    width: 100%;
-    flex-wrap: wrap;
   }
 
   .toolbar {
     flex-direction: column;
-    align-items: stretch;
   }
 
-  .search-box {
-    min-width: 0;
-  }
-
+  .search-box,
   .filter-select {
     width: 100%;
-    max-width: none;
   }
 
   .assignment-grid {
@@ -1697,6 +1968,10 @@ onBeforeUnmount(() => {
   .modal-footer {
     padding-left: 17px;
     padding-right: 17px;
+  }
+
+  .schedule-content {
+    padding: 15px;
   }
 }
 
