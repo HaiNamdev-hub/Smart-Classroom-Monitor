@@ -1,6 +1,16 @@
 
 <template>
   <div class="exam-page">
+    <!-- Camera giám sát cố định ở góc trái trên. Không ghi video. -->
+    <Teleport to="body">
+      <div v-if="exam && cameraEnabled && !locked && !loading" class="exam-camera-floating">
+        <GiamSatCamera
+          @warning="handleCameraWarning"
+          @normal="handleCameraNormal"
+          @camera-state="handleCameraState"
+        />
+      </div>
+    </Teleport>
     <!-- HEADER -->
     <header class="exam-header">
       <div>
@@ -53,7 +63,11 @@
 
       <h2>Bài kiểm tra đã bị khóa</h2>
 
-      <p>
+      <p v-if="lockReason === 'camera'">
+        Hệ thống đã ghi nhận
+        <strong>{{ cameraWarningCount }}/5 cảnh báo camera</strong>.
+      </p>
+      <p v-else>
         Hệ thống đã ghi nhận
         <strong>{{ warningCount }}/3 lần rời tab</strong>.
       </p>
@@ -105,6 +119,18 @@
       v-else-if="exam && monitorReady"
       class="exam-wrap"
     >
+      <!-- Yêu cầu bật camera mới được làm bài -->
+      <div v-if="!cameraReady" class="camera-required" role="alert">
+        <div class="camera-required-icon">📷</div>
+        <h2>Vui lòng bật camera để làm bài kiểm tra</h2>
+        <p>
+          Nhấn <strong>Bật camera và bắt đầu giám sát</strong> ở góc
+          trên bên trái. Sau khi camera hoạt động, câu hỏi sẽ hiển thị.
+          Thời gian bài thi vẫn tiếp tục đếm.
+        </p>
+      </div>
+
+      <template v-else>
       <!-- CẢNH BÁO GIÁM SÁT -->
       <div class="monitor-banner">
         <div>
@@ -113,7 +139,8 @@
           <p>
             Không chuyển sang tab khác hoặc thu nhỏ trình duyệt.
             Mỗi lần rời tab được gửi về hệ thống.
-            Sau 3 lần, bài kiểm tra bị khóa.
+            Sau 3 lần rời tab hoặc 5 cảnh báo camera,
+            bài kiểm tra có thể bị khóa.
           </p>
         </div>
 
@@ -125,6 +152,17 @@
         >
           {{ warningCount }}/3 vi phạm
         </span>
+      </div>
+
+      <!-- THỐNG KÊ CẢNH BÁO CAMERA -->
+      <div class="camera-warning-counter" role="status">
+        <div>
+          <strong>📷 Cảnh báo camera</strong>
+          <small>Không thấy khuôn mặt, nhiều khuôn mặt hoặc camera bị ngắt</small>
+        </div>
+        <strong :class="{ danger: cameraWarningCount >= 4 }">
+          {{ cameraWarningCount }}/5
+        </strong>
       </div>
 
       <!-- THỐNG KÊ -->
@@ -305,10 +343,10 @@
             <strong>🛡 Quy định giám sát</strong>
 
             <p>
-              Hệ thống ghi nhận việc rời tab thi.
-              Cảnh báo lần 1 và lần 2.
-              Lần thứ 3 sẽ khóa bài kiểm tra.
+              Rời tab 3 lần hoặc ghi nhận 5 cảnh báo camera
+              sẽ khóa bài kiểm tra. Hai bộ đếm độc lập.
             </p>
+            <p>📷 Cảnh báo camera: <strong>{{ cameraWarningCount }}/5</strong></p>
 
             <div class="violation-list">
               <div
@@ -345,6 +383,7 @@
           </button>
         </aside>
       </div>
+      </template>
     </div>
 
     <!-- XÁC NHẬN NỘP -->
@@ -470,7 +509,11 @@
         <div class="modal-icon">🔒</div>
         <h2>Bài kiểm tra bị khóa!</h2>
 
-        <p>
+        <p v-if="lockReason === 'camera'">
+          Đã ghi nhận 5 cảnh báo camera.
+          Hệ thống đã khóa bài kiểm tra.
+        </p>
+        <p v-else>
           Bạn đã rời tab 3 lần. Hệ thống đã khóa
           bài kiểm tra và không cho phép làm tiếp.
         </p>
@@ -502,6 +545,7 @@ import {
 } from "vue-router"
 
 import api from "../../../services/api"
+import GiamSatCamera from "./GiamSatCamera.vue"
 
 const route = useRoute()
 const router = useRouter()
@@ -531,8 +575,14 @@ const serverOffset = ref(0)
 const studentName = ref("Sinh viên")
 
 const warningCount = ref(0)
+const cameraWarningCount = ref(0)
+const lockReason = ref("")
+let cameraQueue = []
+let cameraRequest = null
 const locked = ref(false)
 const monitorReady = ref(false)
+const cameraEnabled = ref(false)
+const cameraReady = ref(false)
 
 const showWarning = ref(false)
 const showLockNotice = ref(false)
@@ -572,6 +622,124 @@ function isAnswered(questionId) {
     String(value).trim() !== ""
 }
 
+function handleCameraState(isActive) {
+  cameraReady.value = isActive === true
+  if (!cameraReady.value) {
+    showConfirm.value = false
+    clearTimeout(saveTimer)
+  } else if (canEdit.value && saveStatus.value === "Chưa lưu") {
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(saveDraft, 700)
+  }
+}
+
+function handleCameraWarning(event) {
+  if (
+    !loaded ||
+    submitted ||
+    locked.value ||
+    disposed ||
+    !baiTapId.value
+  ) {
+    return
+  }
+
+  const types = {
+    no_face: "khong_co_khuon_mat",
+    multiple_faces: "nhieu_khuon_mat",
+    camera_off: "camera_ngat",
+
+    khong_co_khuon_mat: "khong_co_khuon_mat",
+    nhieu_khuon_mat: "nhieu_khuon_mat",
+    camera_ngat: "camera_ngat",
+  }
+
+  const loaiCanhBao = types[event.type]
+
+  if (!loaiCanhBao) return
+
+  cameraQueue.push({
+    eventId: createEventId(),
+    loaiCanhBao,
+  })
+
+  monitorReady.value = false
+  flushCameraQueue()
+    .then(() => {
+      if (!locked.value && !disposed && cameraQueue.length === 0) {
+        resumeMonitoring()
+      }
+    })
+    .catch((err) => {
+      console.error("Lỗi gửi cảnh báo camera:", err)
+      error.value =
+        "Không thể đồng bộ cảnh báo camera: " + getMessage(err)
+      monitorReady.value = false
+    })
+}
+
+async function flushCameraQueue() {
+  if (cameraRequest) {
+    return cameraRequest
+  }
+
+  cameraRequest = (async () => {
+    while (
+      cameraQueue.length > 0 &&
+      !locked.value
+    ) {
+      const event = cameraQueue[0]
+
+      const response = await api.post(
+        endpoint("/canh-bao-camera"),
+        event
+      )
+
+      if (
+        response.data?.status === false ||
+        response.data?.success === false
+      ) {
+        throw new Error(
+          response.data?.message ||
+          "Không thể lưu cảnh báo camera."
+        )
+      }
+
+      const data = response.data?.data ?? response.data
+
+      // Chỉ xóa sau khi Backend phản hồi thành công.
+      cameraQueue.shift()
+
+      cameraWarningCount.value = Math.max(
+        cameraWarningCount.value,
+        Number(data.soLanCamera ?? 0)
+      )
+
+      if (data.biKhoa === true) {
+        lockReason.value =
+          data.lyDoKhoa ||
+          (cameraWarningCount.value >= 5
+            ? "camera"
+            : "roi_tab")
+
+        applyLocked()
+        return
+      }
+    }
+  })().finally(() => {
+    cameraRequest = null
+  })
+
+  return cameraRequest
+}
+
+function handleCameraNormal(event) {
+  console.log(
+    "Camera trở lại trạng thái bình thường:",
+    event
+  )
+}
+
 const answeredCount = computed(() =>
   questions.value.filter(
     question => isAnswered(question.id)
@@ -590,6 +758,7 @@ const canEdit = computed(() =>
   loaded &&
   exam.value !== null &&
   monitorReady.value &&
+  cameraReady.value &&
   !locked.value &&
   !submitted &&
   !submitting.value &&
@@ -686,17 +855,28 @@ function cloneAnswers() {
 /* ==================================
    LOCK
 ================================== */
+
 function applyLocked() {
   locked.value = true
+  cameraEnabled.value = false
+  cameraReady.value = false
   monitorReady.value = false
-  warningCount.value = Math.max(
-    3,
-    warningCount.value
-  )
+
+  if (lockReason.value === "camera") {
+    cameraWarningCount.value = Math.max(
+      5,
+      cameraWarningCount.value
+    )
+  } else {
+    warningCount.value = Math.max(
+      3,
+      warningCount.value
+    )
+  }
 
   showConfirm.value = false
   showWarning.value = false
-  showLockNotice.value = true
+  showLockNotice.value = exam.value !== null
 
   clearInterval(timerInterval)
   clearTimeout(saveTimer)
@@ -704,17 +884,39 @@ function applyLocked() {
   saveStatus.value = "Bài kiểm tra đã khóa"
 }
 
-function applyViolationState(data) {
-  const count = Number(data?.soLanViPham ?? 0)
 
-  if (Number.isFinite(count)) {
+
+function applyViolationState(data) {
+  const tabCount = Number(data?.soLanViPham ?? 0)
+  // Một số API rời tab cũ chỉ trả về soLanViPham;
+  // khi thiếu soLanCamera giữ nguyên giá trị đã đồng bộ trước đó.
+  const camCount = Number(data?.soLanCamera ?? cameraWarningCount.value)
+
+  if (Number.isFinite(tabCount)) {
     warningCount.value = Math.max(
       warningCount.value,
-      count
+      tabCount
     )
   }
 
-  if (data?.biKhoa === true || warningCount.value >= 3) {
+  if (Number.isFinite(camCount)) {
+    cameraWarningCount.value = Math.max(
+      cameraWarningCount.value,
+      camCount
+    )
+  }
+
+  if (
+    data?.biKhoa === true ||
+    warningCount.value >= 3 ||
+    cameraWarningCount.value >= 5
+  ) {
+    lockReason.value =
+      data?.lyDoKhoa ||
+      (cameraWarningCount.value >= 5
+        ? "camera"
+        : "roi_tab")
+
     applyLocked()
     return false
   }
@@ -722,13 +924,19 @@ function applyViolationState(data) {
   return true
 }
 
+
 function handleApiError(err) {
   const message = getMessage(err)
 
   if (
     err.response?.status === 403 &&
-    /kh[oó]a|rời tab|vi phạm/i.test(message)
+    /kh[oó]a|rời tab|vi phạm|camera/i.test(message)
   ) {
+    if (/camera/i.test(message)) {
+      lockReason.value = "camera"
+    } else if (!lockReason.value) {
+      lockReason.value = "roi_tab"
+    }
     applyLocked()
   }
 
@@ -833,7 +1041,9 @@ async function resumeMonitoring() {
   error.value = ""
 
   try {
-    // Gửi các vi phạm chưa đồng bộ trước.
+    // Đồng bộ camera trước rồi mới đồng bộ rời tab.
+    await flushCameraQueue()
+    if (locked.value) return
     await flushViolationQueue()
 
     if (locked.value) return
@@ -916,6 +1126,7 @@ async function loadExam() {
   monitorReady.value = false
   loaded = false
   exam.value = null
+  cameraEnabled.value = false
 
   clearInterval(timerInterval)
   clearTimeout(saveTimer)
@@ -984,6 +1195,7 @@ async function loadExam() {
     loaded = true
 
     await resumeMonitoring()
+    cameraEnabled.value = !locked.value && !submitted
 
     if (
       !locked.value &&
@@ -1017,6 +1229,7 @@ async function saveDraft() {
     submitted ||
     locked.value ||
     !monitorReady.value ||
+    !cameraReady.value ||
     submitting.value ||
     remainingSeconds.value <= 0
   ) {
@@ -1113,7 +1326,9 @@ async function submitExam(auto = false) {
       await saveInFlight
     }
 
-    // Không nộp khi sự kiện vi phạm chưa được xác minh.
+    // Không nộp khi còn cảnh báo camera chưa xác minh.
+    await flushCameraQueue()
+    if (locked.value) return
     await flushViolationQueue()
 
     const allowed = await fetchViolationState()
@@ -1143,6 +1358,7 @@ async function submitExam(auto = false) {
     }
 
     submitted = true
+    cameraEnabled.value = false
     loaded = false
     monitorReady.value = false
 
@@ -1189,6 +1405,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   disposed = true
+  cameraEnabled.value = false
+  cameraReady.value = false
   loaded = false
   requestGeneration++
 
@@ -2029,4 +2247,75 @@ onBeforeUnmount(() => {
     transform: rotate(360deg);
   }
 }
+
+/* SỐ LẦN CẢNH BÁO CAMERA */
+.camera-warning-counter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 14px 18px;
+  border: 1px solid #fed7aa;
+  border-radius: 12px;
+  background: #fff7ed;
+  color: #9a3412;
+}
+.camera-warning-counter > div { display: flex; flex-direction: column; gap: 5px; }
+.camera-warning-counter small { color: #9a3412; font-size: 11px; }
+.camera-warning-counter > strong { font-size: 20px; white-space: nowrap; }
+.camera-warning-counter .danger { color: #dc2626; }
+:global(html.dark-theme) .camera-warning-counter {
+  background: #392617;
+  border-color: #92400e;
+  color: #fdba74;
+}
+:global(html.dark-theme) .camera-warning-counter small { color: #fed7aa; }
+
+/* YÊU CẦU CAMERA TRƯỚC KHI LÀM BÀI */
+.camera-required {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  padding: 40px 25px;
+  border: 1px solid #fbbf24;
+  border-radius: 16px;
+  background: #fffbeb;
+  color: #92400e;
+  text-align: center;
+}
+.camera-required-icon { font-size: 46px; }
+.camera-required h2 { font-size: 22px; margin: 12px 0; }
+.camera-required p { max-width: 550px; font-size: 13px; line-height: 1.8; }
+:global(html.dark-theme) .camera-required {
+  background: #292117;
+  border-color: #854d0e;
+  color: #fcd34d;
+}
+
+/* CAMERA CỐ ĐỊNH GÓC TRÊN BÊN TRÁI */
+:global(.exam-camera-floating) {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 900;
+  width: 260px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-radius: 15px;
+  box-shadow: 0 12px 35px rgba(0,0,0,.4);
+}
+@media (max-width: 650px) {
+  :global(.exam-camera-floating) {
+    top: 8px;
+    left: 8px;
+    width: 190px;
+    max-height: 65vh;
+  }
+}
+
 </style>

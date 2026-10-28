@@ -44,7 +44,7 @@
         <div class="stat-content">
           <span>Tổng cảnh báo</span>
           <strong>{{ statValue(alerts.length) }}</strong>
-          <small>Trong danh sách đã tải</small>
+          <small>Cảnh báo phiên và camera đã tải</small>
         </div>
       </div>
 
@@ -75,6 +75,11 @@
         </div>
       </div>
     </div>
+
+      <div class="camera-summary" role="status">
+        <strong>📷 Cảnh báo camera: {{ soCanhBaoCamera }}</strong>
+        <span>Cảnh báo camera hiển thị trong cùng bảng. Hiện chỉ có chức năng xem xét, chưa đánh dấu xử lý qua API phiên.</span>
+      </div>
 
     <!-- PANEL DANH SÁCH -->
     <section class="alerts-panel">
@@ -119,6 +124,9 @@
           <option value="copy_paste">Copy / Paste</option>
           <option value="roi_phien">Rời phiên</option>
           <option value="mat_ket_noi">Mất kết nối</option>
+          <option value="khong_co_khuon_mat">Không phát hiện khuôn mặt</option>
+          <option value="nhieu_khuon_mat">Nhiều khuôn mặt</option>
+          <option value="camera_ngat">Camera bị ngắt</option>
         </select>
 
         <select
@@ -129,6 +137,7 @@
           <option value="ALL">Tất cả trạng thái</option>
           <option value="CHUA_XU_LY">Chưa xử lý</option>
           <option value="DA_XU_LY">Đã xử lý</option>
+          <option value="CAN_XEM_XET">Camera · Cần xem xét</option>
         </select>
 
         <button
@@ -255,6 +264,7 @@
                     <strong>
                       {{ typeInfo(item.loaiCanhBao).text }}
                     </strong>
+                    <small v-if="item.nguon === 'camera'">📷 Giám sát bài kiểm tra</small>
                     <small :title="item.chiTiet || ''">
                       {{ item.chiTiet || "Chưa có mô tả" }}
                     </small>
@@ -300,6 +310,9 @@
                     }}
                   </button>
 
+                  <span v-else-if="item.nguon === 'camera'" class="camera-view-only">
+                    Cần xem xét
+                  </span>
                   <span v-else class="processed-label">
                     Hoàn tất
                   </span>
@@ -325,10 +338,9 @@
     <div class="info-note">
       <span class="info-symbol">i</span>
       <p>
-        Việc đánh dấu <strong>Đã xử lý</strong> chỉ cập nhật
-        trạng thái cảnh báo. Chức năng nhắc nhở sinh viên
-        hoặc khóa máy chưa có API nên không được thực hiện
-        tại trang này.
+        Cảnh báo camera được hệ thống ghi lại để giảng viên xem xét; hiện chưa có API
+        đánh dấu đã xử lý dành cho loại này. Chức năng xử lý chỉ áp dụng cho cảnh báo phiên.
+        Cảnh báo AI không phải bằng chứng kết luận gian lận.
       </p>
     </div>
 
@@ -397,13 +409,11 @@
               <strong>{{ formatDate(selectedAlert.thoiGian) }}</strong>
             </div>
             <div>
-              <small>Phiên giám sát</small>
+              <small>{{ selectedAlert.nguon === 'camera' ? 'Bài kiểm tra' : 'Phiên giám sát' }}</small>
               <strong>
-                {{
-                  selectedAlert.phienId
-                    ? `#${selectedAlert.phienId}`
-                    : "Chưa có dữ liệu"
-                }}
+                {{ selectedAlert.nguon === 'camera'
+                  ? (selectedAlert.tenBaiKiemTra || `#${selectedAlert.baiTapId}`)
+                  : (selectedAlert.phienId ? `#${selectedAlert.phienId}` : 'Chưa có dữ liệu') }}
               </strong>
             </div>
           </div>
@@ -527,6 +537,7 @@ const filters = ref({
 })
 
 let requestId = 0
+let refreshTimer = null
 
 /* API */
 function extractList(response) {
@@ -544,8 +555,16 @@ function extractList(response) {
   throw new Error("API không trả về danh sách hợp lệ")
 }
 
+function cameraDescription(type) {
+  return {
+    khong_co_khuon_mat: "Không phát hiện khuôn mặt liên tục trong 5 giây.",
+    nhieu_khuon_mat: "Phát hiện nhiều khuôn mặt trong 3 giây.",
+    camera_ngat: "Camera bị ngắt trong lúc làm bài.",
+  }[type] || "Sự kiện cảnh báo từ camera khi thi."
+}
+
 /* CHUẨN HÓA CẢNH BÁO */
-function normalizeAlert(item) {
+function normalizeAlert(item, nguon = "phien") {
   const status =
     item.trangThai ??
     item.trang_thai ??
@@ -558,7 +577,11 @@ function normalizeAlert(item) {
     )
 
   return {
-    id: item.id,
+    id: `${nguon === "camera" ? "CAM" : "GS"}-${item.id}`,
+    apiId: item.id,
+    nguon,
+    baiTapId: item.baiTapId ?? item.bai_tap_id ?? null,
+    tenBaiKiemTra: item.tenBaiKiemTra ?? item.tieu_de ?? "",
     sinhVienId:
       item.sinhVienId ??
       item.sinh_vien_id ??
@@ -585,12 +608,13 @@ function normalizeAlert(item) {
     chiTiet:
       item.chiTiet ??
       item.noi_dung ??
-      "",
+      (nguon === "camera" ? cameraDescription(item.loaiCanhBao ?? item.loai_canh_bao) : ""),
     thoiGian:
       item.thoiGian ??
       item.thoi_gian ??
+      item.created_at ??
       null,
-    trangThai: String(status).toUpperCase(),
+    trangThai: nguon === "camera" ? "CAN_XEM_XET" : String(status).toUpperCase(),
   }
 }
 
@@ -616,6 +640,9 @@ const alertTypes = {
     text: "Mất kết nối",
     icon: "⌁",
   },
+  khong_co_khuon_mat: { text: "Không phát hiện khuôn mặt", icon: "📷" },
+  nhieu_khuon_mat: { text: "Phát hiện nhiều khuôn mặt", icon: "👥" },
+  camera_ngat: { text: "Camera bị ngắt", icon: "📹" },
 }
 
 function typeInfo(value) {
@@ -631,11 +658,15 @@ function statusCode(item) {
 }
 
 function isPending(item) {
-  return statusCode(item) === "CHUA_XU_LY"
+  return item?.nguon === "phien" && statusCode(item) === "CHUA_XU_LY"
 }
 
 function statusInfo(item) {
   const status = statusCode(item)
+
+  if (status === "CAN_XEM_XET") {
+    return { text: "Cần xem xét", className: "status-review" }
+  }
 
   if (status === "CHUA_XU_LY") {
     return {
@@ -684,6 +715,7 @@ const filteredAlerts = computed(() => {
         item.tenSinhVien,
         item.mssv,
         item.tieuDe,
+        item.tenBaiKiemTra,
         item.chiTiet,
         typeInfo(item.loaiCanhBao).text,
       ].join(" ")
@@ -724,6 +756,10 @@ function statValue(value) {
     ? Number(value).toLocaleString("vi-VN")
     : "—"
 }
+
+const soCanhBaoCamera = computed(() =>
+  alerts.value.filter((item) => item.nguon === "camera").length
+)
 
 const soChuaXuLy = computed(() =>
   alerts.value.filter(isPending).length
@@ -824,42 +860,56 @@ function getErrorMessage(err, fallback) {
   return err.message || fallback
 }
 
-/* TẢI CẢNH BÁO */
+/* TẢI CẢNH BÁO TỪ 2 API. Nếu một API lỗi, vẫn hiển thị nguồn còn lại. */
 async function fetchData() {
   if (isBusy.value) return
-
   const current = ++requestId
-
   loading.value = true
   error.value = ""
 
   try {
-    const response = await api.get("/giang-vien/canh-bao")
+    const [gs, cam] = await Promise.allSettled([
+      api.get("/giang-vien/canh-bao"),
+      api.get("/giang-vien/canh-bao-camera"),
+    ])
 
     if (current !== requestId) return
 
-    alerts.value =
-      extractList(response).map(normalizeAlert)
+    const merged = []
+    const failed = []
 
+    for (const [result, source, label] of [
+      [gs, "phien", "cảnh báo phiên"],
+      [cam, "camera", "cảnh báo camera"],
+    ]) {
+      try {
+        if (result.status !== "fulfilled") throw result.reason
+        merged.push(...extractList(result.value).map(x => normalizeAlert(x, source)))
+      } catch (err) {
+        failed.push(`${label}: ${getErrorMessage(err, "Không tải được")}`)
+      }
+    }
+
+    merged.sort((a, b) => {
+      const da = Date.parse(String(a.thoiGian ?? "").replace(" ", "T")) || 0
+      const db = Date.parse(String(b.thoiGian ?? "").replace(" ", "T")) || 0
+      return db - da
+    })
+
+    if (failed.length === 2) {
+      throw new Error(failed.join("; "))
+    }
+
+    alerts.value = merged
     hasLoaded.value = true
-
-    lastUpdatedAt.value =
-      new Date().toLocaleString("vi-VN")
+    lastUpdatedAt.value = new Date().toLocaleString("vi-VN")
+    if (failed.length) error.value = `Chỉ tải được một nguồn: ${failed.join("; ")}`
   } catch (err) {
     if (current !== requestId) return
-
-    console.error("Lỗi tải cảnh báo:", err)
-
-    error.value = getErrorMessage(
-      err,
-      "Không thể tải danh sách cảnh báo."
-    )
-
-    hasLoaded.value = false
+    error.value = getErrorMessage(err, "Không thể tải cảnh báo.")
+    if (!hasLoaded.value) alerts.value = []
   } finally {
-    if (current === requestId) {
-      loading.value = false
-    }
+    if (current === requestId) loading.value = false
   }
 }
 
@@ -911,8 +961,12 @@ function closeConfirm() {
 
 /* GỌI API XỬ LÝ */
 async function sendProcessRequest(id) {
+  const sourceAlert = alerts.value.find((item) => item.id === id)
+  if (!sourceAlert || sourceAlert.nguon !== "phien") {
+    throw new Error("Cảnh báo camera chưa hỗ trợ đánh dấu xử lý.")
+  }
   const response = await api.put(
-    `/giang-vien/canh-bao/${encodeURIComponent(id)}/xu-ly`
+    `/giang-vien/canh-bao/${encodeURIComponent(sourceAlert.apiId)}/xu-ly`
   )
 
   if (
@@ -1005,10 +1059,16 @@ async function confirmProcess() {
   }
 }
 
-onMounted(fetchData)
+onMounted(() => {
+  fetchData()
+  refreshTimer = setInterval(() => {
+    if (!confirmAction.value && !selectedAlert.value) fetchData()
+  }, 10000)
+})
 
 onBeforeUnmount(() => {
   requestId++
+  if (refreshTimer) clearInterval(refreshTimer)
 })
 </script>
 
@@ -1103,6 +1163,30 @@ button:disabled {
   display: inline-block;
   animation: spin 0.8s linear infinite;
 }
+
+/* CẢNH BÁO CAMERA */
+.camera-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 12px;
+}
+.camera-summary span { color: #475569; }
+.camera-view-only { color: #b45309; font-size: 11px; font-weight: 700; }
+.status-review { background: #fff7ed; color: #9a3412; }
+:global(html.dark-theme) .camera-summary {
+  background: #1e293b;
+  border-color: #334155;
+  color: #bfdbfe;
+}
+:global(html.dark-theme) .camera-summary span { color: #cbd5e1; }
 
 /* STATS */
 .stats-grid {

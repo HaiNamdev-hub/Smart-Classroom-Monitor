@@ -17,11 +17,13 @@ use App\Http\Controllers\ChucNangController;
 use App\Http\Controllers\PhanQuyenController;
 use App\Http\Controllers\SinhVienController;
 use App\Http\Controllers\GiangVienApiController;
+use App\Http\Controllers\GiangVienCanhBaoCameraController;
 use App\Http\Controllers\GiangVienCauHoiController;
 use App\Http\Controllers\GiangVienChamDiemController;
 use App\Http\Controllers\GiangVienLichKiemTraController;
 use App\Http\Controllers\GiangVienNhapCauHoiController;
 use App\Http\Controllers\GiangVienViPhamKiemTraController;
+use App\Http\Controllers\SinhVienCanhBaoCameraController;
 use App\Http\Controllers\SinhVienKiemTraController;
 use App\Http\Middleware\QuanTriVien;
 use App\Http\Middleware\GiangVien;
@@ -118,6 +120,11 @@ Route::middleware('auth:sanctum')->group(function () {
         NguoiDungController::class,
         'dangXuat'
     ]);
+    // SINH VIÊN - GỬI CẢNH BÁO CAMERA
+    Route::post(
+        '/sinh-vien/bai-kiem-tra/{baiTapId}/canh-bao-camera',
+        [SinhVienCanhBaoCameraController::class, 'store']
+    )->middleware('throttle:30,1');
 
     /*
     |--------------------------------------------------------------------------
@@ -333,6 +340,18 @@ Route::put(
     '/bai-nop/{baiNopId}/cham-diem',
     [GiangVienChamDiemController::class, 'update']
 );
+
+
+Route::post(
+    '/phien-giam-sat/{id}/bat-dau',
+    [GiangVienApiController::class, 'batDauPhien']
+);
+
+Route::get(
+    '/canh-bao-camera',
+    [GiangVienCanhBaoCameraController::class, 'index']
+);
+
     
     // ==========================================
     // GIẢNG VIÊN - CÂU HỎI KIỂM TRA

@@ -436,6 +436,7 @@ const lastUpdatedAt = ref("")
 
 let sessionRequestId = 0
 let imageRequestId = 0
+let refreshTimer = null
 
 /* HELPERS API */
 function extractList(response) {
@@ -905,12 +906,32 @@ watch(
   }
 )
 
-onMounted(fetchPhienGiamSat)
+
+onMounted(() => {
+  fetchPhienGiamSat()
+
+  // Cập nhật ảnh mới mỗi 15 giây.
+  refreshTimer = setInterval(() => {
+    if (
+      selectedPhienId.value &&
+      !loading.value &&
+      !selectedImage.value
+    ) {
+      fetchAnhManHinh()
+    }
+  }, 15000)
+})
 
 onBeforeUnmount(() => {
   sessionRequestId++
   imageRequestId++
+
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
 })
+
 </script>
 
 <style scoped>

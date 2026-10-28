@@ -237,6 +237,10 @@
               <span>Trạng thái</span>
               <strong>{{ getStatus(phien).text }}</strong>
             </div>
+            <div v-if="phien.thoigianKetThuc" class="detail-row">
+              <span>Kết thúc</span>
+              <strong>{{ formatDate(phien.thoigianKetThuc) }}</strong>
+            </div>
           </div>
 
           <div class="card-actions">
@@ -536,6 +540,7 @@ const form = ref({
 
 let sessionRequestId = 0
 let classRequestId = 0
+let refreshTimer = null
 
 /* CHUẨN HÓA DANH SÁCH API */
 function extractList(response) {
@@ -589,6 +594,9 @@ function normalizePhien(item) {
       item.thoigianBatDau ??
       item.thoi_gian_bat_dau ??
       null,
+    thoigianKetThuc:
+      item.thoigianKetThuc ??
+      item.thoi_gian_ket_thuc ?? null,
     trangThai: String(
       item.trangThai ??
       item.trang_thai ??
@@ -906,7 +914,9 @@ async function createPhien() {
       {
         tenPhien,
         lopId,
-        thoigianBatDau: startTime.toISOString(),
+        // Gửi giờ địa phương theo định dạng DATETIME của Laravel/MySQL.
+        // Không dùng toISOString() vì sẽ chuyển thành UTC và lệch 7 giờ.
+        thoigianBatDau: form.value.thoigianBatDau.replace("T", " ") + ":00",
       }
     )
 
@@ -1021,9 +1031,16 @@ async function ketThucPhien() {
 onMounted(() => {
   fetchData()
   fetchLopHoc()
+  // Danh sách tự cập nhật để phiên đến giờ chuyển trạng thái.
+  refreshTimer = setInterval(() => {
+    if (!loading.value && !showCreateForm.value && !confirmSession.value) {
+      fetchData()
+    }
+  }, 15000)
 })
 
 onBeforeUnmount(() => {
+  clearInterval(refreshTimer)
   sessionRequestId++
   classRequestId++
 })
