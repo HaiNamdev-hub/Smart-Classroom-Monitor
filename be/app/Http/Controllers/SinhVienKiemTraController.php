@@ -208,42 +208,63 @@ class SinhVienKiemTraController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | KHÓA BÀI SAU 3 VI PHẠM
+    | TRẠNG THÁI GIÁM SÁT: ĐIỆN THOẠI 3, CAMERA KHÁC 5, RỜI TAB 3
     |--------------------------------------------------------------------------
     */
 
-    
-private function assertExamNotLocked(
-    int $baiTapId,
-    int $sinhVienId
-): void {
-    // Đếm vi phạm rời tab
-    $tabCount = DB::table('vi_pham_kiem_tra')
-        ->where('bai_tap_id', $baiTapId)
-        ->where('sinh_vien_id', $sinhVienId)
-        ->count();
+    private function violationStateData(int $baiTapId, int $sinhVienId): array
+    {
+        $tabCount = DB::table('vi_pham_kiem_tra')
+            ->where('bai_tap_id', $baiTapId)
+            ->where('sinh_vien_id', $sinhVienId)
+            ->count();
 
-    // Đếm cảnh báo camera
-    $cameraCount = DB::table('canh_bao_camera')
-        ->where('bai_tap_id', $baiTapId)
-        ->where('sinh_vien_id', $sinhVienId)
-        ->count();
+        $cameraQuery = DB::table('canh_bao_camera')
+            ->where('bai_tap_id', $baiTapId)
+            ->where('sinh_vien_id', $sinhVienId);
 
-    if ($cameraCount >= 5) {
-        abort(
-            403,
-            'Bài kiểm tra đã bị khóa do 5 cảnh báo camera.'
-        );
+        $phoneCount = (clone $cameraQuery)
+            ->where('loai_canh_bao', 'phat_hien_dien_thoai')
+            ->count();
+
+        $otherCameraCount = (clone $cameraQuery)
+            ->where('loai_canh_bao', '!=', 'phat_hien_dien_thoai')
+            ->count();
+
+        $reason = $phoneCount >= 3
+            ? 'dien_thoai'
+            : ($otherCameraCount >= 5
+                ? 'camera'
+                : ($tabCount >= 3 ? 'roi_tab' : null));
+
+        return [
+            'soLanViPham' => $tabCount,
+            'soLanCamera' => $otherCameraCount,
+            'soLanDienThoai' => $phoneCount,
+            'soLanConLai' => max(0, 3 - $tabCount),
+            'soLanCameraConLai' => max(0, 5 - $otherCameraCount),
+            'soLanDienThoaiConLai' => max(0, 3 - $phoneCount),
+            'biKhoa' => $reason !== null,
+            'lyDoKhoa' => $reason,
+        ];
     }
 
-    if ($tabCount >= 3) {
-        abort(
-            403,
-            'Bài kiểm tra đã bị khóa do rời tab 3 lần.'
-        );
-    }
-}
+    private function assertExamNotLocked(int $baiTapId, int $sinhVienId): void
+    {
+        $state = $this->violationStateData($baiTapId, $sinhVienId);
 
+        if ($state['lyDoKhoa'] === 'dien_thoai') {
+            abort(403, 'Bài kiểm tra đã bị khóa do phát hiện điện thoại 3 lần.');
+        }
+
+        if ($state['lyDoKhoa'] === 'camera') {
+            abort(403, 'Bài kiểm tra đã bị khóa do 5 cảnh báo camera khác.');
+        }
+
+        if ($state['lyDoKhoa'] === 'roi_tab') {
+            abort(403, 'Bài kiểm tra đã bị khóa do rời tab 3 lần.');
+        }
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -919,90 +940,59 @@ private function assertExamNotLocked(
         int $baiTapId
     ): JsonResponse {
         $data = $request->validate([
-            'eventId' => [
-                'required',
-                'uuid',
-            ],
+            'eventId' => ['required', 'uuid'],
         ]);
 
         $studentId = $this->studentId($request);
+        $this->assignment($baiTapId, $studentId);
 
-        $this->assignment(
-            $baiTapId,
-            $studentId
-        );
-
-        return DB::transaction(function () use (
-            $baiTapId,
-            $studentId,
-            $data
-        ) {
+        return DB::transaction(function () use ($baiTapId, $studentId, $data) {
+            // Dùng chung hàng khóa với API cảnh báo camera và API nộp bài.
             DB::table('bai_tap')
                 ->where('id', $baiTapId)
                 ->lockForUpdate()
                 ->first();
 
+            $state = $this->violationStateData($baiTapId, $studentId);
+            $daNop = $this->alreadySubmitted($baiTapId, $studentId);
+
             $query = DB::table('vi_pham_kiem_tra')
                 ->where('bai_tap_id', $baiTapId)
                 ->where('sinh_vien_id', $studentId);
 
-            $count = (clone $query)->count();
-
-            // Sau khi đã nộp, không ghi vi phạm mới.
-            if (
-                $this->alreadySubmitted(
-                    $baiTapId,
-                    $studentId
-                )
-            ) {
-                return response()->json([
-                    'status' => true,
-                    'soLanViPham' => $count,
-                    'soLanConLai' =>
-                    max(0, 3 - $count),
-                    'biKhoa' => $count >= 3,
-                    'daNop' => true,
-                ]);
-            }
-
-            // Không ghi trùng cùng eventId.
             $existing = (clone $query)
-                ->where(
-                    'event_id',
-                    $data['eventId']
-                )
+                ->where('event_id', $data['eventId'])
                 ->exists();
 
-            if (!$existing && $count < 3) {
-                $count++;
-
+            if (!$daNop && !$state['biKhoa'] && !$existing) {
+                $newCount = $state['soLanViPham'] + 1;
                 DB::table('vi_pham_kiem_tra')->insert([
                     'bai_tap_id' => $baiTapId,
                     'sinh_vien_id' => $studentId,
                     'event_id' => $data['eventId'],
-                    'lan_thu' => $count,
+                    'lan_thu' => $newCount,
                     'loai_vi_pham' => 'roi_tab',
                     'created_at' => $this->nowVN(),
                     'updated_at' => $this->nowVN(),
                 ]);
+                $state = $this->violationStateData($baiTapId, $studentId);
             }
 
-            return response()->json([
+            $message = match ($state['lyDoKhoa']) {
+                'dien_thoai' => 'Bài kiểm tra đã bị khóa do phát hiện điện thoại 3 lần.',
+                'camera' => 'Bài kiểm tra đã bị khóa do 5 cảnh báo camera khác.',
+                'roi_tab' => 'Bài kiểm tra đã bị khóa do rời tab 3 lần.',
+                default => "Bạn đã rời tab {$state['soLanViPham']}/3 lần.",
+            };
+
+            // Giữ các trường ở cấp gốc cho Frontend cũ,
+            // đồng thời thêm data cho các màn hình mới.
+            return response()->json(array_merge([
                 'status' => true,
-
-                'message' =>
-                $count >= 3
-                    ? 'Bài kiểm tra đã bị khóa do rời tab 3 lần.'
-                    : "Bạn đã rời tab {$count}/3 lần.",
-
-                'soLanViPham' => $count,
-
-                'soLanConLai' =>
-                max(0, 3 - $count),
-
-                'biKhoa' =>
-                $count >= 3,
-            ]);
+                'message' => $message,
+                'daNop' => $daNop,
+                'data' => array_merge($state, ['daNop' => $daNop]),
+            ], $state));
         }, 3);
     }
 
@@ -1012,43 +1002,20 @@ private function assertExamNotLocked(
     |--------------------------------------------------------------------------
     */
 
-    
-public function examViolationState(
-    Request $request,
-    int $baiTapId
-): JsonResponse {
-    $sinhVienId = $this->studentId($request);
 
-    // Kiểm tra Sinh viên có quyền làm bài
-    $this->assignment($baiTapId, $sinhVienId);
+    public function examViolationState(
+        Request $request,
+        int $baiTapId
+    ): JsonResponse {
+        $sinhVienId = $this->studentId($request);
+        $this->assignment($baiTapId, $sinhVienId);
 
-    $tabCount = DB::table('vi_pham_kiem_tra')
-        ->where('bai_tap_id', $baiTapId)
-        ->where('sinh_vien_id', $sinhVienId)
-        ->count();
+        $state = $this->violationStateData($baiTapId, $sinhVienId);
+        $state['daNop'] = $this->alreadySubmitted($baiTapId, $sinhVienId);
 
-    $cameraCount = DB::table('canh_bao_camera')
-        ->where('bai_tap_id', $baiTapId)
-        ->where('sinh_vien_id', $sinhVienId)
-        ->count();
-
-    return response()->json([
-        'status' => true,
-        'data' => [
-            'soLanViPham' => $tabCount,
-            'soLanCamera' => $cameraCount,
-
-            'soLanConLai' => max(0, 3 - $tabCount),
-            'soLanCameraConLai' => max(0, 5 - $cameraCount),
-
-            'biKhoa' => $tabCount >= 3 ||
-                        $cameraCount >= 5,
-
-            'lyDoKhoa' => $cameraCount >= 5
-                ? 'camera'
-                : ($tabCount >= 3 ? 'roi_tab' : null),
-        ],
-    ]);
-}
-
+        return response()->json([
+            'status' => true,
+            'data' => $state,
+        ]);
+    }
 }

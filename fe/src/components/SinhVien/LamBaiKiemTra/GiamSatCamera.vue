@@ -2,129 +2,255 @@
     <section class="camera-monitor">
         <div class="monitor-head">
             <div>
-                <strong>📷 Giám sát khuôn mặt</strong>
-                <p>Chỉ phân tích số khuôn mặt trên thiết bị, không lưu video.</p>
+                <strong>📷 Giám sát bài kiểm tra</strong>
+                <p>Nhận diện khuôn mặt và điện thoại ngay trên thiết bị, không lưu video.</p>
             </div>
-            <span :class="['state', active ? 'running' : 'stopped']">{{ active ? 'Đang giám sát' : 'Chưa bật' }}</span>
+            <span :class="['state', active ? 'running' : 'stopped']">
+                {{ active ? 'Đang giám sát' : 'Chưa bật' }}
+            </span>
         </div>
 
         <div class="camera-frame">
-            <video ref="videoRef" autoplay playsinline muted></video>
+            <video ref="videoRef" autoplay muted playsinline></video>
             <div v-if="!active" class="camera-placeholder">Camera chưa hoạt động</div>
-            <span v-if="active" class="face-count">Khuôn mặt: {{ faceCount }}</span>
+            <span v-if="active" class="face-count">👤 {{ faceCount }} khuôn mặt</span>
+            <span v-if="active && phoneDetected" class="phone-label">📱 Có điện thoại</span>
+        </div>
+
+        <div class="monitor-info">
+            <div><span>Camera</span><strong :class="active ? 'good' : 'bad'">{{ active ? 'Đang bật' : 'Chưa bật'
+                    }}</strong></div>
+            <div><span>Số khuôn mặt</span><strong>{{ active ? faceCount : '—' }}</strong></div>
+            <div><span>Điện thoại</span><strong :class="phoneDetected ? 'bad' : 'good'">{{ active ? (phoneDetected ?
+                'Phát hiện' : 'Không phát hiện') : '—' }}</strong></div>
         </div>
 
         <div v-if="warning" class="warning" role="alert">⚠ {{ warning }}</div>
         <div v-if="error" class="error" role="alert">{{ error }}</div>
-        <p v-if="active && !warning" class="ok">{{ faceCount === 1 ? '✓ Có 1 khuôn mặt trong khung hình' : 'Đang kiểmtrakhuôn mặt...' }}</p>
+        <p v-if="active && !warning && !error" class="ok">
+            {{ faceCount === 1 && !phoneDetected ? '✓ Giám sát bình thường' : 'Đang kiểm tra hình ảnh camera...' }}
+        </p>
 
         <div class="actions">
             <button v-if="!active" type="button" :disabled="starting" @click="startCamera">
-                {{ starting ? 'Đang khởi tạo...' : 'Bật camera và bắt đầu giám sát' }}
+                {{ starting ? 'Đang khởi tạo AI...' : 'Bật camera và bắt đầu giám sát' }}
             </button>
             <button v-else type="button" class="stop" @click="stopCameraManually">Tắt camera</button>
         </div>
-        <small>Camera chỉ bật khi bạn cho phép. Việc phát hiện có thể sai khi thiếu sáng hoặc bị che khuất.</small>
+        <small>
+            Camera chỉ bật khi bạn cấp quyền. Không có khuôn mặt liên tục: cảnh báo mỗi 5 giây;
+            điện thoại xuất hiện liên tục 3 giây: cảnh báo một lần mỗi đợt.
+            AI có thể nhận nhầm, cần được giảng viên xem xét.
+        </small>
     </section>
 </template>
 
 <script setup>
 import { ref, onBeforeUnmount } from 'vue'
-import { FaceDetector, FilesetResolver } from '@mediapipe/tasks-vision'
+import { FaceDetector, ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision'
 
-const emit = defineEmits(['warning', 'camera-state'])
+const emit = defineEmits(['warning', 'camera-state', 'normal'])
 const videoRef = ref(null)
 const active = ref(false)
 const starting = ref(false)
 const faceCount = ref(0)
+const phoneDetected = ref(false)
 const warning = ref('')
 const error = ref('')
 
-const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite'
+const FACE_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite'
+const OBJECT_MODEL_URL = 'https://storage.googleapis.com/mediapipe-tasks/object_detector/efficientdet_lite0_uint8.tflite'
 const WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'
 
-let detector = null
+const CHECK_INTERVAL_MS = 500
+const NO_FACE_WARNING_MS = 5000
+const MANY_FACES_WARNING_MS = 3000
+// Cảnh báo ngay khi AI phát hiện điện thoại
+const PHONE_WARNING_MS = 0
+
+// Kiểm tra điện thoại mỗi 300ms
+const PHONE_DETECT_INTERVAL_MS = 300
+const PHONE_RESET_MS = 2000
+
+let faceDetector = null
+let objectDetector = null
 let stream = null
 let timer = null
-let absenceSince = null
-let lastAbsenceAlertAt = null
-let multipleSince = null
-let lastWarningType = ''
-let sequence = 0
+let generation = 0
+let destroyed = false
+let busy = false
+let previousVideoTime = -1
+let lastPhoneDetectAt = -Infinity
 
-function raiseWarning(type, message, repeat = false) {
+let absenceSince = null
+let absenceWarnings = 0
+let multipleSince = null
+let multipleWarningSent = false
+let phoneSince = null
+let phoneWarningSent = false
+let phoneMissingSince = null
+let mostRecentWarning = ''
+
+function emitWarning(type, message) {
+    mostRecentWarning = message
     warning.value = message
-    if (!repeat && lastWarningType === type) return
-    lastWarningType = type
-    emit('warning', { type, message, at: new Date().toISOString() })
+    emit('warning', {
+        type,
+        message,
+        at: new Date().toISOString(),
+        timestamp: new Date().toISOString(),
+    })
 }
 
-function checkFaces() {
-    const video = videoRef.value
-    if (!active.value || !video || !detector || video.readyState < 2) return
+function updateWarningText() {
+    if (faceCount.value === 0 && absenceWarnings > 0) {
+        warning.value = 'Không phát hiện khuôn mặt trong camera.'
+    } else if (faceCount.value >= 2 && multipleWarningSent) {
+        warning.value = 'Phát hiện nhiều khuôn mặt trong camera.'
+    } else if (phoneDetected.value && phoneWarningSent) {
+        warning.value = 'Phát hiện điện thoại trong camera.'
+    } else {
+        if (warning.value) emit('normal', { at: new Date().toISOString() })
+        warning.value = ''
+    }
+}
 
-    try {
-        const result = detector.detectForVideo(video, performance.now())
-        const count = result.detections?.length ?? 0
-        faceCount.value = count
-        const now = Date.now()
+function processFaces(count, now) {
+    faceCount.value = count
+
+    if (count === 0) {
+        multipleSince = null
+        multipleWarningSent = false
+        if (absenceSince === null) absenceSince = now
+
+        // Mốc 5 giây, 10 giây, 15 giây... kể từ khi liên tục không có mặt.
+        const shouldHaveWarned = Math.floor((now - absenceSince) / NO_FACE_WARNING_MS)
+        if (shouldHaveWarned > absenceWarnings) {
+            absenceWarnings = shouldHaveWarned
+            emitWarning('khong_co_khuon_mat', 'Không phát hiện khuôn mặt liên tục 5 giây.')
+        }
+    } else if (count >= 2) {
+        absenceSince = null
+        absenceWarnings = 0
+        if (multipleSince === null) multipleSince = now
+        if (!multipleWarningSent && now - multipleSince >= MANY_FACES_WARNING_MS) {
+            multipleWarningSent = true
+            emitWarning('nhieu_khuon_mat', `Phát hiện ${count} khuôn mặt liên tục 3 giây.`)
+        }
+    } else {
+        absenceSince = null
+        absenceWarnings = 0
+        multipleSince = null
+        multipleWarningSent = false
+    }
+    updateWarningText()
+}
 
 
+function processPhone(hasPhone, now) {
+    phoneDetected.value = hasPhone
+
+    if (hasPhone) {
+        // Điện thoại đã xuất hiện trở lại
+        phoneMissingSince = null
+
+        if (phoneSince === null) {
+            phoneSince = now
+        }
+
+        // Cảnh báo ngay khi nhận diện được
         if (
-            now - absenceSince >= 5000 &&
-            (
-                lastAbsenceAlertAt === null ||
-                now - lastAbsenceAlertAt >= 5000
-            )
+            !phoneWarningSent &&
+            now - phoneSince >= PHONE_WARNING_MS
         ) {
-            lastAbsenceAlertAt = now
+            phoneWarningSent = true
 
-            raiseWarning(
-                "khong_co_khuon_mat",
-                "Không phát hiện khuôn mặt liên tục 5 giây.",
-                true
+            emitWarning(
+                'phat_hien_dien_thoai',
+                'Phát hiện điện thoại trong camera!'
             )
 
-        } else if (count >= 2) {
-            multipleSince ??= now
-            absenceSince = null
-            lastAbsenceAlertAt = null
-            if (now - multipleSince >= 3000) {
-                raiseWarning('nhieu_khuon_mat', `Phát hiện ${count} khuôn mặt trong khung hình.`)
-            }
-        } else {
-            absenceSince = null
-            lastAbsenceAlertAt = null
-            multipleSince = null
-            warning.value = ''
-            lastWarningType = ''
+            console.warn(
+                'CẢNH BÁO: Phát hiện điện thoại!'
+            )
+        }
+    } else {
+        phoneSince = null
+
+        if (phoneMissingSince === null) {
+            phoneMissingSince = now
+        }
+
+        // Không thấy điện thoại liên tục 2 giây
+        // thì mới cho phép cảnh báo lần tiếp theo
+        if (
+            now - phoneMissingSince >= PHONE_RESET_MS
+        ) {
+            phoneWarningSent = false
+        }
+    }
+
+    updateWarningText()
+}
+
+
+function checkCamera() {
+    if (!active.value || busy || !faceDetector || !objectDetector) return
+    const video = videoRef.value
+    if (!stream?.getVideoTracks().some(track => track.readyState === 'live')) {
+        disconnectCamera()
+        return
+    }
+    if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return
+    if (video.currentTime === previousVideoTime) return
+
+    busy = true
+    try {
+        previousVideoTime = video.currentTime
+        const now = performance.now()
+        const faces = faceDetector.detectForVideo(video, now)
+        processFaces(faces.detections?.length ?? 0, now)
+
+        if (now - lastPhoneDetectAt >= PHONE_DETECT_INTERVAL_MS) {
+            lastPhoneDetectAt = now
+            const objects = objectDetector.detectForVideo(video, now)
+            const hasPhone = (objects.detections || []).some(detection =>
+                (detection.categories || []).some(category =>
+                    (category.categoryName === 'cell phone' || category.categoryName === 'mobile phone') &&
+                    (category.score ?? 0) >= 0.5
+                )
+            )
+            processPhone(hasPhone, now)
         }
     } catch (err) {
-        console.error('Lỗi phân tích camera:', err)
-        error.value = 'Không thể phân tích khung hình camera.'
-        stopCamera()
+        console.error('Lỗi phân tích hình ảnh:', err)
+        error.value = 'Không thể phân tích camera. Vui lòng bật lại camera.'
+        disconnectCamera()
+    } finally {
+        busy = false
     }
 }
 
 async function startCamera() {
-    if (starting.value || active.value) return
-    const current = ++sequence
+    if (starting.value || active.value || destroyed) return
+    const current = ++generation
     starting.value = true
     error.value = ''
     warning.value = ''
-    lastWarningType = ''
-    absenceSince = null
-    lastAbsenceAlertAt = null
-    multipleSince = null
+    resetDetection()
+
     try {
         if (!navigator.mediaDevices?.getUserMedia) {
-            throw new Error('Trình duyệt cần chạy trên localhost hoặc HTTPS và hỗ trợ camera.')
+            throw new Error('Camera yêu cầu localhost hoặc HTTPS và trình duyệt có hỗ trợ.')
         }
         const media = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
             audio: false,
         })
-        if (current !== sequence) { media.getTracks().forEach(t => t.stop()); return }
+        if (current !== generation || destroyed) {
+            media.getTracks().forEach(track => track.stop())
+            return
+        }
         stream = media
         const video = videoRef.value
         if (!video) throw new Error('Không tìm thấy phần tử video.')
@@ -132,58 +258,96 @@ async function startCamera() {
         await video.play()
 
         const vision = await FilesetResolver.forVisionTasks(WASM_URL)
-        if (current !== sequence) return
-        detector = await FaceDetector.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: MODEL_URL, delegate: 'CPU' },
+        if (current !== generation || destroyed) return
+
+        const newFace = await FaceDetector.createFromOptions(vision, {
+            baseOptions: { modelAssetPath: FACE_MODEL_URL, delegate: 'CPU' },
             runningMode: 'VIDEO',
             minDetectionConfidence: 0.5,
         })
-        if (current !== sequence) { detector.close(); detector = null; return }
+        if (current !== generation || destroyed) { newFace.close(); return }
+        faceDetector = newFace
+
+        const newObject = await ObjectDetector.createFromOptions(vision, {
+            baseOptions: { modelAssetPath: OBJECT_MODEL_URL, delegate: 'CPU' },
+            runningMode: 'VIDEO',
+            scoreThreshold: 0.5,
+            categoryAllowlist: ['cell phone'],
+        })
+        if (current !== generation || destroyed) { newObject.close(); return }
+        objectDetector = newObject
+
         active.value = true
         emit('camera-state', true)
-        timer = window.setInterval(checkFaces, 500)
         for (const track of media.getVideoTracks()) {
             track.addEventListener('ended', () => {
-                if (current !== sequence) return
-                raiseWarning('camera_ngat', 'Camera đã bị ngắt kết nối.')
-                stopCamera(true)
+                if (current === generation) disconnectCamera()
             }, { once: true })
         }
+        timer = window.setInterval(checkCamera, CHECK_INTERVAL_MS)
+        checkCamera()
     } catch (err) {
-        error.value = err?.name === 'NotAllowedError'
-            ? 'Bạn chưa cấp quyền camera. Hãy cho phép camera trong trình duyệt.'
-            : (err?.message || 'Không thể bật camera hoặc tải mô hình AI.')
+        console.error('Không thể bật camera:', err)
+        if (!destroyed) {
+            error.value = err?.name === 'NotAllowedError'
+                ? 'Bạn chưa cấp quyền camera. Hãy cho phép camera trong trình duyệt.'
+                : (err?.message || 'Không thể bật camera hoặc tải mô hình AI.')
+        }
         stopCamera(true)
     } finally {
-        if (current === sequence) starting.value = false
+        if (current === generation) starting.value = false
     }
 }
 
+function resetDetection() {
+    faceCount.value = 0
+    phoneDetected.value = false
+    previousVideoTime = -1
+    lastPhoneDetectAt = -Infinity
+    absenceSince = null
+    absenceWarnings = 0
+    multipleSince = null
+    multipleWarningSent = false
+    phoneSince = null
+    phoneWarningSent = false
+    phoneMissingSince = null
+    mostRecentWarning = ''
+}
+
+function disconnectCamera() {
+    if (!active.value) return
+    emitWarning('camera_ngat', 'Camera đã bị ngắt trong thời gian làm bài.')
+    stopCamera(true)
+}
+
 function stopCameraManually() {
-    if (active.value) raiseWarning('camera_ngat', 'Sinh viên đã tắt camera trong bài kiểm tra.')
+    if (active.value) emitWarning('camera_ngat', 'Sinh viên đã tắt camera trong bài kiểm tra.')
     stopCamera(true)
 }
 
 function stopCamera(keepMessage = false) {
-    sequence++
-    if (timer) window.clearInterval(timer)
+    generation++
+    if (timer !== null) window.clearInterval(timer)
     timer = null
+    const wasActive = active.value
     active.value = false
-    emit('camera-state', false)
+    if (wasActive) emit('camera-state', false)
     starting.value = false
-    faceCount.value = 0
-    absenceSince = null
-    lastAbsenceAlertAt = null
-    multipleSince = null
-    if (!keepMessage) { warning.value = ''; error.value = '' }
-    if (stream) stream.getTracks().forEach(track => track.stop())
-    stream = null
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop())
+        stream = null
+    }
     if (videoRef.value) videoRef.value.srcObject = null
-    if (detector) detector.close()
-    detector = null
+    if (faceDetector) { faceDetector.close(); faceDetector = null }
+    if (objectDetector) { objectDetector.close(); objectDetector = null }
+    resetDetection()
+    if (!keepMessage) { warning.value = ''; error.value = '' }
 }
 
-onBeforeUnmount(() => stopCamera())
+onBeforeUnmount(() => {
+    destroyed = true
+    stopCamera()
+})
 </script>
 
 <style scoped>
@@ -192,28 +356,29 @@ onBeforeUnmount(() => stopCamera())
     color: #fff;
     border: 1px solid #3b3b3b;
     border-radius: 16px;
-    padding: 16px;
-    max-width: 400px;
-    font-family: Inter, system-ui, sans-serif
+    padding: 13px;
+    width: 100%;
+    font-family: Inter, system-ui, sans-serif;
+    box-sizing: border-box
 }
 
 .monitor-head {
     display: flex;
     justify-content: space-between;
-    gap: 12px;
+    gap: 8px;
     align-items: flex-start;
     margin-bottom: 12px
 }
 
 .monitor-head strong {
-    font-size: 15px
+    font-size: 13px
 }
 
 .monitor-head p,
 small {
     color: #a3aab7;
-    font-size: 11px;
-    line-height: 1.6
+    font-size: 10px;
+    line-height: 1.5
 }
 
 .monitor-head p {
@@ -246,6 +411,7 @@ small {
 }
 
 .camera-frame video {
+    display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -261,22 +427,57 @@ small {
     font-size: 12px
 }
 
-.face-count {
+.face-count,
+.phone-label {
     position: absolute;
-    top: 10px;
-    left: 10px;
+    left: 8px;
     background: #000b;
-    padding: 6px 9px;
+    padding: 5px 7px;
     border-radius: 7px;
-    font-size: 12px
+    font-size: 10px
+}
+
+.face-count {
+    top: 8px
+}
+
+.phone-label {
+    bottom: 8px;
+    background: #7f1d1d
+}
+
+.monitor-info {
+    display: grid;
+    gap: 8px;
+    padding: 12px 0
+}
+
+.monitor-info>div {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px
+}
+
+.monitor-info span {
+    color: #a3aab7
+}
+
+.good {
+    color: #86efac
+}
+
+.bad {
+    color: #fca5a5
 }
 
 .warning,
 .error {
-    padding: 11px;
+    padding: 10px;
     border-radius: 9px;
-    margin: 12px 0;
-    font-size: 12px
+    margin: 8px 0;
+    font-size: 11px;
+    line-height: 1.5
 }
 
 .warning {
@@ -290,12 +491,12 @@ small {
 }
 
 .ok {
-    font-size: 12px;
+    font-size: 11px;
     color: #86efac
 }
 
 .actions {
-    margin: 12px 0
+    margin: 10px 0
 }
 
 .actions button {
@@ -306,6 +507,7 @@ small {
     border-radius: 9px;
     padding: 11px;
     font-weight: 700;
+    font-size: 11px;
     cursor: pointer
 }
 

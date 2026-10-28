@@ -2,33 +2,58 @@
 
 namespace App\Http\Controllers;
 
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use Carbon\Carbon;
 
 class SinhVienCanhBaoCameraController extends Controller
 {
+    private const MAX_PHONE_WARNINGS = 3;
+    private const MAX_CAMERA_WARNINGS = 5;
+    private const MAX_TAB_WARNINGS = 3;
+
+    /**
+     * Sinh viên gửi cảnh báo từ camera.
+     *
+     * POST /api/sinh-vien/bai-kiem-tra/{baiTapId}/canh-bao-camera
+     */
     public function store(
         Request $request,
         int $baiTapId
     ): JsonResponse {
+
+        // ==========================================
+        // 1. KIỂM TRA DỮ LIỆU ĐẦU VÀO
+        // ==========================================
+
         $data = $request->validate([
-            'eventId' => ['required', 'uuid'],
+            'eventId' => [
+                'required',
+                'uuid',
+            ],
+
             'loaiCanhBao' => [
                 'required',
                 Rule::in([
                     'khong_co_khuon_mat',
                     'nhieu_khuon_mat',
                     'camera_ngat',
+                    'phat_hien_dien_thoai',
                 ]),
             ],
         ]);
 
-        // Sinh viên lấy từ tài khoản đăng nhập
+        // ==========================================
+        // 2. XÁC ĐỊNH SINH VIÊN ĐĂNG NHẬP
+        // ==========================================
+
         $sinhVienId = DB::table('sinh_vien')
-            ->where('nguoi_dung_id', $request->user()->id)
+            ->where(
+                'nguoi_dung_id',
+                $request->user()->id
+            )
             ->value('id');
 
         abort_unless(
@@ -37,7 +62,12 @@ class SinhVienCanhBaoCameraController extends Controller
             'Tài khoản không phải sinh viên.'
         );
 
-        // Phải thuộc lớp của bài kiểm tra
+        $sinhVienId = (int) $sinhVienId;
+
+        // ==========================================
+        // 3. KIỂM TRA QUYỀN THAM GIA BÀI KIỂM TRA
+        // ==========================================
+
         $baiTap = DB::table('bai_tap as bt')
             ->join(
                 'thanh_vien_lop as tv',
@@ -46,8 +76,14 @@ class SinhVienCanhBaoCameraController extends Controller
                 'bt.lop_hoc_id'
             )
             ->where('bt.id', $baiTapId)
-            ->where('tv.sinh_vien_id', $sinhVienId)
-            ->where('tv.trang_thai', 'dang_hoc')
+            ->where(
+                'tv.sinh_vien_id',
+                $sinhVienId
+            )
+            ->where(
+                'tv.trang_thai',
+                'dang_hoc'
+            )
             ->select('bt.*')
             ->first();
 
@@ -57,69 +93,185 @@ class SinhVienCanhBaoCameraController extends Controller
             'Bạn không thuộc lớp của bài kiểm tra.'
         );
 
+        // ==========================================
+        // 4. XỬ LÝ CẢNH BÁO TRONG TRANSACTION
+        // ==========================================
+
         return DB::transaction(function () use (
             $data,
             $baiTap,
             $baiTapId,
             $sinhVienId
         ) {
-            // Khóa hàng bài tập để tránh ghi đồng thời vượt ngưỡng
+
+            // Khóa hàng bài tập để tuần tự hóa
+            // các yêu cầu cảnh báo đồng thời.
             DB::table('bai_tap')
                 ->where('id', $baiTapId)
                 ->lockForUpdate()
                 ->first();
 
-            $cameraQuery = DB::table('canh_bao_camera')
-                ->where('bai_tap_id', $baiTapId)
-                ->where('sinh_vien_id', $sinhVienId);
+            // ======================================
+            // 5. ĐẾM CÁC LOẠI VI PHẠM
+            // ======================================
 
-            $cameraCount = (clone $cameraQuery)->count();
+            $cameraQuery = DB::table(
+                'canh_bao_camera'
+            )
+                ->where(
+                    'bai_tap_id',
+                    $baiTapId
+                )
+                ->where(
+                    'sinh_vien_id',
+                    $sinhVienId
+                );
 
-            $tabCount = DB::table('vi_pham_kiem_tra')
-                ->where('bai_tap_id', $baiTapId)
-                ->where('sinh_vien_id', $sinhVienId)
+            // Chỉ đếm cảnh báo phát hiện điện thoại.
+            $phoneCount = (clone $cameraQuery)
+                ->where(
+                    'loai_canh_bao',
+                    'phat_hien_dien_thoai'
+                )
                 ->count();
 
+            // Các cảnh báo camera khác,
+            // KHÔNG tính cảnh báo điện thoại.
+            $otherCameraCount = (clone $cameraQuery)
+                ->where(
+                    'loai_canh_bao',
+                    '!=',
+                    'phat_hien_dien_thoai'
+                )
+                ->count();
+
+            // Đếm số lần rời tab.
+            $tabCount = DB::table(
+                'vi_pham_kiem_tra'
+            )
+                ->where(
+                    'bai_tap_id',
+                    $baiTapId
+                )
+                ->where(
+                    'sinh_vien_id',
+                    $sinhVienId
+                )
+                ->count();
+
+            // ======================================
+            // 6. KIỂM TRA BÀI ĐÃ NỘP CHƯA
+            // ======================================
+
             $daNop = DB::table('bai_nop')
-                ->where('bai_tap_id', $baiTapId)
-                ->where('sinh_vien_id', $sinhVienId)
+                ->where(
+                    'bai_tap_id',
+                    $baiTapId
+                )
+                ->where(
+                    'sinh_vien_id',
+                    $sinhVienId
+                )
                 ->exists();
 
-            // Không ghi thêm sau khi nộp hoặc đã khóa
+            // ======================================
+            // 7. KIỂM TRA EVENT ID ĐÃ TỒN TẠI
+            // ======================================
+
+            // Mỗi eventId chỉ được ghi nhận một lần.
+            $existed = (clone $cameraQuery)
+                ->where(
+                    'event_id',
+                    $data['eventId']
+                )
+                ->exists();
+
+            // ======================================
+            // 8. NẾU ĐÃ KHÓA HOẶC ĐÃ NỘP
+            //    THÌ KHÔNG GHI THÊM
+            // ======================================
+
             if (
                 $daNop ||
-                $cameraCount >= 5 ||
-                $tabCount >= 3
+                $phoneCount >= self::MAX_PHONE_WARNINGS ||
+                $otherCameraCount >= self::MAX_CAMERA_WARNINGS ||
+                $tabCount >= self::MAX_TAB_WARNINGS
             ) {
                 return $this->responseState(
-                    $cameraCount,
+                    $otherCameraCount,
+                    $phoneCount,
                     $tabCount,
                     $daNop
                 );
             }
 
-            // Kiểm tra thời gian thi
-            $now = Carbon::now('Asia/Ho_Chi_Minh');
+            // Nếu eventId đã tồn tại,
+            // trả lại bộ đếm hiện tại.
+            if ($existed) {
+                return $this->responseState(
+                    $otherCameraCount,
+                    $phoneCount,
+                    $tabCount,
+                    $daNop
+                );
+            }
+
+            // ======================================
+            // 9. KIỂM TRA THỜI GIAN THI
+            // ======================================
+
+            $timezone = 'Asia/Ho_Chi_Minh';
+            $now = Carbon::now($timezone);
+
+            $startValue =
+                $baiTap->thoi_gian_bat_dau ?? null;
+
+            $endValue =
+                $baiTap->thoi_gian_ket_thuc ?? null;
+
+            $dueValue =
+                $baiTap->han_nop ?? null;
+
+            abort_if(
+                empty($startValue),
+                409,
+                'Bài kiểm tra chưa có thời gian bắt đầu.'
+            );
+
+            abort_if(
+                empty($endValue) && empty($dueValue),
+                409,
+                'Bài kiểm tra chưa có thời gian kết thúc.'
+            );
 
             $start = Carbon::parse(
-                $baiTap->thoi_gian_bat_dau,
-                'Asia/Ho_Chi_Minh'
+                $startValue,
+                $timezone
             );
 
-            $deadline = Carbon::parse(
-                $baiTap->thoi_gian_ket_thuc
-                    ?: $baiTap->han_nop,
-                'Asia/Ho_Chi_Minh'
-            );
+            // Chọn thời hạn sớm nhất
+            // nếu có cả kết thúc và hạn nộp.
+            $deadlines = [];
 
-            if (!empty($baiTap->han_nop)) {
-                $hanNop = Carbon::parse(
-                    $baiTap->han_nop,
-                    'Asia/Ho_Chi_Minh'
+            if (!empty($endValue)) {
+                $deadlines[] = Carbon::parse(
+                    $endValue,
+                    $timezone
                 );
+            }
 
-                if ($hanNop->lt($deadline)) {
-                    $deadline = $hanNop;
+            if (!empty($dueValue)) {
+                $deadlines[] = Carbon::parse(
+                    $dueValue,
+                    $timezone
+                );
+            }
+
+            $deadline = $deadlines[0];
+
+            foreach ($deadlines as $value) {
+                if ($value->lt($deadline)) {
+                    $deadline = $value;
                 }
             }
 
@@ -135,50 +287,149 @@ class SinhVienCanhBaoCameraController extends Controller
                 'Bài kiểm tra đã hết thời gian.'
             );
 
-            // Gửi lại eventId cũ không được tính thêm
-            $existed = (clone $cameraQuery)
-                ->where('event_id', $data['eventId'])
-                ->exists();
+            // ======================================
+            // 10. LƯU CẢNH BÁO VÀO MYSQL
+            // ======================================
 
-            if (!$existed) {
-                DB::table('canh_bao_camera')->insert([
-                    'bai_tap_id' => $baiTapId,
-                    'sinh_vien_id' => $sinhVienId,
-                    'event_id' => $data['eventId'],
-                    'loai_canh_bao' => $data['loaiCanhBao'],
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+            DB::table('canh_bao_camera')->insert([
+                'bai_tap_id' => $baiTapId,
+                'sinh_vien_id' => $sinhVienId,
 
-                $cameraCount++;
+                'event_id' => $data['eventId'],
+
+                'loai_canh_bao' =>
+                    $data['loaiCanhBao'],
+
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // ======================================
+            // 11. TĂNG ĐÚNG BỘ ĐẾM VI PHẠM
+            // ======================================
+
+            if (
+                $data['loaiCanhBao'] ===
+                'phat_hien_dien_thoai'
+            ) {
+
+                // Phát hiện điện thoại:
+                // tăng bộ đếm riêng /3.
+                $phoneCount++;
+
+            } else {
+
+                // Các vi phạm camera khác:
+                // tăng bộ đếm /5.
+                $otherCameraCount++;
             }
 
+            // ======================================
+            // 12. TRẢ VỀ TRẠNG THÁI KHÓA
+            // ======================================
+
             return $this->responseState(
-                $cameraCount,
+                $otherCameraCount,
+                $phoneCount,
                 $tabCount,
                 false
             );
         });
     }
 
+    /**
+     * Trả về số lần cảnh báo và trạng thái khóa.
+     */
     private function responseState(
-        int $cameraCount,
+        int $otherCameraCount,
+        int $phoneCount,
         int $tabCount,
         bool $daNop
     ): JsonResponse {
-        $biKhoa = $cameraCount >= 5 || $tabCount >= 3;
+
+        // ======================================
+        // XÁC ĐỊNH ĐÃ KHÓA BÀI CHƯA
+        // ======================================
+
+        $phoneLocked =
+            $phoneCount >= self::MAX_PHONE_WARNINGS;
+
+        $cameraLocked =
+            $otherCameraCount >= self::MAX_CAMERA_WARNINGS;
+
+        $tabLocked =
+            $tabCount >= self::MAX_TAB_WARNINGS;
+
+        $biKhoa =
+            $phoneLocked ||
+            $cameraLocked ||
+            $tabLocked;
+
+        // ======================================
+        // XÁC ĐỊNH LÝ DO KHÓA
+        // ======================================
+
+        $lyDoKhoa = null;
+
+        if ($phoneLocked) {
+
+            $lyDoKhoa = 'dien_thoai';
+
+        } elseif ($cameraLocked) {
+
+            $lyDoKhoa = 'camera';
+
+        } elseif ($tabLocked) {
+
+            $lyDoKhoa = 'roi_tab';
+        }
+
+        // ======================================
+        // TRẢ VỀ JSON CHO VUE
+        // ======================================
 
         return response()->json([
             'status' => true,
+
             'data' => [
-                'soLanCamera' => $cameraCount,
-                'soLanViPham' => $tabCount,
-                'soLanConLai' => max(0, 5 - $cameraCount),
+
+                // Camera: tối đa 5 lần
+                'soLanCamera' =>
+                    $otherCameraCount,
+
+                // Điện thoại: tối đa 3 lần
+                'soLanDienThoai' =>
+                    $phoneCount,
+
+                // Rời tab: tối đa 3 lần
+                'soLanViPham' =>
+                    $tabCount,
+
+                // Số lượt còn lại
+                'soLanCameraConLai' => max(
+                    0,
+                    self::MAX_CAMERA_WARNINGS -
+                    $otherCameraCount
+                ),
+
+                'soLanDienThoaiConLai' => max(
+                    0,
+                    self::MAX_PHONE_WARNINGS -
+                    $phoneCount
+                ),
+
+                'soLanConLai' => max(
+                    0,
+                    self::MAX_TAB_WARNINGS -
+                    $tabCount
+                ),
+
+                // Trạng thái bài kiểm tra
                 'biKhoa' => $biKhoa,
                 'daNop' => $daNop,
-                'lyDoKhoa' => $cameraCount >= 5
-                    ? 'camera'
-                    : ($tabCount >= 3 ? 'roi_tab' : null),
+
+                // camera / dien_thoai / roi_tab
+                'lyDoKhoa' => $lyDoKhoa,
             ],
         ]);
     }

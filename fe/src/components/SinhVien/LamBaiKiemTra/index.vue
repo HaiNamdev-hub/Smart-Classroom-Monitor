@@ -1,14 +1,9 @@
-
 <template>
   <div class="exam-page">
     <!-- Camera giám sát cố định ở góc trái trên. Không ghi video. -->
     <Teleport to="body">
       <div v-if="exam && cameraEnabled && !locked && !loading" class="exam-camera-floating">
-        <GiamSatCamera
-          @warning="handleCameraWarning"
-          @normal="handleCameraNormal"
-          @camera-state="handleCameraState"
-        />
+        <GiamSatCamera @warning="handleCameraWarning" @normal="handleCameraNormal" @camera-state="handleCameraState" />
       </div>
     </Teleport>
     <!-- HEADER -->
@@ -28,10 +23,7 @@
       <div class="header-actions">
         <span class="save-pill">{{ saveStatus }}</span>
 
-        <strong
-          class="timer"
-          :class="{ danger: remainingSeconds <= 300 }"
-        >
+        <strong class="timer" :class="{ danger: remainingSeconds <= 300 }">
           ⏱ {{ formattedTime }}
         </strong>
       </div>
@@ -41,11 +33,7 @@
     <div v-if="error" class="notice error-notice" role="alert">
       <span>{{ error }}</span>
 
-      <button
-        v-if="!locked"
-        type="button"
-        @click="reloadExam"
-      >
+      <button v-if="!locked" type="button" @click="reloadExam">
         Thử lại
       </button>
     </div>
@@ -63,7 +51,12 @@
 
       <h2>Bài kiểm tra đã bị khóa</h2>
 
-      <p v-if="lockReason === 'camera'">
+      <p v-if="lockReason === 'dien_thoai'">
+        AI đã ghi nhận
+        <strong>{{ phoneWarningCount }}/3 lần phát hiện điện thoại</strong>.
+        Bài kiểm tra đã bị đình chỉ.
+      </p>
+      <p v-else-if="lockReason === 'camera'">
         Hệ thống đã ghi nhận
         <strong>{{ cameraWarningCount }}/5 cảnh báo camera</strong>.
       </p>
@@ -82,20 +75,13 @@
         <strong>Đình chỉ bài kiểm tra</strong>
       </div>
 
-      <button
-        type="button"
-        class="btn primary"
-        @click="goBack"
-      >
+      <button type="button" class="btn primary" @click="goBack">
         Quay về danh sách bài tập
       </button>
     </div>
 
     <!-- MẤT ĐỒNG BỘ GIÁM SÁT -->
-    <div
-      v-else-if="!monitorReady && exam"
-      class="state-card"
-    >
+    <div v-else-if="!monitorReady && exam" class="state-card">
       <div class="state-icon">⚠️</div>
 
       <h2>Tạm dừng bài kiểm tra</h2>
@@ -105,20 +91,13 @@
         Vui lòng kiểm tra kết nối và thử lại.
       </p>
 
-      <button
-        type="button"
-        class="btn primary"
-        @click="resumeMonitoring"
-      >
+      <button type="button" class="btn primary" @click="resumeMonitoring">
         Kết nối lại
       </button>
     </div>
 
     <!-- NỘI DUNG BÀI THI -->
-    <div
-      v-else-if="exam && monitorReady"
-      class="exam-wrap"
-    >
+    <div v-else-if="exam && monitorReady" class="exam-wrap">
       <!-- Yêu cầu bật camera mới được làm bài -->
       <div v-if="!cameraReady" class="camera-required" role="alert">
         <div class="camera-required-icon">📷</div>
@@ -131,341 +110,268 @@
       </div>
 
       <template v-else>
-      <!-- CẢNH BÁO GIÁM SÁT -->
-      <div class="monitor-banner">
-        <div>
-          <strong>◉ Giám sát bài kiểm tra</strong>
+        <!-- CẢNH BÁO GIÁM SÁT -->
+        <div class="monitor-banner">
+          <div>
+            <strong>◉ Giám sát bài kiểm tra</strong>
 
-          <p>
-            Không chuyển sang tab khác hoặc thu nhỏ trình duyệt.
-            Mỗi lần rời tab được gửi về hệ thống.
-            Sau 3 lần rời tab hoặc 5 cảnh báo camera,
-            bài kiểm tra có thể bị khóa.
-          </p>
-        </div>
-
-        <span
-          class="violation-badge"
-          :class="{
-            'warning-level': warningCount >= 2
-          }"
-        >
-          {{ warningCount }}/3 vi phạm
-        </span>
-      </div>
-
-      <!-- THỐNG KÊ CẢNH BÁO CAMERA -->
-      <div class="camera-warning-counter" role="status">
-        <div>
-          <strong>📷 Cảnh báo camera</strong>
-          <small>Không thấy khuôn mặt, nhiều khuôn mặt hoặc camera bị ngắt</small>
-        </div>
-        <strong :class="{ danger: cameraWarningCount >= 4 }">
-          {{ cameraWarningCount }}/5
-        </strong>
-      </div>
-
-      <!-- THỐNG KÊ -->
-      <section class="overview">
-        <div>
-          <small>SINH VIÊN</small>
-          <strong>{{ studentName }}</strong>
-        </div>
-
-        <div>
-          <small>SỐ CÂU HỎI</small>
-          <strong>{{ questions.length }}</strong>
-        </div>
-
-        <div>
-          <small>ĐÃ TRẢ LỜI</small>
-          <strong>
-            {{ answeredCount }}/{{ questions.length }}
-          </strong>
-        </div>
-
-        <div>
-          <small>SỐ LẦN RỜI TAB</small>
-          <strong
-            :class="{ 'text-danger': warningCount >= 2 }"
-          >
-            {{ warningCount }}/3
-          </strong>
-        </div>
-      </section>
-
-      <!-- KHÔNG CÓ CÂU HỎI -->
-      <div
-        v-if="questions.length === 0"
-        class="state-card"
-      >
-        <div class="state-icon">📋</div>
-        <h3>Bài kiểm tra chưa có câu hỏi</h3>
-        <p>Vui lòng liên hệ giảng viên.</p>
-      </div>
-
-      <!-- LAYOUT -->
-      <div v-else class="exam-layout">
-        <!-- CÂU HỎI -->
-        <main class="question-card">
-          <div class="question-meta">
-            <span>
-              Câu {{ currentIndex + 1 }}/{{ questions.length }}
-            </span>
-
-            <span class="point">
-              {{ currentQuestion?.diem ?? 0 }} điểm
-            </span>
+            <p>
+              Không chuyển sang tab khác hoặc thu nhỏ trình duyệt.
+              Mỗi lần rời tab được gửi về hệ thống.
+              Bài sẽ bị khóa sau 3 lần phát hiện điện thoại,
+              5 cảnh báo camera khác hoặc 3 lần rời tab.
+            </p>
           </div>
 
-          <h2>
-            {{ currentQuestion?.noi_dung }}
-          </h2>
+          <span class="violation-badge" :class="{
+            'warning-level': warningCount >= 2
+          }">
+            {{ warningCount }}/3 vi phạm
+          </span>
+        </div>
 
-          <!-- TRẮC NGHIỆM -->
-          <div
-            v-if="currentQuestion?.loai_cau_hoi === 'trac_nghiem'"
-            class="answers"
-          >
-            <label
-              v-for="(answer, index) in currentQuestion.dap_an"
-              :key="answer.id"
-              class="answer"
-              :class="{
+        <!-- THỐNG KÊ CẢNH BÁO CAMERA -->
+        <div class="camera-warning-counter" role="status">
+          <div>
+            <strong>📷 Cảnh báo camera</strong>
+            <small>Không thấy khuôn mặt, nhiều khuôn mặt hoặc camera bị ngắt</small>
+          </div>
+          <strong :class="{ danger: cameraWarningCount >= 4 }">
+            {{ cameraWarningCount }}/5
+          </strong>
+        </div>
+
+        <!-- CẢNH BÁO ĐIỆN THOẠI: BỘ ĐẾM RIÊNG -->
+        <div class="phone-warning-counter" role="status">
+          <div>
+            <strong>📱 Phát hiện điện thoại</strong>
+            <small>3 lần phát hiện điện thoại sẽ khóa bài kiểm tra</small>
+          </div>
+          <strong :class="{ danger: phoneWarningCount >= 2 }">
+            {{ phoneWarningCount }}/3
+          </strong>
+        </div>
+
+        <!-- THỐNG KÊ -->
+        <section class="overview">
+          <div>
+            <small>SINH VIÊN</small>
+            <strong>{{ studentName }}</strong>
+          </div>
+
+          <div>
+            <small>SỐ CÂU HỎI</small>
+            <strong>{{ questions.length }}</strong>
+          </div>
+
+          <div>
+            <small>ĐÃ TRẢ LỜI</small>
+            <strong>
+              {{ answeredCount }}/{{ questions.length }}
+            </strong>
+          </div>
+
+          <div>
+            <small>SỐ LẦN RỜI TAB</small>
+            <strong :class="{ 'text-danger': warningCount >= 2 }">
+              {{ warningCount }}/3
+            </strong>
+          </div>
+        </section>
+
+        <!-- KHÔNG CÓ CÂU HỎI -->
+        <div v-if="questions.length === 0" class="state-card">
+          <div class="state-icon">📋</div>
+          <h3>Bài kiểm tra chưa có câu hỏi</h3>
+          <p>Vui lòng liên hệ giảng viên.</p>
+        </div>
+
+        <!-- LAYOUT -->
+        <div v-else class="exam-layout">
+          <!-- CÂU HỎI -->
+          <main class="question-card">
+            <div class="question-meta">
+              <span>
+                Câu {{ currentIndex + 1 }}/{{ questions.length }}
+              </span>
+
+              <span class="point">
+                {{ currentQuestion?.diem ?? 0 }} điểm
+              </span>
+            </div>
+
+            <h2>
+              {{ currentQuestion?.noi_dung }}
+            </h2>
+
+            <!-- TRẮC NGHIỆM -->
+            <div v-if="currentQuestion?.loai_cau_hoi === 'trac_nghiem'" class="answers">
+              <label v-for="(answer, index) in currentQuestion.dap_an" :key="answer.id" class="answer" :class="{
                 selected:
                   String(answers[String(currentQuestion.id)]) ===
                   String(answer.id)
-              }"
-            >
-              <input
-                v-model="answers[String(currentQuestion.id)]"
-                type="radio"
-                :name="`question-${currentQuestion.id}`"
-                :value="answer.id"
-                :disabled="!canEdit"
-              />
+              }">
+                <input v-model="answers[String(currentQuestion.id)]" type="radio"
+                  :name="`question-${currentQuestion.id}`" :value="answer.id" :disabled="!canEdit" />
 
-              <span class="letter">
-                {{ String.fromCharCode(65 + index) }}
-              </span>
+                <span class="letter">
+                  {{ String.fromCharCode(65 + index) }}
+                </span>
 
-              <span>{{ answer.noi_dung }}</span>
-            </label>
-          </div>
+                <span>{{ answer.noi_dung }}</span>
+              </label>
+            </div>
 
-          <!-- TỰ LUẬN -->
-          <textarea
-            v-else-if="currentQuestion?.loai_cau_hoi === 'tu_luan'"
-            v-model="answers[String(currentQuestion.id)]"
-            :disabled="!canEdit"
-            maxlength="20000"
-            rows="9"
-            placeholder="Nhập câu trả lời của bạn..."
-          ></textarea>
+            <!-- TỰ LUẬN -->
+            <textarea v-else-if="currentQuestion?.loai_cau_hoi === 'tu_luan'"
+              v-model="answers[String(currentQuestion.id)]" :disabled="!canEdit" maxlength="20000" rows="9"
+              placeholder="Nhập câu trả lời của bạn..."></textarea>
 
-          <p v-else class="muted">
-            Loại câu hỏi không được hỗ trợ.
-          </p>
+            <p v-else class="muted">
+              Loại câu hỏi không được hỗ trợ.
+            </p>
 
-          <!-- ĐIỀU HƯỚNG -->
-          <div class="question-nav">
-            <button
-              type="button"
-              class="btn pale"
-              :disabled="currentIndex === 0"
-              @click="currentIndex--"
-            >
-              ← Câu trước
-            </button>
+            <!-- ĐIỀU HƯỚNG -->
+            <div class="question-nav">
+              <button type="button" class="btn pale" :disabled="currentIndex === 0" @click="currentIndex--">
+                ← Câu trước
+              </button>
 
-            <button
-              v-if="currentIndex < questions.length - 1"
-              type="button"
-              class="btn primary"
-              @click="currentIndex++"
-            >
-              Câu tiếp →
-            </button>
+              <button v-if="currentIndex < questions.length - 1" type="button" class="btn primary"
+                @click="currentIndex++">
+                Câu tiếp →
+              </button>
 
-            <button
-              v-else
-              type="button"
-              class="btn primary"
-              :disabled="!canEdit"
-              @click="showConfirm = true"
-            >
-              Kiểm tra & nộp
-            </button>
-          </div>
-        </main>
+              <button v-else type="button" class="btn primary" :disabled="!canEdit" @click="showConfirm = true">
+                Kiểm tra & nộp
+              </button>
+            </div>
+          </main>
 
-        <!-- SIDEBAR -->
-        <aside class="sidebar">
-          <h3>Danh sách câu hỏi</h3>
+          <!-- SIDEBAR -->
+          <aside class="sidebar">
+            <h3>Danh sách câu hỏi</h3>
 
-          <p class="muted">
-            Chọn số câu để chuyển đến câu hỏi tương ứng.
-          </p>
+            <p class="muted">
+              Chọn số câu để chuyển đến câu hỏi tương ứng.
+            </p>
 
-          <div class="question-grid">
-            <button
-              v-for="(question, index) in questions"
-              :key="question.id"
-              type="button"
-              class="q-button"
-              :class="{
+            <div class="question-grid">
+              <button v-for="(question, index) in questions" :key="question.id" type="button" class="q-button" :class="{
                 answered: isAnswered(question.id),
                 active: index === currentIndex
-              }"
-              @click="currentIndex = index"
-            >
-              {{ index + 1 }}
-            </button>
-          </div>
-
-          <!-- TIẾN ĐỘ -->
-          <div class="progress">
-            <div class="progress-header">
-              <span>Tiến độ làm bài</span>
-              <strong>{{ progress }}%</strong>
+              }" @click="currentIndex = index">
+                {{ index + 1 }}
+              </button>
             </div>
 
-            <div class="progress-track">
-              <div
-                class="progress-fill"
-                :style="{ width: progress + '%' }"
-              ></div>
-            </div>
-          </div>
+            <!-- TIẾN ĐỘ -->
+            <div class="progress">
+              <div class="progress-header">
+                <span>Tiến độ làm bài</span>
+                <strong>{{ progress }}%</strong>
+              </div>
 
-          <!-- GIÁM SÁT -->
-          <div class="monitor-box">
-            <strong>🛡 Quy định giám sát</strong>
-
-            <p>
-              Rời tab 3 lần hoặc ghi nhận 5 cảnh báo camera
-              sẽ khóa bài kiểm tra. Hai bộ đếm độc lập.
-            </p>
-            <p>📷 Cảnh báo camera: <strong>{{ cameraWarningCount }}/5</strong></p>
-
-            <div class="violation-list">
-              <div
-                v-for="number in 3"
-                :key="number"
-                class="violation-item"
-                :class="{
-                  violated: warningCount >= number
-                }"
-              >
-                <span>
-                  {{ warningCount >= number ? "⚠" : "○" }}
-                  Lần {{ number }}
-                </span>
-
-                <span>
-                  {{
-                    warningCount >= number
-                      ? "Đã ghi nhận"
-                      : "Chưa vi phạm"
-                  }}
-                </span>
+              <div class="progress-track">
+                <div class="progress-fill" :style="{ width: progress + '%' }"></div>
               </div>
             </div>
-          </div>
 
-          <button
-            type="button"
-            class="btn submit-button"
-            :disabled="!canEdit"
-            @click="showConfirm = true"
-          >
-            Nộp bài kiểm tra
-          </button>
-        </aside>
-      </div>
+            <!-- GIÁM SÁT -->
+            <div class="monitor-box">
+              <strong>🛡 Quy định giám sát</strong>
+
+              <p>
+                Rời tab 3 lần, ghi nhận 5 cảnh báo camera khác
+                hoặc phát hiện điện thoại 3 lần sẽ khóa bài.
+                Ba bộ đếm độc lập.
+              </p>
+              <p>📷 Cảnh báo camera khác: <strong>{{ cameraWarningCount }}/5</strong></p>
+              <p>📱 Phát hiện điện thoại: <strong>{{ phoneWarningCount }}/3</strong></p>
+
+              <div class="violation-list">
+                <div v-for="number in 3" :key="number" class="violation-item" :class="{
+                  violated: warningCount >= number
+                }">
+                  <span>
+                    {{ warningCount >= number ? "⚠" : "○" }}
+                    Lần {{ number }}
+                  </span>
+
+                  <span>
+                    {{
+                      warningCount >= number
+                        ? "Đã ghi nhận"
+                        : "Chưa vi phạm"
+                    }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <button type="button" class="btn submit-button" :disabled="!canEdit" @click="showConfirm = true">
+              Nộp bài kiểm tra
+            </button>
+          </aside>
+        </div>
       </template>
     </div>
 
     <!-- XÁC NHẬN NỘP -->
-    
-<!-- HỘP THOẠI XÁC NHẬN NỘP BÀI -->
-<Teleport to="body">
-  <div
-    v-if="showConfirm && !locked"
-    class="exam-modal-overlay"
-    @click.self="showConfirm = false"
-  >
-    <div
-      class="exam-modal-content"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="submit-dialog-title"
-    >
-      <div class="exam-modal-icon">📤</div>
 
-      <h2 id="submit-dialog-title">
-        Xác nhận nộp bài
-      </h2>
+    <!-- HỘP THOẠI XÁC NHẬN NỘP BÀI -->
+    <Teleport to="body">
+      <div v-if="showConfirm && !locked" class="exam-modal-overlay" @click.self="showConfirm = false">
+        <div class="exam-modal-content" role="dialog" aria-modal="true" aria-labelledby="submit-dialog-title">
+          <div class="exam-modal-icon">📤</div>
 
-      <p>
-        Bạn đã trả lời
-        <strong>
-          {{ answeredCount }}/{{ questions.length }}
-        </strong>
-        câu hỏi.
-      </p>
+          <h2 id="submit-dialog-title">
+            Xác nhận nộp bài
+          </h2>
 
-      <p v-if="answeredCount < questions.length">
-        Còn
-        <strong>
-          {{ questions.length - answeredCount }}
-        </strong>
-        câu chưa trả lời.
-      </p>
+          <p>
+            Bạn đã trả lời
+            <strong>
+              {{ answeredCount }}/{{ questions.length }}
+            </strong>
+            câu hỏi.
+          </p>
 
-      <p class="exam-modal-warning">
-        Sau khi nộp bài, bạn sẽ không thể
-        chỉnh sửa câu trả lời.
-      </p>
+          <p v-if="answeredCount < questions.length">
+            Còn
+            <strong>
+              {{ questions.length - answeredCount }}
+            </strong>
+            câu chưa trả lời.
+          </p>
 
-      <div class="exam-modal-actions">
-        <button
-          type="button"
-          class="exam-modal-cancel"
-          :disabled="submitting"
-          @click="showConfirm = false"
-        >
-          Tiếp tục làm
-        </button>
+          <p class="exam-modal-warning">
+            Sau khi nộp bài, bạn sẽ không thể
+            chỉnh sửa câu trả lời.
+          </p>
 
-        <button
-          type="button"
-          class="exam-modal-submit"
-          :disabled="submitting || !canEdit"
-          @click="submitExam(false)"
-        >
-          {{
-            submitting
-              ? "Đang nộp..."
-              : "Xác nhận nộp bài"
-          }}
-        </button>
+          <div class="exam-modal-actions">
+            <button type="button" class="exam-modal-cancel" :disabled="submitting" @click="showConfirm = false">
+              Tiếp tục làm
+            </button>
+
+            <button type="button" class="exam-modal-submit" :disabled="submitting || !canEdit"
+              @click="submitExam(false)">
+              {{
+                submitting
+                  ? "Đang nộp..."
+                  : "Xác nhận nộp bài"
+              }}
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
-</Teleport>
+    </Teleport>
 
 
     <!-- POPUP CẢNH BÁO -->
-    <div
-      v-if="showWarning && !locked"
-      class="overlay"
-    >
-      <div
-        class="modal warning-modal"
-        role="alertdialog"
-        aria-modal="true"
-      >
+    <div v-if="showWarning && !locked" class="overlay">
+      <div class="modal warning-modal" role="alertdialog" aria-modal="true">
         <div class="modal-icon">⚠️</div>
 
         <h2>Cảnh báo rời tab!</h2>
@@ -486,30 +392,23 @@
           }}
         </p>
 
-        <button
-          type="button"
-          class="btn primary full-width"
-          @click="showWarning = false"
-        >
+        <button type="button" class="btn primary full-width" @click="showWarning = false">
           Tôi đã hiểu
         </button>
       </div>
     </div>
 
     <!-- THÔNG BÁO KHÓA -->
-    <div
-      v-if="showLockNotice"
-      class="overlay"
-    >
-      <div
-        class="modal warning-modal"
-        role="alertdialog"
-        aria-modal="true"
-      >
+    <div v-if="showLockNotice" class="overlay">
+      <div class="modal warning-modal" role="alertdialog" aria-modal="true">
         <div class="modal-icon">🔒</div>
         <h2>Bài kiểm tra bị khóa!</h2>
 
-        <p v-if="lockReason === 'camera'">
+        <p v-if="lockReason === 'dien_thoai'">
+          Đã ghi nhận 3 lần phát hiện điện thoại.
+          Hệ thống đã khóa bài kiểm tra.
+        </p>
+        <p v-else-if="lockReason === 'camera'">
           Đã ghi nhận 5 cảnh báo camera.
           Hệ thống đã khóa bài kiểm tra.
         </p>
@@ -518,11 +417,7 @@
           bài kiểm tra và không cho phép làm tiếp.
         </p>
 
-        <button
-          type="button"
-          class="btn primary full-width"
-          @click="showLockNotice = false"
-        >
+        <button type="button" class="btn primary full-width" @click="showLockNotice = false">
           Đã hiểu
         </button>
       </div>
@@ -576,6 +471,7 @@ const studentName = ref("Sinh viên")
 
 const warningCount = ref(0)
 const cameraWarningCount = ref(0)
+const phoneWarningCount = ref(0)
 const lockReason = ref("")
 let cameraQueue = []
 let cameraRequest = null
@@ -652,6 +548,7 @@ function handleCameraWarning(event) {
     khong_co_khuon_mat: "khong_co_khuon_mat",
     nhieu_khuon_mat: "nhieu_khuon_mat",
     camera_ngat: "camera_ngat",
+    phat_hien_dien_thoai: "phat_hien_dien_thoai",
   }
 
   const loaiCanhBao = types[event.type]
@@ -710,19 +607,11 @@ async function flushCameraQueue() {
       // Chỉ xóa sau khi Backend phản hồi thành công.
       cameraQueue.shift()
 
-      cameraWarningCount.value = Math.max(
-        cameraWarningCount.value,
-        Number(data.soLanCamera ?? 0)
-      )
-
-      if (data.biKhoa === true) {
-        lockReason.value =
-          data.lyDoKhoa ||
-          (cameraWarningCount.value >= 5
-            ? "camera"
-            : "roi_tab")
-
-        applyLocked()
+      // Backend trả ba bộ đếm độc lập: camera, điện thoại và rời tab.
+      // Dùng cùng một hàm với API /trang-thai để tránh lệch trạng thái.
+      const stillAllowed = applyViolationState(data)
+      if (!stillAllowed) {
+        cameraQueue = []
         return
       }
     }
@@ -841,9 +730,8 @@ function getMessage(err) {
 }
 
 function endpoint(suffix = "") {
-  return `/sinh-vien/bai-kiem-tra/${
-    encodeURIComponent(baiTapId.value)
-  }${suffix}`
+  return `/sinh-vien/bai-kiem-tra/${encodeURIComponent(baiTapId.value)
+    }${suffix}`
 }
 
 function cloneAnswers() {
@@ -862,16 +750,12 @@ function applyLocked() {
   cameraReady.value = false
   monitorReady.value = false
 
-  if (lockReason.value === "camera") {
-    cameraWarningCount.value = Math.max(
-      5,
-      cameraWarningCount.value
-    )
-  } else {
-    warningCount.value = Math.max(
-      3,
-      warningCount.value
-    )
+  if (lockReason.value === "dien_thoai") {
+    phoneWarningCount.value = Math.max(3, phoneWarningCount.value)
+  } else if (lockReason.value === "camera") {
+    cameraWarningCount.value = Math.max(5, cameraWarningCount.value)
+  } else if (lockReason.value === "roi_tab") {
+    warningCount.value = Math.max(3, warningCount.value)
   }
 
   showConfirm.value = false
@@ -886,11 +770,11 @@ function applyLocked() {
 
 
 
+
 function applyViolationState(data) {
   const tabCount = Number(data?.soLanViPham ?? 0)
-  // Một số API rời tab cũ chỉ trả về soLanViPham;
-  // khi thiếu soLanCamera giữ nguyên giá trị đã đồng bộ trước đó.
-  const camCount = Number(data?.soLanCamera ?? cameraWarningCount.value)
+  const camCount = Number(data?.soLanCamera ?? 0)
+  const phoneCount = Number(data?.soLanDienThoai ?? 0)
 
   if (Number.isFinite(tabCount)) {
     warningCount.value = Math.max(
@@ -906,16 +790,26 @@ function applyViolationState(data) {
     )
   }
 
+  if (Number.isFinite(phoneCount)) {
+    phoneWarningCount.value = Math.max(
+      phoneWarningCount.value,
+      phoneCount
+    )
+  }
+
   if (
     data?.biKhoa === true ||
-    warningCount.value >= 3 ||
-    cameraWarningCount.value >= 5
+    phoneWarningCount.value >= 3 ||
+    cameraWarningCount.value >= 5 ||
+    warningCount.value >= 3
   ) {
     lockReason.value =
       data?.lyDoKhoa ||
-      (cameraWarningCount.value >= 5
-        ? "camera"
-        : "roi_tab")
+      (phoneWarningCount.value >= 3
+        ? "dien_thoai"
+        : cameraWarningCount.value >= 5
+          ? "camera"
+          : "roi_tab")
 
     applyLocked()
     return false
@@ -925,14 +819,17 @@ function applyViolationState(data) {
 }
 
 
+
 function handleApiError(err) {
   const message = getMessage(err)
 
   if (
     err.response?.status === 403 &&
-    /kh[oó]a|rời tab|vi phạm|camera/i.test(message)
+    /kh[oó]a|rời tab|vi phạm|camera|điện thoại|dien thoai/i.test(message)
   ) {
-    if (/camera/i.test(message)) {
+    if (/điện thoại|dien thoai/i.test(message)) {
+      lockReason.value = "dien_thoai"
+    } else if (/camera/i.test(message)) {
       lockReason.value = "camera"
     } else if (!lockReason.value) {
       lockReason.value = "roi_tab"
@@ -1127,6 +1024,7 @@ async function loadExam() {
   loaded = false
   exam.value = null
   cameraEnabled.value = false
+  cameraReady.value = false
 
   clearInterval(timerInterval)
   clearTimeout(saveTimer)
@@ -1178,8 +1076,8 @@ async function loadExam() {
 
     answers.value =
       data.answers &&
-      typeof data.answers === "object" &&
-      !Array.isArray(data.answers)
+        typeof data.answers === "object" &&
+        !Array.isArray(data.answers)
         ? data.answers
         : {}
 
@@ -1549,7 +1447,7 @@ onBeforeUnmount(() => {
   background: #fff;
 }
 
-.overview > div {
+.overview>div {
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -1558,7 +1456,7 @@ onBeforeUnmount(() => {
   border-right: 1px solid #e2e8f0;
 }
 
-.overview > div:last-child {
+.overview>div:last-child {
   border-right: 0;
 }
 
@@ -1793,7 +1691,7 @@ onBeforeUnmount(() => {
   background: #eff6ff;
 }
 
-.monitor-box > strong {
+.monitor-box>strong {
   color: #1d4ed8;
   font-size: 13px;
 }
@@ -2183,11 +2081,11 @@ onBeforeUnmount(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .overview > div:nth-child(2) {
+  .overview>div:nth-child(2) {
     border-right: 0;
   }
 
-  .overview > div:nth-child(-n+2) {
+  .overview>div:nth-child(-n+2) {
     border-bottom: 1px solid #e2e8f0;
   }
 }
@@ -2215,7 +2113,7 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr 1fr;
   }
 
-  .overview > div {
+  .overview>div {
     padding: 14px;
   }
 
@@ -2261,16 +2159,80 @@ onBeforeUnmount(() => {
   background: #fff7ed;
   color: #9a3412;
 }
-.camera-warning-counter > div { display: flex; flex-direction: column; gap: 5px; }
-.camera-warning-counter small { color: #9a3412; font-size: 11px; }
-.camera-warning-counter > strong { font-size: 20px; white-space: nowrap; }
-.camera-warning-counter .danger { color: #dc2626; }
+
+.camera-warning-counter>div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.camera-warning-counter small {
+  color: #9a3412;
+  font-size: 11px;
+}
+
+.camera-warning-counter>strong {
+  font-size: 20px;
+  white-space: nowrap;
+}
+
+.camera-warning-counter .danger {
+  color: #dc2626;
+}
+
 :global(html.dark-theme) .camera-warning-counter {
   background: #392617;
   border-color: #92400e;
   color: #fdba74;
 }
-:global(html.dark-theme) .camera-warning-counter small { color: #fed7aa; }
+
+:global(html.dark-theme) .camera-warning-counter small {
+  color: #fed7aa;
+}
+
+/* BỘ ĐẾM PHÁT HIỆN ĐIỆN THOẠI */
+.phone-warning-counter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 14px 18px;
+  border: 1px solid #fca5a5;
+  border-radius: 12px;
+  background: #fff1f2;
+  color: #9f1239;
+}
+
+.phone-warning-counter>div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.phone-warning-counter small {
+  font-size: 11px;
+  color: #9f1239;
+}
+
+.phone-warning-counter>strong {
+  font-size: 20px;
+  white-space: nowrap;
+}
+
+.phone-warning-counter .danger {
+  color: #dc2626;
+}
+
+:global(html.dark-theme) .phone-warning-counter {
+  background: #3b1923;
+  border-color: #9f1239;
+  color: #fecdd3;
+}
+
+:global(html.dark-theme) .phone-warning-counter small {
+  color: #fecdd3;
+}
 
 /* YÊU CẦU CAMERA TRƯỚC KHI LÀM BÀI */
 .camera-required {
@@ -2286,9 +2248,22 @@ onBeforeUnmount(() => {
   color: #92400e;
   text-align: center;
 }
-.camera-required-icon { font-size: 46px; }
-.camera-required h2 { font-size: 22px; margin: 12px 0; }
-.camera-required p { max-width: 550px; font-size: 13px; line-height: 1.8; }
+
+.camera-required-icon {
+  font-size: 46px;
+}
+
+.camera-required h2 {
+  font-size: 22px;
+  margin: 12px 0;
+}
+
+.camera-required p {
+  max-width: 550px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
 :global(html.dark-theme) .camera-required {
   background: #292117;
   border-color: #854d0e;
@@ -2307,8 +2282,9 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   overflow-x: hidden;
   border-radius: 15px;
-  box-shadow: 0 12px 35px rgba(0,0,0,.4);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, .4);
 }
+
 @media (max-width: 650px) {
   :global(.exam-camera-floating) {
     top: 8px;
@@ -2317,5 +2293,4 @@ onBeforeUnmount(() => {
     max-height: 65vh;
   }
 }
-
 </style>

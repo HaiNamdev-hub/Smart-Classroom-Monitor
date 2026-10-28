@@ -1,4 +1,3 @@
-
 <template>
   <div class="alert-page">
     <!-- HEADER -->
@@ -13,22 +12,13 @@
       </div>
 
       <div class="header-actions">
-        <button
-          type="button"
-          class="btn-outline"
-          :disabled="isBusy"
-          @click="fetchData"
-        >
+        <button type="button" class="btn-outline" :disabled="isBusy" @click="fetchData">
           <span :class="{ spinning: loading }">↻</span>
           {{ loading ? "Đang tải..." : "Làm mới" }}
         </button>
 
-        <button
-          type="button"
-          class="btn-primary"
-          :disabled="isBusy || pendingVisible.length === 0 || !!error"
-          @click="openBulkConfirm"
-        >
+        <button type="button" class="btn-primary" :disabled="isBusy || pendingVisible.length === 0 || !!error"
+          @click="openBulkConfirm">
           ✓ Xử lý đang hiển thị
           <span v-if="pendingVisible.length">
             ({{ pendingVisible.length }})
@@ -76,10 +66,13 @@
       </div>
     </div>
 
-      <div class="camera-summary" role="status">
-        <strong>📷 Cảnh báo camera: {{ soCanhBaoCamera }}</strong>
-        <span>Cảnh báo camera hiển thị trong cùng bảng. Hiện chỉ có chức năng xem xét, chưa đánh dấu xử lý qua API phiên.</span>
-      </div>
+    <div class="camera-summary" role="status">
+      <strong>📷 Cảnh báo camera: {{ soCanhBaoCamera }}</strong>
+      <strong>📱 Điện thoại: {{ soCanhBaoDienThoai }}</strong>
+      <strong>🔒 Bài thi đã khóa: {{ soBaiThiBiKhoa }}</strong>
+      <span>Phát hiện điện thoại 3 lần, camera khác 5 lần hoặc rời tab 3 lần sẽ khóa bài. Các cảnh báo AI cần được giảng
+        viên xem xét.</span>
+    </div>
 
     <!-- PANEL DANH SÁCH -->
     <section class="alerts-panel">
@@ -101,19 +94,11 @@
       <div class="toolbar">
         <div class="search-box">
           <span class="search-icon">⌕</span>
-          <input
-            v-model="filters.search"
-            type="search"
-            placeholder="Tìm sinh viên, MSSV, nội dung..."
-            aria-label="Tìm cảnh báo"
-          />
+          <input v-model="filters.search" type="search" placeholder="Tìm sinh viên, MSSV, nội dung..."
+            aria-label="Tìm cảnh báo" />
         </div>
 
-        <select
-          v-model="filters.loai"
-          class="filter-select"
-          aria-label="Lọc loại vi phạm"
-        >
+        <select v-model="filters.loai" class="filter-select" aria-label="Lọc loại vi phạm">
           <option value="ALL">Tất cả loại vi phạm</option>
           <option value="ung_dung_khong_cho_phep">
             Ứng dụng không cho phép
@@ -127,25 +112,17 @@
           <option value="khong_co_khuon_mat">Không phát hiện khuôn mặt</option>
           <option value="nhieu_khuon_mat">Nhiều khuôn mặt</option>
           <option value="camera_ngat">Camera bị ngắt</option>
+          <option value="phat_hien_dien_thoai">Phát hiện điện thoại</option>
         </select>
 
-        <select
-          v-model="filters.trangThai"
-          class="filter-select"
-          aria-label="Lọc trạng thái"
-        >
+        <select v-model="filters.trangThai" class="filter-select" aria-label="Lọc trạng thái">
           <option value="ALL">Tất cả trạng thái</option>
           <option value="CHUA_XU_LY">Chưa xử lý</option>
           <option value="DA_XU_LY">Đã xử lý</option>
           <option value="CAN_XEM_XET">Camera · Cần xem xét</option>
         </select>
 
-        <button
-          v-if="hasActiveFilters"
-          type="button"
-          class="clear-btn"
-          @click="clearFilters"
-        >
+        <button v-if="hasActiveFilters" type="button" class="clear-btn" @click="clearFilters">
           Xóa bộ lọc
         </button>
       </div>
@@ -161,37 +138,22 @@
         </button>
       </div>
 
-      <div
-        v-if="success"
-        class="notice notice-success"
-        role="status"
-      >
+      <div v-if="success" class="notice notice-success" role="status">
         <span>✓ {{ success }}</span>
-        <button
-          type="button"
-          aria-label="Đóng thông báo"
-          @click="success = ''"
-        >
+        <button type="button" aria-label="Đóng thông báo" @click="success = ''">
           ×
         </button>
       </div>
 
       <!-- LOADING -->
-      <div
-        v-if="loading && !hasLoaded"
-        class="state-box"
-        role="status"
-      >
+      <div v-if="loading && !hasLoaded" class="state-box" role="status">
         <div class="spinner"></div>
         <strong>Đang tải cảnh báo...</strong>
         <p>Hệ thống đang lấy dữ liệu từ máy chủ.</p>
       </div>
 
       <!-- EMPTY -->
-      <div
-        v-else-if="hasLoaded && alerts.length === 0"
-        class="state-box"
-      >
+      <div v-else-if="hasLoaded && alerts.length === 0" class="state-box">
         <div class="state-icon">🛡️</div>
         <strong>Chưa có cảnh báo vi phạm</strong>
         <p>
@@ -200,18 +162,11 @@
         </p>
       </div>
 
-      <div
-        v-else-if="hasLoaded && filteredAlerts.length === 0"
-        class="state-box"
-      >
+      <div v-else-if="hasLoaded && filteredAlerts.length === 0" class="state-box">
         <div class="state-icon">⌕</div>
         <strong>Không tìm thấy cảnh báo phù hợp</strong>
         <p>Hãy thay đổi từ khóa hoặc bộ lọc.</p>
-        <button
-          type="button"
-          class="btn-outline"
-          @click="clearFilters"
-        >
+        <button type="button" class="btn-outline" @click="clearFilters">
           Xóa bộ lọc
         </button>
       </div>
@@ -225,17 +180,14 @@
               <th>SINH VIÊN</th>
               <th>LOẠI VI PHẠM</th>
               <th>THỜI GIAN</th>
+              <th>KHÓA BÀI THI</th>
               <th>TRẠNG THÁI</th>
               <th>THAO TÁC</th>
             </tr>
           </thead>
 
           <tbody>
-            <tr
-              v-for="(item, index) in filteredAlerts"
-              :key="item.id"
-              :class="{ 'pending-row': isPending(item) }"
-            >
+            <tr v-for="(item, index) in filteredAlerts" :key="item.id" :class="{ 'pending-row': isPending(item) }">
               <td class="muted">{{ index + 1 }}</td>
 
               <td>
@@ -264,7 +216,10 @@
                     <strong>
                       {{ typeInfo(item.loaiCanhBao).text }}
                     </strong>
-                    <small v-if="item.nguon === 'camera'">📷 Giám sát bài kiểm tra</small>
+                    <small v-if="item.nguon === 'camera'">📷 {{ item.tenBaiKiemTra || 'Giám sát bài kiểm tra' }}</small>
+                    <small v-if="item.nguon === 'camera' && item.loaiCanhBao === 'phat_hien_dien_thoai'">
+                      📱 {{ item.soLanDienThoai }}/3 lần phát hiện điện thoại
+                    </small>
                     <small :title="item.chiTiet || ''">
                       {{ item.chiTiet || "Chưa có mô tả" }}
                     </small>
@@ -277,10 +232,17 @@
               </td>
 
               <td>
-                <span
-                  class="status-pill"
-                  :class="statusInfo(item).className"
-                >
+                <template v-if="item.nguon === 'camera'">
+                  <span class="status-pill" :class="item.biKhoa ? 'status-locked' : 'status-unknown'">
+                    {{ item.biKhoa ? '🔒 Đã khóa bài' : 'Chưa khóa' }}
+                  </span>
+                  <small v-if="item.biKhoa" class="lock-reason">{{ lockReasonText(item.lyDoKhoa) }}</small>
+                </template>
+                <span v-else class="muted">—</span>
+              </td>
+
+              <td>
+                <span class="status-pill" :class="statusInfo(item).className">
                   <span class="status-dot"></span>
                   {{ statusInfo(item).text }}
                 </span>
@@ -288,21 +250,12 @@
 
               <td>
                 <div class="row-actions">
-                  <button
-                    type="button"
-                    class="detail-btn"
-                    @click="openDetail(item)"
-                  >
+                  <button type="button" class="detail-btn" @click="openDetail(item)">
                     Chi tiết
                   </button>
 
-                  <button
-                    v-if="isPending(item)"
-                    type="button"
-                    class="process-btn"
-                    :disabled="isBusy || item.id == null"
-                    @click="openSingleConfirm(item)"
-                  >
+                  <button v-if="isPending(item)" type="button" class="process-btn" :disabled="isBusy || item.id == null"
+                    @click="openSingleConfirm(item)">
                     {{
                       processingId === item.id
                         ? "Đang xử lý..."
@@ -345,17 +298,8 @@
     </div>
 
     <!-- MODAL CHI TIẾT -->
-    <div
-      v-if="selectedAlert"
-      class="modal-overlay"
-      @click.self="selectedAlert = null"
-    >
-      <div
-        class="detail-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="detail-title"
-      >
+    <div v-if="selectedAlert" class="modal-overlay" @click.self="selectedAlert = null">
+      <div class="detail-modal" role="dialog" aria-modal="true" aria-labelledby="detail-title">
         <header class="modal-header">
           <div>
             <span class="eyebrow">
@@ -363,12 +307,7 @@
             </span>
             <h2 id="detail-title">Chi tiết vi phạm</h2>
           </div>
-          <button
-            type="button"
-            class="close-btn"
-            aria-label="Đóng"
-            @click="selectedAlert = null"
-          >
+          <button type="button" class="close-btn" aria-label="Đóng" @click="selectedAlert = null">
             ×
           </button>
         </header>
@@ -382,10 +321,7 @@
               <strong>
                 {{ typeInfo(selectedAlert.loaiCanhBao).text }}
               </strong>
-              <span
-                class="status-pill"
-                :class="statusInfo(selectedAlert).className"
-              >
+              <span class="status-pill" :class="statusInfo(selectedAlert).className">
                 {{ statusInfo(selectedAlert).text }}
               </span>
             </div>
@@ -418,6 +354,15 @@
             </div>
           </div>
 
+          <div v-if="selectedAlert.nguon === 'camera'" class="camera-detail-stats">
+            <div><small>📱 Điện thoại</small><strong>{{ selectedAlert.soLanDienThoai }}/3</strong></div>
+            <div><small>📷 Camera khác</small><strong>{{ selectedAlert.soLanCamera }}/5</strong></div>
+            <div><small>↗ Rời tab</small><strong>{{ selectedAlert.soLanViPham }}/3</strong></div>
+            <div><small>Trạng thái bài thi</small><strong :class="{ 'text-locked': selectedAlert.biKhoa }">{{
+              selectedAlert.biKhoa ? 'Đã khóa · ' + lockReasonText(selectedAlert.lyDoKhoa) : 'Chưa khóa' }}</strong>
+            </div>
+          </div>
+
           <div class="description-box">
             <small>Nội dung cảnh báo</small>
             <p>
@@ -427,20 +372,11 @@
         </div>
 
         <footer class="modal-footer">
-          <button
-            type="button"
-            class="btn-outline"
-            @click="selectedAlert = null"
-          >
+          <button type="button" class="btn-outline" @click="selectedAlert = null">
             Đóng
           </button>
-          <button
-            v-if="isPending(selectedAlert)"
-            type="button"
-            class="btn-primary"
-            :disabled="isBusy"
-            @click="processFromDetail"
-          >
+          <button v-if="isPending(selectedAlert)" type="button" class="btn-primary" :disabled="isBusy"
+            @click="processFromDetail">
             ✓ Đánh dấu đã xử lý
           </button>
         </footer>
@@ -448,17 +384,8 @@
     </div>
 
     <!-- XÁC NHẬN XỬ LÝ -->
-    <div
-      v-if="confirmAction"
-      class="modal-overlay"
-      @click.self="closeConfirm"
-    >
-      <div
-        class="confirm-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="confirm-title"
-      >
+    <div v-if="confirmAction" class="modal-overlay" @click.self="closeConfirm">
+      <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
         <div class="confirm-icon">✓</div>
 
         <h2 id="confirm-title">Xác nhận xử lý cảnh báo</h2>
@@ -480,21 +407,11 @@
         </div>
 
         <div class="confirm-actions">
-          <button
-            type="button"
-            class="btn-outline"
-            :disabled="isBusy"
-            @click="closeConfirm"
-          >
+          <button type="button" class="btn-outline" :disabled="isBusy" @click="closeConfirm">
             Hủy
           </button>
 
-          <button
-            type="button"
-            class="btn-primary"
-            :disabled="isBusy"
-            @click="confirmProcess"
-          >
+          <button type="button" class="btn-primary" :disabled="isBusy" @click="confirmProcess">
             {{
               isBusy
                 ? "Đang xử lý..."
@@ -560,6 +477,7 @@ function cameraDescription(type) {
     khong_co_khuon_mat: "Không phát hiện khuôn mặt liên tục trong 5 giây.",
     nhieu_khuon_mat: "Phát hiện nhiều khuôn mặt trong 3 giây.",
     camera_ngat: "Camera bị ngắt trong lúc làm bài.",
+    phat_hien_dien_thoai: "AI phát hiện điện thoại trong khung hình khi làm bài kiểm tra.",
   }[type] || "Sự kiện cảnh báo từ camera khi thi."
 }
 
@@ -582,6 +500,12 @@ function normalizeAlert(item, nguon = "phien") {
     nguon,
     baiTapId: item.baiTapId ?? item.bai_tap_id ?? null,
     tenBaiKiemTra: item.tenBaiKiemTra ?? item.tieu_de ?? "",
+    tenLop: item.tenLop ?? item.ten_lop ?? "",
+    soLanDienThoai: Number(item.soLanDienThoai ?? 0),
+    soLanCamera: Number(item.soLanCamera ?? 0),
+    soLanViPham: Number(item.soLanViPham ?? 0),
+    biKhoa: nguon === "camera" && (item.biKhoa === true || item.biKhoa === 1),
+    lyDoKhoa: item.lyDoKhoa ?? null,
     sinhVienId:
       item.sinhVienId ??
       item.sinh_vien_id ??
@@ -619,31 +543,59 @@ function normalizeAlert(item, nguon = "phien") {
 }
 
 /* LOẠI VI PHẠM */
+
 const alertTypes = {
   ung_dung_khong_cho_phep: {
     text: "Ứng dụng không cho phép",
-    icon: "▣",
+    icon: "▣"
   },
+
   website_khong_cho_phep: {
     text: "Website không cho phép",
-    icon: "◎",
+    icon: "◎"
   },
+
   copy_paste: {
     text: "Sao chép / Dán",
-    icon: "▤",
+    icon: "▤"
   },
+
   roi_phien: {
     text: "Rời phiên giám sát",
-    icon: "↗",
+    icon: "↗"
   },
+
+  roi_tab: {
+    text: "Rời tab khi làm bài kiểm tra",
+    icon: "⚠️"
+  },
+
   mat_ket_noi: {
     text: "Mất kết nối",
-    icon: "⌁",
+    icon: "⌁"
   },
-  khong_co_khuon_mat: { text: "Không phát hiện khuôn mặt", icon: "📷" },
-  nhieu_khuon_mat: { text: "Phát hiện nhiều khuôn mặt", icon: "👥" },
-  camera_ngat: { text: "Camera bị ngắt", icon: "📹" },
+
+  khong_co_khuon_mat: {
+    text: "Không phát hiện khuôn mặt",
+    icon: "📷"
+  },
+
+  nhieu_khuon_mat: {
+    text: "Phát hiện nhiều khuôn mặt",
+    icon: "👥"
+  },
+
+  camera_ngat: {
+    text: "Camera bị ngắt",
+    icon: "📹"
+  },
+
+  phat_hien_dien_thoai: {
+    text: "Phát hiện điện thoại",
+    icon: "📱"
+  }
 }
+
 
 function typeInfo(value) {
   return alertTypes[value] || {
@@ -760,6 +712,29 @@ function statValue(value) {
 const soCanhBaoCamera = computed(() =>
   alerts.value.filter((item) => item.nguon === "camera").length
 )
+
+const soCanhBaoDienThoai = computed(() =>
+  alerts.value.filter((item) => item.nguon === "camera" && item.loaiCanhBao === "phat_hien_dien_thoai").length
+)
+
+// Đếm số bài thi bị khóa theo cặp (bài tập, sinh viên), không theo số dòng cảnh báo.
+const soBaiThiBiKhoa = computed(() => {
+  const keys = new Set()
+  for (const item of alerts.value) {
+    if (item.nguon === "camera" && item.biKhoa && item.baiTapId != null && item.sinhVienId != null) {
+      keys.add(`${item.baiTapId}:${item.sinhVienId}`)
+    }
+  }
+  return keys.size
+})
+
+function lockReasonText(reason) {
+  return {
+    dien_thoai: "Phát hiện điện thoại 3 lần",
+    camera: "Cảnh báo camera khác 5 lần",
+    roi_tab: "Rời tab 3 lần",
+  }[reason] || "Đạt ngưỡng vi phạm"
+}
 
 const soChuaXuLy = computed(() =>
   alerts.value.filter(isPending).length
@@ -960,13 +935,25 @@ function closeConfirm() {
 }
 
 /* GỌI API XỬ LÝ */
+
 async function sendProcessRequest(id) {
-  const sourceAlert = alerts.value.find((item) => item.id === id)
+  const sourceAlert = alerts.value.find(
+    item => item.id === id
+  )
+
   if (!sourceAlert || sourceAlert.nguon !== "phien") {
-    throw new Error("Cảnh báo camera chưa hỗ trợ đánh dấu xử lý.")
+    throw new Error("Cảnh báo không hợp lệ.")
   }
+
+  // apiId là ID gốc Backend trả về.
+  const apiId = sourceAlert.apiId
+
+  if (apiId === null || apiId === undefined) {
+    throw new Error("Không tìm thấy ID cảnh báo.")
+  }
+
   const response = await api.put(
-    `/giang-vien/canh-bao/${encodeURIComponent(sourceAlert.apiId)}/xu-ly`
+    `/giang-vien/canh-bao/${encodeURIComponent(apiId)}/xu-ly`
   )
 
   if (
@@ -975,17 +962,17 @@ async function sendProcessRequest(id) {
   ) {
     throw new Error(
       response.data?.message ||
-      "Backend không xác nhận xử lý cảnh báo."
+      "Không thể xử lý cảnh báo."
     )
   }
 
-  // Chỉ cập nhật giao diện sau khi server phản hồi thành công.
-  alerts.value = alerts.value.map((item) =>
-    String(item.id) === String(id)
+  alerts.value = alerts.value.map(item =>
+    item.id === id
       ? { ...item, trangThai: "DA_XU_LY" }
       : item
   )
 }
+
 
 /* XỬ LÝ CẢNH BÁO */
 async function confirmProcess() {
@@ -1178,15 +1165,31 @@ button:disabled {
   color: #1e40af;
   font-size: 12px;
 }
-.camera-summary span { color: #475569; }
-.camera-view-only { color: #b45309; font-size: 11px; font-weight: 700; }
-.status-review { background: #fff7ed; color: #9a3412; }
+
+.camera-summary span {
+  color: #475569;
+}
+
+.camera-view-only {
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.status-review {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
 :global(html.dark-theme) .camera-summary {
   background: #1e293b;
   border-color: #334155;
   color: #bfdbfe;
 }
-:global(html.dark-theme) .camera-summary span { color: #cbd5e1; }
+
+:global(html.dark-theme) .camera-summary span {
+  color: #cbd5e1;
+}
 
 /* STATS */
 .stats-grid {
@@ -1205,7 +1208,7 @@ button:disabled {
   border: 1px solid #e5e7eb;
   border-radius: 15px;
   background: #fff;
-  box-shadow: 0 2px 8px rgba(15,23,42,0.04);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
 }
 
 .stat-icon {
@@ -1438,7 +1441,7 @@ button:disabled {
 }
 
 .student-info,
-.violation-cell > div {
+.violation-cell>div {
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -1676,7 +1679,7 @@ button:disabled {
   overflow-y: auto;
   border-radius: 18px;
   background: #fff;
-  box-shadow: 0 20px 70px rgba(0,0,0,0.2);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.2);
 }
 
 .modal-header {
@@ -1728,7 +1731,7 @@ button:disabled {
   font-size: 22px;
 }
 
-.detail-summary > div {
+.detail-summary>div {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1745,7 +1748,7 @@ button:disabled {
   gap: 15px;
 }
 
-.detail-grid > div {
+.detail-grid>div {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1858,7 +1861,7 @@ button:disabled {
 :global(html.dark-theme) .detail-modal,
 :global(html.dark-theme) .confirm-modal {
   background: #111;
-  border-color: rgba(255,255,255,0.14);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 :global(html.dark-theme) .search-box,
@@ -1868,7 +1871,7 @@ button:disabled {
 :global(html.dark-theme) .description-box {
   background: #202327;
   color: #fff;
-  border-color: rgba(255,255,255,0.14);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 :global(html.dark-theme) .search-box input {
@@ -1884,7 +1887,7 @@ button:disabled {
 :global(html.dark-theme) .panel-footer,
 :global(html.dark-theme) .modal-header,
 :global(html.dark-theme) .modal-footer {
-  border-color: rgba(255,255,255,0.12);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 :global(html.dark-theme) .description-box p {
@@ -1892,8 +1895,8 @@ button:disabled {
 }
 
 :global(html.dark-theme) .info-note {
-  background: rgba(37,99,235,0.12);
-  border-color: rgba(96,165,250,0.3);
+  background: rgba(37, 99, 235, 0.12);
+  border-color: rgba(96, 165, 250, 0.3);
 }
 
 :global(html.dark-theme) .info-note p {
@@ -1901,22 +1904,22 @@ button:disabled {
 }
 
 :global(html.dark-theme) .blue {
-  background: rgba(37,99,235,0.15);
+  background: rgba(37, 99, 235, 0.15);
   color: #60a5fa;
 }
 
 :global(html.dark-theme) .red {
-  background: rgba(220,38,38,0.15);
+  background: rgba(220, 38, 38, 0.15);
   color: #f87171;
 }
 
 :global(html.dark-theme) .green {
-  background: rgba(22,163,74,0.15);
+  background: rgba(22, 163, 74, 0.15);
   color: #4ade80;
 }
 
 :global(html.dark-theme) .purple {
-  background: rgba(147,51,234,0.15);
+  background: rgba(147, 51, 234, 0.15);
   color: #c084fc;
 }
 
@@ -1979,6 +1982,61 @@ button:disabled {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Trạng thái khóa bài kiểm tra và chi tiết giám sát */
+.status-locked {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.lock-reason {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  color: #b91c1c;
+}
+
+.camera-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.camera-detail-stats>div {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  background: #f8fafc;
+  border-radius: 10px;
+}
+
+.camera-detail-stats small {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.camera-detail-stats strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.text-locked {
+  color: #dc2626;
+}
+
+:global(html.dark-theme) .camera-detail-stats>div {
+  background: #202327;
+}
+
+@media (max-width: 480px) {
+  .camera-detail-stats {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

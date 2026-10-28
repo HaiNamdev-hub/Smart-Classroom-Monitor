@@ -902,152 +902,196 @@ class GiangVienApiController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    
-/*
+
+    /*
 |--------------------------------------------------------------------------
 | DANH SÁCH PHIÊN GIÁM SÁT
 |--------------------------------------------------------------------------
 */
-public function phienGiamSat(Request $request): JsonResponse
-{
-    $timezone = 'Asia/Ho_Chi_Minh';
-    $now = Carbon::now($timezone)->format('Y-m-d H:i:s');
+    public function phienGiamSat(Request $request): JsonResponse
+    {
+        $timezone = 'Asia/Ho_Chi_Minh';
+        $now = Carbon::now($timezone)->format('Y-m-d H:i:s');
 
-    // Đồng bộ các phiên đã đến giờ bắt đầu.
-    // Chỉ cập nhật phiên chưa bắt đầu và có thời gian hợp lệ.
-    PhienGiamSat::query()
-        ->whereIn('lop_hoc_id', $this->classIds($request))
-        ->where('trang_thai', 'chua_bat_dau')
-        ->where('thoi_gian_bat_dau', '<=', $now)
-        ->update([
-            'trang_thai' => 'dang_dien_ra'
+        // Đồng bộ các phiên đã đến giờ bắt đầu.
+        // Chỉ cập nhật phiên chưa bắt đầu và có thời gian hợp lệ.
+        PhienGiamSat::query()
+            ->whereIn('lop_hoc_id', $this->classIds($request))
+            ->where('trang_thai', 'chua_bat_dau')
+            ->where('thoi_gian_bat_dau', '<=', $now)
+            ->update([
+                'trang_thai' => 'dang_dien_ra'
+            ]);
+
+        $sessions = PhienGiamSat::query()
+            ->whereIn('lop_hoc_id', $this->classIds($request))
+            ->with('lopHoc:id,ma_lop,ten_lop')
+            ->orderByDesc('id')
+            ->get();
+
+        $result = $sessions->map(function ($session) {
+            return [
+                'id' => $session->id,
+                'lopId' => $session->lop_hoc_id,
+                'baiTapId' => $session->bai_tap_id,
+                'tenPhien' => $session->ten_phien,
+
+                'tenLop' => $session->lopHoc?->ten_lop,
+                'maLop' => $session->lopHoc?->ma_lop,
+
+                'thoigianBatDau' => $this->dateValue(
+                    $session->thoi_gian_bat_dau
+                ),
+
+                'thoigianKetThuc' => $this->dateValue(
+                    $session->thoi_gian_ket_thuc
+                ),
+
+                'trangThai' => strtoupper(
+                    $session->trang_thai
+                ),
+            ];
+        });
+
+        return response()->json([
+            'status' => true,
+            'data' => $result,
         ]);
+    }
 
-    $sessions = PhienGiamSat::query()
-        ->whereIn('lop_hoc_id', $this->classIds($request))
-        ->with('lopHoc:id,ma_lop,ten_lop')
-        ->orderByDesc('id')
-        ->get();
-
-    $result = $sessions->map(function ($session) {
-        return [
-            'id' => $session->id,
-            'lopId' => $session->lop_hoc_id,
-            'baiTapId' => $session->bai_tap_id,
-            'tenPhien' => $session->ten_phien,
-
-            'tenLop' => $session->lopHoc?->ten_lop,
-            'maLop' => $session->lopHoc?->ma_lop,
-
-            'thoigianBatDau' => $this->dateValue(
-                $session->thoi_gian_bat_dau
-            ),
-
-            'thoigianKetThuc' => $this->dateValue(
-                $session->thoi_gian_ket_thuc
-            ),
-
-            'trangThai' => strtoupper(
-                $session->trang_thai
-            ),
-        ];
-    });
-
-    return response()->json([
-        'status' => true,
-        'data' => $result,
-    ]);
-}
-
-/*
+    /*
 |--------------------------------------------------------------------------
 | TẠO PHIÊN GIÁM SÁT
 |--------------------------------------------------------------------------
 */
-public function createPhien(Request $request): JsonResponse
-{
-    $data = $request->validate([
-        'lopId' => [
-            'required',
-            'integer',
-            'exists:lop_hoc,id'
-        ],
-        'tenPhien' => [
-            'required',
-            'string',
-            'max:255'
-        ],
-        'thoigianBatDau' => [
-            'required',
-            'date_format:Y-m-d H:i:s'
-        ],
-    ]);
+    public function createPhien(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'lopId' => [
+                'required',
+                'integer',
+                'exists:lop_hoc,id'
+            ],
+            'tenPhien' => [
+                'required',
+                'string',
+                'max:255'
+            ],
+            'thoigianBatDau' => [
+                'required',
+                'date_format:Y-m-d H:i:s'
+            ],
+        ]);
 
-    $this->ownClass(
-        $request,
-        (int) $data['lopId']
-    );
+        $this->ownClass(
+            $request,
+            (int) $data['lopId']
+        );
 
-    $timezone = 'Asia/Ho_Chi_Minh';
+        $timezone = 'Asia/Ho_Chi_Minh';
 
-    $start = Carbon::createFromFormat(
-        '!Y-m-d H:i:s',
-        $data['thoigianBatDau'],
-        $timezone
-    );
+        $start = Carbon::createFromFormat(
+            '!Y-m-d H:i:s',
+            $data['thoigianBatDau'],
+            $timezone
+        );
 
-    $now = Carbon::now($timezone);
+        $now = Carbon::now($timezone);
 
-    $status = $start->greaterThan($now)
-        ? 'chua_bat_dau'
-        : 'dang_dien_ra';
+        $status = $start->greaterThan($now)
+            ? 'chua_bat_dau'
+            : 'dang_dien_ra';
 
-    $session = PhienGiamSat::create([
-        'lop_hoc_id' => $data['lopId'],
-        'nguoi_tao_id' => $request->user()->id,
-        'bai_tap_id' => null,
+        $session = PhienGiamSat::create([
+            'lop_hoc_id' => $data['lopId'],
+            'nguoi_tao_id' => $request->user()->id,
+            'bai_tap_id' => null,
 
-        'ten_phien' => trim($data['tenPhien']),
+            'ten_phien' => trim($data['tenPhien']),
 
-        'thoi_gian_bat_dau' =>
+            'thoi_gian_bat_dau' =>
             $start->format('Y-m-d H:i:s'),
 
-        'thoi_gian_ket_thuc' => null,
-        'trang_thai' => $status,
-    ]);
+            'thoi_gian_ket_thuc' => null,
+            'trang_thai' => $status,
+        ]);
 
-    return response()->json([
-        'status' => true,
-        'message' => 'Tạo phiên giám sát thành công.',
-        'data' => [
-            'id' => $session->id,
-            'trangThai' => strtoupper($status),
-        ],
-    ], 201);
-}
+        return response()->json([
+            'status' => true,
+            'message' => 'Tạo phiên giám sát thành công.',
+            'data' => [
+                'id' => $session->id,
+                'trangThai' => strtoupper($status),
+            ],
+        ], 201);
+    }
 
-/*
+    /*
 |--------------------------------------------------------------------------
 | BẮT ĐẦU PHIÊN GIÁM SÁT
 |--------------------------------------------------------------------------
 */
-public function batDauPhien(
-    Request $request,
-    int $id
-): JsonResponse {
-    $session = $this->ownSession($request, $id);
+    public function batDauPhien(
+        Request $request,
+        int $id
+    ): JsonResponse {
+        $session = $this->ownSession($request, $id);
 
-    if ($session->trang_thai === 'da_ket_thuc') {
-        return response()->json([
-            'status' => false,
-            'message' => 'Phiên này đã kết thúc.',
-        ], 409);
-    }
+        if ($session->trang_thai === 'da_ket_thuc') {
+            return response()->json([
+                'status' => false,
+                'message' => 'Phiên này đã kết thúc.',
+            ], 409);
+        }
 
-    if ($session->trang_thai === 'dang_dien_ra') {
+        if ($session->trang_thai === 'dang_dien_ra') {
+            return response()->json([
+                'status' => true,
+                'message' => 'Phiên đã bắt đầu.',
+                'data' => [
+                    'id' => $session->id,
+                    'trangThai' => 'DANG_DIEN_RA',
+                ],
+            ]);
+        }
+
+        $timezone = 'Asia/Ho_Chi_Minh';
+
+        $startText = $this->dateValue(
+            $session->thoi_gian_bat_dau
+        );
+
+        $start = Carbon::createFromFormat(
+            '!Y-m-d H:i:s',
+            $startText,
+            $timezone
+        );
+
+        if (Carbon::now($timezone)->lessThan($start)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Chưa đến giờ bắt đầu phiên.',
+            ], 409);
+        }
+
+        $updated = PhienGiamSat::query()
+            ->whereKey($session->id)
+            ->where('trang_thai', 'chua_bat_dau')
+            ->update([
+                'trang_thai' => 'dang_dien_ra',
+            ]);
+
+        if (!$updated) {
+            return response()->json([
+                'status' => false,
+                'message' =>
+                'Trạng thái phiên đã thay đổi. Hãy tải lại.',
+            ], 409);
+        }
+
         return response()->json([
             'status' => true,
-            'message' => 'Phiên đã bắt đầu.',
+            'message' => 'Đã bắt đầu phiên giám sát.',
             'data' => [
                 'id' => $session->id,
                 'trangThai' => 'DANG_DIEN_RA',
@@ -1055,103 +1099,59 @@ public function batDauPhien(
         ]);
     }
 
-    $timezone = 'Asia/Ho_Chi_Minh';
-
-    $startText = $this->dateValue(
-        $session->thoi_gian_bat_dau
-    );
-
-    $start = Carbon::createFromFormat(
-        '!Y-m-d H:i:s',
-        $startText,
-        $timezone
-    );
-
-    if (Carbon::now($timezone)->lessThan($start)) {
-        return response()->json([
-            'status' => false,
-            'message' => 'Chưa đến giờ bắt đầu phiên.',
-        ], 409);
-    }
-
-    $updated = PhienGiamSat::query()
-        ->whereKey($session->id)
-        ->where('trang_thai', 'chua_bat_dau')
-        ->update([
-            'trang_thai' => 'dang_dien_ra',
-        ]);
-
-    if (!$updated) {
-        return response()->json([
-            'status' => false,
-            'message' =>
-                'Trạng thái phiên đã thay đổi. Hãy tải lại.',
-        ], 409);
-    }
-
-    return response()->json([
-        'status' => true,
-        'message' => 'Đã bắt đầu phiên giám sát.',
-        'data' => [
-            'id' => $session->id,
-            'trangThai' => 'DANG_DIEN_RA',
-        ],
-    ]);
-}
-
-/*
+    /*
 |--------------------------------------------------------------------------
 | KẾT THÚC PHIÊN GIÁM SÁT
 |--------------------------------------------------------------------------
 */
-public function ketThucPhien(
-    Request $request,
-    int $id
-): JsonResponse {
-    $session = $this->ownSession($request, $id);
+    public function ketThucPhien(
+        Request $request,
+        int $id
+    ): JsonResponse {
+        $session = $this->ownSession($request, $id);
 
-    $now = Carbon::now('Asia/Ho_Chi_Minh')
-        ->format('Y-m-d H:i:s');
+        $now = Carbon::now('Asia/Ho_Chi_Minh')
+            ->format('Y-m-d H:i:s');
 
-    $updated = PhienGiamSat::query()
-        ->whereKey($session->id)
-        ->where(function ($query) use ($now) {
-            $query->where('trang_thai', 'dang_dien_ra')
-                ->orWhere(function ($sub) use ($now) {
-                    $sub->where(
-                        'trang_thai',
-                        'chua_bat_dau'
-                    )
-                    ->where(
-                        'thoi_gian_bat_dau',
-                        '<=',
-                        $now
-                    );
-                });
-        })
-        ->update([
-            'trang_thai' => 'da_ket_thuc',
-            'thoi_gian_ket_thuc' => $now,
-        ]);
+        $updated = PhienGiamSat::query()
+            ->whereKey($session->id)
+            ->where(function ($query) use ($now) {
+                $query->where('trang_thai', 'dang_dien_ra')
+                    ->orWhere(function ($sub) use ($now) {
+                        $sub->where(
+                            'trang_thai',
+                            'chua_bat_dau'
+                        )
+                            ->where(
+                                'thoi_gian_bat_dau',
+                                '<=',
+                                $now
+                            );
+                    });
+            })
+            ->update([
+                'trang_thai' => 'da_ket_thuc',
+                'thoi_gian_ket_thuc' => $now,
+            ]);
 
-    if (!$updated) {
-        return response()->json([
-            'status' => false,
-            'message' =>
+        if (!$updated) {
+            return response()->json([
+                'status' => false,
+                'message' =>
                 'Phiên chưa đến giờ bắt đầu hoặc đã kết thúc.',
-        ], 409);
-    }
+            ], 409);
+        }
 
-    return response()->json([
-        'status' => true,
-        'message' => 'Đã kết thúc phiên giám sát.',
-        'data' => [
-            'id' => $session->id,
-            'trangThai' => 'DA_KET_THUC',
-            'thoigianKetThuc' => $now,
-        ],
-    ]);
-}
+        return response()->json([
+            'status' => true,
+            'message' => 'Đã kết thúc phiên giám sát.',
+            'data' => [
+                'id' => $session->id,
+                'trangThai' => 'DA_KET_THUC',
+                'thoigianKetThuc' => $now,
+            ],
+        ]);
+    }
 
 
     /*
@@ -1246,101 +1246,101 @@ public function ketThucPhien(
     */
 
 
-    
-public function anhManHinh(
-    Request $request
-): JsonResponse {
-    // 1. Kiểm tra ID phiên
-    $data = $request->validate([
-        'phienId' => [
-            'required',
-            'integer',
-            'min:1',
-        ],
-    ]);
 
-    $phienId = (int) $data['phienId'];
+    public function anhManHinh(
+        Request $request
+    ): JsonResponse {
+        // 1. Kiểm tra ID phiên
+        $data = $request->validate([
+            'phienId' => [
+                'required',
+                'integer',
+                'min:1',
+            ],
+        ]);
 
-    // 2. Kiểm tra quyền Giảng viên
-    $this->ownSession($request, $phienId);
+        $phienId = (int) $data['phienId'];
 
-    // 3. Lấy ảnh từ Database
-    $images = DB::table('anh_man_hinh as amh')
-        ->join(
-            'sinh_vien as sv',
-            'amh.sinh_vien_id',
-            '=',
-            'sv.id'
-        )
-        ->join(
-            'nguoi_dung as nd',
-            'sv.nguoi_dung_id',
-            '=',
-            'nd.id'
-        )
-        ->where('amh.phien_id', $phienId)
-        ->select([
-            'amh.id',
-            'amh.phien_id',
-            'amh.sinh_vien_id',
-            'amh.duong_dan',
-            'amh.thoi_gian_chup',
-            'sv.ma_sinh_vien',
-            'nd.ho_ten',
-        ])
-        ->orderByDesc('amh.thoi_gian_chup')
-        ->limit(200)
-        ->get();
+        // 2. Kiểm tra quyền Giảng viên
+        $this->ownSession($request, $phienId);
 
-    // 4. Chuẩn hóa dữ liệu cho Vue
-    $result = $images->map(function ($image) {
-        $imageUrl = null;
+        // 3. Lấy ảnh từ Database
+        $images = DB::table('anh_man_hinh as amh')
+            ->join(
+                'sinh_vien as sv',
+                'amh.sinh_vien_id',
+                '=',
+                'sv.id'
+            )
+            ->join(
+                'nguoi_dung as nd',
+                'sv.nguoi_dung_id',
+                '=',
+                'nd.id'
+            )
+            ->where('amh.phien_id', $phienId)
+            ->select([
+                'amh.id',
+                'amh.phien_id',
+                'amh.sinh_vien_id',
+                'amh.duong_dan',
+                'amh.thoi_gian_chup',
+                'sv.ma_sinh_vien',
+                'nd.ho_ten',
+            ])
+            ->orderByDesc('amh.thoi_gian_chup')
+            ->limit(200)
+            ->get();
 
-        if (!empty($image->duong_dan)) {
-            $path = ltrim(
-                (string) $image->duong_dan,
-                '/'
-            );
+        // 4. Chuẩn hóa dữ liệu cho Vue
+        $result = $images->map(function ($image) {
+            $imageUrl = null;
 
-            if (Storage::disk('public')->exists($path)) {
-    $imageUrl = url('/storage/' . $path);
-}
-        }
+            if (!empty($image->duong_dan)) {
+                $path = ltrim(
+                    (string) $image->duong_dan,
+                    '/'
+                );
 
-        return [
-            'id' => $image->id,
+                if (Storage::disk('public')->exists($path)) {
+                    $imageUrl = url('/storage/' . $path);
+                }
+            }
 
-            'phienId' => $image->phien_id,
+            return [
+                'id' => $image->id,
 
-            'sinhVienId' =>
+                'phienId' => $image->phien_id,
+
+                'sinhVienId' =>
                 $image->sinh_vien_id,
 
-            'tenSinhVien' =>
+                'tenSinhVien' =>
                 $image->ho_ten,
 
-            'mssv' =>
+                'mssv' =>
                 $image->ma_sinh_vien,
 
-            // Chỉ trả dữ liệu có thật.
-            'tenMay' => null,
-            'trangThai' => null,
+                // Chỉ trả dữ liệu có thật.
+                'tenMay' => null,
+                'trangThai' => null,
 
-            'imageUrl' => $imageUrl,
+                'imageUrl' => $imageUrl,
 
-            'thoiGianCapNhat' =>
+                'thoiGianCapNhat' =>
                 $this->dateValue(
                     $image->thoi_gian_chup
                 ),
-        ];
-    });
+            ];
+        });
 
-    return response()->json([
-        'status' => true,
-        'message' =>
+        return response()->json([
+            'status' => true,
+            'message' =>
             'Lấy danh sách ảnh màn hình thành công.',
-        'data' => $result,
-    ]);
-}
+            'data' => $result,
+        ]);
+    }
 
 
 
@@ -1559,29 +1559,54 @@ public function anhManHinh(
     |--------------------------------------------------------------------------
     */
 
-    public function xuLyCanhBao(
-        Request $request,
-        int $id
-    ): JsonResponse {
-        $warning = CanhBao::whereHas(
-            'phien',
-            function ($q) use ($request) {
-                $q->whereIn(
-                    'lop_hoc_id',
-                    $this->classIds($request)
-                );
-            }
-        )->findOrFail($id);
+    
+public function xuLyCanhBao(
+    Request $request,
+    string $id
+): JsonResponse {
 
+    // Chấp nhận ID số hoặc mã GS-KT-16
+    // GS-KT-16 tương ứng với ID số 16
+    if (preg_match('/^GS-KT-([1-9][0-9]*)$/', $id, $matches)) {
+        $id = $matches[1];
+    }
+
+    // Kiểm tra ID hợp lệ
+    abort_unless(
+        ctype_digit($id) && (int) $id > 0,
+        422,
+        'Mã cảnh báo không hợp lệ.'
+    );
+
+    $id = (int) $id;
+
+    // Chỉ lấy cảnh báo trong lớp Giảng viên phụ trách
+    $warning = CanhBao::whereHas(
+        'phien',
+        function ($q) use ($request) {
+            $q->whereIn(
+                'lop_hoc_id',
+                $this->classIds($request)
+            );
+        }
+    )->findOrFail($id);
+
+    // Đánh dấu đã xử lý
+    if (!$warning->da_xu_ly) {
         $warning->update([
             'da_xu_ly' => true
         ]);
-
-        return response()->json([
-            'data' => [
-                'id' => $warning->id
-            ],
-            'message' => 'Đã xử lý cảnh báo.'
-        ]);
     }
+
+    return response()->json([
+        'status' => true,
+        'message' => 'Đã xử lý cảnh báo thành công.',
+        'data' => [
+            'id' => $warning->id,
+            'daXuLy' => true,
+            'trangThai' => 'DA_XU_LY'
+        ]
+    ]);
+}
+
 }
