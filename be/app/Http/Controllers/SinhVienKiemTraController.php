@@ -382,6 +382,15 @@ class SinhVienKiemTraController extends Controller
             ->where('sinh_vien_id', $studentId)
             ->first();
 
+        $activeSession = DB::table('phien_giam_sat')
+            ->where('trang_thai', 'dang_dien_ra')
+            ->where(function ($q) use ($baiTapId, $assignment) {
+                $q->where('bai_tap_id', $baiTapId)
+                  ->orWhere('lop_hoc_id', $assignment->lop_hoc_id);
+            })
+            ->orderByDesc('id')
+            ->first(['id', 'ten_phien', 'trang_thai']);
+
         return response()->json([
             'status' => true,
             'data' => [
@@ -406,6 +415,13 @@ class SinhVienKiemTraController extends Controller
                         true
                     )
                     : new \stdClass(),
+
+                'phienGiamSat' => $activeSession ? [
+                    'id' => $activeSession->id,
+                    'tenPhien' => $activeSession->ten_phien,
+                    'trangThai' => $activeSession->trang_thai,
+                ] : null,
+                'sinhVienId' => $studentId,
             ],
         ]);
     }
@@ -976,6 +992,30 @@ class SinhVienKiemTraController extends Controller
                     'updated_at' => $this->nowVN(),
                 ]);
                 $state = $this->violationStateData($baiTapId, $studentId);
+
+                try {
+                    $phien = DB::table('phien_giam_sat')
+                        ->where('bai_tap_id', $baiTapId)
+                        ->where('trang_thai', 'dang_dien_ra')
+                        ->first();
+
+                    if ($phien) {
+                        broadcast(new \App\Events\CanhBaoExamEvent(
+                            phienId: $phien->id,
+                            sinhVienId: $studentId,
+                            loaiCanhBao: 'roi_tab',
+                            noiDung: "Sinh viên đã rời tab lần {$newCount}",
+                            thoiGian: now()->toISOString(),
+                            soLanCamera: $state['soLanCamera'] ?? 0,
+                            soLanDienThoai: $state['soLanDienThoai'] ?? 0,
+                            soLanViPham: $state['soLanViPham'] ?? $newCount,
+                            biKhoa: $state['biKhoa'] ?? false,
+                            lyDoKhoa: $state['lyDoKhoa'] ?? null
+                        ))->toOthers();
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Không thể broadcast cảnh báo rời tab: ' . $e->getMessage());
+                }
             }
 
             $message = match ($state['lyDoKhoa']) {
@@ -1008,10 +1048,26 @@ class SinhVienKiemTraController extends Controller
         int $baiTapId
     ): JsonResponse {
         $sinhVienId = $this->studentId($request);
-        $this->assignment($baiTapId, $sinhVienId);
+        $assignment = $this->assignment($baiTapId, $sinhVienId);
 
         $state = $this->violationStateData($baiTapId, $sinhVienId);
         $state['daNop'] = $this->alreadySubmitted($baiTapId, $sinhVienId);
+
+        $activeSession = DB::table('phien_giam_sat')
+            ->where('trang_thai', 'dang_dien_ra')
+            ->where(function ($q) use ($baiTapId, $assignment) {
+                $q->where('bai_tap_id', $baiTapId)
+                  ->orWhere('lop_hoc_id', $assignment->lop_hoc_id);
+            })
+            ->orderByDesc('id')
+            ->first(['id', 'ten_phien', 'trang_thai']);
+
+        $state['phienGiamSat'] = $activeSession ? [
+            'id' => $activeSession->id,
+            'tenPhien' => $activeSession->ten_phien,
+            'trangThai' => $activeSession->trang_thai,
+        ] : null;
+        $state['sinhVienId'] = $sinhVienId;
 
         return response()->json([
             'status' => true,

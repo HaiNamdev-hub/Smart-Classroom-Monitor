@@ -249,6 +249,12 @@ const routes = [
         component: () =>
           import("../components/GiangVien/PhienGiamSat/index.vue"),
       },
+      {
+        path: "giam-sat-thi",
+        name: "GiangVienGiamSatThi",
+        component: () =>
+          import("../components/GiangVien/GiamSatThi/index.vue"),
+      },
 
 
       // ---------------------------

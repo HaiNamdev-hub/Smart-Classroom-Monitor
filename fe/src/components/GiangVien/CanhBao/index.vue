@@ -482,7 +482,14 @@ function cameraDescription(type) {
 }
 
 /* CHUẨN HÓA CẢNH BÁO */
+
 function normalizeAlert(item, nguon = "phien") {
+  // 1. Xác định nguồn cảnh báo thực tế
+  const laCamera = nguon === "camera"
+  const laViPhamKiemTra = item.nguon === "kiem_tra"
+  const laCanhBaoPhien = !laCamera && !laViPhamKiemTra
+
+  // 2. Lấy trạng thái từ Backend
   const status =
     item.trangThai ??
     item.trang_thai ??
@@ -494,53 +501,156 @@ function normalizeAlert(item, nguon = "phien") {
           : ""
     )
 
+  // 3. Xác định ID gốc
+  const rawId = String(item.id ?? "")
+
+  // Backend có thể trả GS-16 hoặc KT-16
+  const canhBaoId = item.canhBaoId ??
+    (laCanhBaoPhien && /^GS-\d+$/.test(rawId)
+      ? rawId.slice(3)
+      : null)
+
+  const viPhamId = item.viPhamId ??
+    (laViPhamKiemTra && /^KT-\d+$/.test(rawId)
+      ? rawId.slice(3)
+      : null)
+
+  // Chỉ cảnh báo phiên thật sự mới được xử lý
+  const apiId = laCanhBaoPhien
+    ? canhBaoId ??
+    (/^\d+$/.test(rawId) ? rawId : null)
+    : null
+
+  // 4. Tạo ID hiển thị không trùng nhau
+  let displayId
+
+  if (laCamera) {
+    displayId = `CAM-${rawId}`
+  } else if (laViPhamKiemTra) {
+    displayId = `KT-${viPhamId ?? rawId}`
+  } else {
+    displayId = `GS-${canhBaoId ?? rawId}`
+  }
+
+  // 5. Xác định loại cảnh báo
+  const loaiCanhBao =
+    item.loaiCanhBao ??
+    item.loai_canh_bao ??
+    ""
+
+  // 6. Chuẩn hóa trạng thái
+  let trangThai
+
+  if (laCamera || laViPhamKiemTra) {
+    trangThai = "CAN_XEM_XET"
+  } else {
+    trangThai = String(status).toUpperCase()
+  }
+
+  // 7. Trả dữ liệu chuẩn hóa
   return {
-    id: `${nguon === "camera" ? "CAM" : "GS"}-${item.id}`,
-    apiId: item.id,
-    nguon,
-    baiTapId: item.baiTapId ?? item.bai_tap_id ?? null,
-    tenBaiKiemTra: item.tenBaiKiemTra ?? item.tieu_de ?? "",
-    tenLop: item.tenLop ?? item.ten_lop ?? "",
-    soLanDienThoai: Number(item.soLanDienThoai ?? 0),
-    soLanCamera: Number(item.soLanCamera ?? 0),
-    soLanViPham: Number(item.soLanViPham ?? 0),
-    biKhoa: nguon === "camera" && (item.biKhoa === true || item.biKhoa === 1),
-    lyDoKhoa: item.lyDoKhoa ?? null,
+    id: displayId,
+
+    // ID dùng để gọi API xử lý
+    apiId,
+
+    // Nguồn cảnh báo
+    nguon: laCamera
+      ? "camera"
+      : laViPhamKiemTra
+        ? "kiem_tra"
+        : "phien",
+
+    // Thông tin bài kiểm tra
+    baiTapId:
+      item.baiTapId ??
+      item.bai_tap_id ??
+      null,
+
+    tenBaiKiemTra:
+      item.tenBaiKiemTra ??
+      item.tieu_de ??
+      "",
+
+    tenLop:
+      item.tenLop ??
+      item.ten_lop ??
+      "",
+
+    // Thống kê vi phạm
+    soLanDienThoai: Number(
+      item.soLanDienThoai ?? 0
+    ),
+
+    soLanCamera: Number(
+      item.soLanCamera ?? 0
+    ),
+
+    soLanViPham: Number(
+      item.soLanViPham ?? 0
+    ),
+
+    // Trạng thái khóa bài
+    biKhoa:
+      item.biKhoa === true ||
+      item.biKhoa === 1 ||
+      item.biKhoa === "1",
+
+    lyDoKhoa:
+      item.lyDoKhoa ??
+      null,
+
+    // Thông tin sinh viên
     sinhVienId:
       item.sinhVienId ??
       item.sinh_vien_id ??
       null,
+
     tenSinhVien:
       item.tenSinhVien ??
       item.ho_ten ??
       "",
+
     mssv:
       item.mssv ??
       item.ma_sinh_vien ??
       "",
+
+    // Thông tin phiên
     phienId:
       item.phienId ??
       item.phien_id ??
       null,
-    loaiCanhBao:
-      item.loaiCanhBao ??
-      item.loai_canh_bao ??
-      "",
+
+    // Loại cảnh báo
+    loaiCanhBao,
+
     tieuDe:
       item.tieuDe ??
       "",
+
+    // Nội dung cảnh báo
     chiTiet:
       item.chiTiet ??
       item.noi_dung ??
-      (nguon === "camera" ? cameraDescription(item.loaiCanhBao ?? item.loai_canh_bao) : ""),
+      (
+        laCamera
+          ? cameraDescription(loaiCanhBao)
+          : ""
+      ),
+
+    // Thời gian
     thoiGian:
       item.thoiGian ??
       item.thoi_gian ??
       item.created_at ??
       null,
-    trangThai: nguon === "camera" ? "CAN_XEM_XET" : String(status).toUpperCase(),
+
+    // Trạng thái xử lý
+    trangThai,
   }
 }
+
 
 /* LOẠI VI PHẠM */
 

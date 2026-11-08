@@ -325,6 +325,50 @@ class SinhVienCanhBaoCameraController extends Controller
             }
 
             // ======================================
+            // 11b. BROADCAST CẢNH BÁO CHO GIẢNG VIÊN
+            // ======================================
+            try {
+                $phien = DB::table('phien_giam_sat')
+                    ->where('bai_tap_id', $baiTapId)
+                    ->where('trang_thai', 'dang_dien_ra')
+                    ->first();
+
+                if ($phien) {
+                    $tenLoai = [
+                        'khong_co_khuon_mat' => 'Không phát hiện khuôn mặt',
+                        'nhieu_khuon_mat' => 'Phát hiện nhiều khuôn mặt',
+                        'camera_ngat' => 'Camera bị ngắt',
+                        'phat_hien_dien_thoai' => 'Phát hiện điện thoại',
+                    ];
+
+                    $isLocked = ($phoneCount >= self::MAX_PHONE_WARNINGS)
+                        || ($otherCameraCount >= self::MAX_CAMERA_WARNINGS)
+                        || ($tabCount >= self::MAX_TAB_WARNINGS);
+
+                    $lockReason = $phoneCount >= self::MAX_PHONE_WARNINGS
+                        ? 'dien_thoai'
+                        : ($otherCameraCount >= self::MAX_CAMERA_WARNINGS
+                            ? 'camera'
+                            : ($tabCount >= self::MAX_TAB_WARNINGS ? 'roi_tab' : null));
+
+                    broadcast(new \App\Events\CanhBaoExamEvent(
+                        phienId: $phien->id,
+                        sinhVienId: $sinhVienId,
+                        loaiCanhBao: $data['loaiCanhBao'],
+                        noiDung: $tenLoai[$data['loaiCanhBao']] ?? 'Cảnh báo camera',
+                        thoiGian: now()->toISOString(),
+                        soLanCamera: $otherCameraCount,
+                        soLanDienThoai: $phoneCount,
+                        soLanViPham: $tabCount,
+                        biKhoa: $isLocked,
+                        lyDoKhoa: $lockReason
+                    ))->toOthers();
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Không thể broadcast cảnh báo camera: ' . $e->getMessage());
+            }
+
+            // ======================================
             // 12. TRẢ VỀ TRẠNG THÁI KHÓA
             // ======================================
 

@@ -19,7 +19,7 @@
 
         <div class="monitor-info">
             <div><span>Camera</span><strong :class="active ? 'good' : 'bad'">{{ active ? 'Đang bật' : 'Chưa bật'
-                    }}</strong></div>
+            }}</strong></div>
             <div><span>Số khuôn mặt</span><strong>{{ active ? faceCount : '—' }}</strong></div>
             <div><span>Điện thoại</span><strong :class="phoneDetected ? 'bad' : 'good'">{{ active ? (phoneDetected ?
                 'Phát hiện' : 'Không phát hiện') : '—' }}</strong></div>
@@ -49,7 +49,13 @@
 import { ref, onBeforeUnmount } from 'vue'
 import { FaceDetector, ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision'
 
-const emit = defineEmits(['warning', 'camera-state', 'normal'])
+const emit = defineEmits([
+  "warning",
+  "camera-state",
+  "normal",
+  "stream-ready",
+  "stream-stopped"
+])
 const videoRef = ref(null)
 const active = ref(false)
 const starting = ref(false)
@@ -231,73 +237,152 @@ function checkCamera() {
     }
 }
 
+
 async function startCamera() {
     if (starting.value || active.value || destroyed) return
+
     const current = ++generation
+
     starting.value = true
     error.value = ''
     warning.value = ''
+
     resetDetection()
 
     try {
         if (!navigator.mediaDevices?.getUserMedia) {
-            throw new Error('Camera yêu cầu localhost hoặc HTTPS và trình duyệt có hỗ trợ.')
+            throw new Error(
+                'Camera yêu cầu localhost hoặc HTTPS và trình duyệt có hỗ trợ.'
+            )
         }
+
+        // 1. Mở webcam của Sinh viên
         const media = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+            video: {
+                facingMode: 'user',
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+            },
             audio: false,
         })
+
         if (current !== generation || destroyed) {
             media.getTracks().forEach(track => track.stop())
             return
         }
+
+        // 2. Lưu luồng webcam để AI và WebRTC cùng sử dụng
         stream = media
+
         const video = videoRef.value
-        if (!video) throw new Error('Không tìm thấy phần tử video.')
+
+        if (!video) {
+            throw new Error('Không tìm thấy phần tử video.')
+        }
+
         video.srcObject = media
         await video.play()
 
-        const vision = await FilesetResolver.forVisionTasks(WASM_URL)
         if (current !== generation || destroyed) return
 
-        const newFace = await FaceDetector.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: FACE_MODEL_URL, delegate: 'CPU' },
-            runningMode: 'VIDEO',
-            minDetectionConfidence: 0.5,
-        })
-        if (current !== generation || destroyed) { newFace.close(); return }
+        // 3. Tải MediaPipe
+        const vision = await FilesetResolver.forVisionTasks(WASM_URL)
+
+        if (current !== generation || destroyed) return
+
+        // 4. Khởi tạo AI phát hiện khuôn mặt
+        const newFace = await FaceDetector.createFromOptions(
+            vision,
+            {
+                baseOptions: {
+                    modelAssetPath: FACE_MODEL_URL,
+                    delegate: 'CPU',
+                },
+                runningMode: 'VIDEO',
+                minDetectionConfidence: 0.5,
+            }
+        )
+
+        if (current !== generation || destroyed) {
+            newFace.close()
+            return
+        }
+
         faceDetector = newFace
 
-        const newObject = await ObjectDetector.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: OBJECT_MODEL_URL, delegate: 'CPU' },
-            runningMode: 'VIDEO',
-            scoreThreshold: 0.5,
-            categoryAllowlist: ['cell phone'],
-        })
-        if (current !== generation || destroyed) { newObject.close(); return }
+        // 5. Khởi tạo AI phát hiện điện thoại
+        const newObject = await ObjectDetector.createFromOptions(
+            vision,
+            {
+                baseOptions: {
+                    modelAssetPath: OBJECT_MODEL_URL,
+                    delegate: 'CPU',
+                },
+                runningMode: 'VIDEO',
+                scoreThreshold: 0.5,
+                categoryAllowlist: ['cell phone'],
+            }
+        )
+
+        if (current !== generation || destroyed) {
+            newObject.close()
+            return
+        }
+
         objectDetector = newObject
 
+        // 6. Đánh dấu camera đã sẵn sàng
         active.value = true
+
         emit('camera-state', true)
+
+        // 7. Gửi luồng webcam sang LamBaiKiemTra/index.vue
+        // Luồng này sẽ được dùng để truyền video qua WebRTC.
+        emit('stream-ready', media)
+
+        // 8. Theo dõi khi camera bị ngắt
         for (const track of media.getVideoTracks()) {
-            track.addEventListener('ended', () => {
-                if (current === generation) disconnectCamera()
-            }, { once: true })
+            track.addEventListener(
+                'ended',
+                () => {
+                    if (current === generation) {
+                        disconnectCamera()
+                    }
+                },
+                { once: true }
+            )
         }
-        timer = window.setInterval(checkCamera, CHECK_INTERVAL_MS)
+
+        // 9. Bắt đầu AI giám sát
+        timer = window.setInterval(
+            checkCamera,
+            CHECK_INTERVAL_MS
+        )
+
         checkCamera()
+
     } catch (err) {
         console.error('Không thể bật camera:', err)
+
         if (!destroyed) {
-            error.value = err?.name === 'NotAllowedError'
-                ? 'Bạn chưa cấp quyền camera. Hãy cho phép camera trong trình duyệt.'
-                : (err?.message || 'Không thể bật camera hoặc tải mô hình AI.')
+            error.value =
+                err?.name === 'NotAllowedError'
+                    ? 'Bạn chưa cấp quyền camera. Hãy cho phép camera trong trình duyệt.'
+                    : (
+                        err?.message ||
+                        'Không thể bật camera hoặc tải mô hình AI.'
+                    )
         }
+
         stopCamera(true)
+
     } finally {
-        if (current === generation) starting.value = false
+        if (current === generation) {
+            starting.value = false
+        }
     }
 }
+
 
 function resetDetection() {
     faceCount.value = 0
@@ -325,24 +410,66 @@ function stopCameraManually() {
     stopCamera(true)
 }
 
+
 function stopCamera(keepMessage = false) {
+    // 1. Hủy phiên xử lý camera hiện tại
     generation++
-    if (timer !== null) window.clearInterval(timer)
+
+    // 2. Dừng vòng lặp AI
+    if (timer !== null) {
+        window.clearInterval(timer)
+    }
     timer = null
+
+    // 3. Cập nhật trạng thái camera
     const wasActive = active.value
     active.value = false
-    if (wasActive) emit('camera-state', false)
+
+    if (wasActive) {
+        emit('camera-state', false)
+    }
+
     starting.value = false
+
+    // 4. Thông báo cho component cha trước khi tắt webcam
     if (stream) {
-        stream.getTracks().forEach(track => track.stop())
+        emit('stream-stopped')
+
+        // Dừng tất cả track webcam
+        stream.getTracks().forEach(track => {
+            track.stop()
+        })
+
         stream = null
     }
-    if (videoRef.value) videoRef.value.srcObject = null
-    if (faceDetector) { faceDetector.close(); faceDetector = null }
-    if (objectDetector) { objectDetector.close(); objectDetector = null }
+
+    // 5. Ngắt hình ảnh khỏi phần tử video
+    if (videoRef.value) {
+        videoRef.value.srcObject = null
+    }
+
+    // 6. Giải phóng AI nhận diện khuôn mặt
+    if (faceDetector) {
+        faceDetector.close()
+        faceDetector = null
+    }
+
+    // 7. Giải phóng AI nhận diện điện thoại
+    if (objectDetector) {
+        objectDetector.close()
+        objectDetector = null
+    }
+
+    // 8. Đặt lại trạng thái nhận diện
     resetDetection()
-    if (!keepMessage) { warning.value = ''; error.value = '' }
+
+    // 9. Xóa thông báo nếu không cần giữ lại
+    if (!keepMessage) {
+        warning.value = ''
+        error.value = ''
+    }
 }
+
 
 onBeforeUnmount(() => {
     destroyed = true

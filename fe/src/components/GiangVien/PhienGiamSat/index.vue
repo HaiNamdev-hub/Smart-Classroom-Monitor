@@ -7,8 +7,8 @@
         <span class="eyebrow">GIÁM SÁT LỚP HỌC</span>
         <h1>🖥️ Quản lý phiên giám sát</h1>
         <p>
-          Tạo và quản lý các phiên giám sát, theo dõi
-          hoạt động học tập của sinh viên.
+          Tạo phiên giám sát thi, liên kết bài kiểm tra và theo dõi
+          hoạt động làm bài của sinh viên.
         </p>
       </div>
 
@@ -218,9 +218,8 @@
               {{ phien.tenPhien || "Chưa có tên phiên" }}
             </h3>
 
-            <p>
-              {{ phien.tenLop || getTenLop(phien.lopId) }}
-            </p>
+            <p>{{ phien.tenLop || getTenLop(phien.lopId) }}</p>
+            <p class="exam-title">📝 {{ phien.tenBaiKiemTra || 'Chưa liên kết bài kiểm tra' }}</p>
           </div>
 
           <div class="card-divider"></div>
@@ -251,6 +250,16 @@
             >
               Xem giám sát
               <span>→</span>
+            </button>
+
+            <button
+              v-if="getStatus(phien).value === 'chua_bat_dau'"
+              type="button"
+              class="start-btn"
+              :disabled="startingId !== null || endingId !== null"
+              @click="batDauPhien(phien)"
+            >
+              {{ startingId === phien.id ? "Đang bắt đầu..." : "▶ Bắt đầu" }}
             </button>
 
             <button
@@ -391,6 +400,22 @@
             </div>
 
             <div class="form-field">
+              <label for="session-exam">Bài kiểm tra *</label>
+              <select id="session-exam" v-model="form.baiTapId"
+                :disabled="saving || loadingBaiTap || !form.lopId" required>
+                <option value="">-- Chọn bài kiểm tra thuộc lớp --</option>
+                <option v-for="bai in baiTapTrongLop" :key="bai.id" :value="String(bai.id)">
+                  {{ bai.tieuDe }} (#{{ bai.id }})
+                </option>
+              </select>
+              <small v-if="loadingBaiTap">Đang tải danh sách bài kiểm tra...</small>
+              <small v-if="baiTapError" class="field-error">{{ baiTapError }}</small>
+              <small v-if="form.lopId && !loadingBaiTap && baiTapTrongLop.length === 0">
+                Lớp này chưa có bài kiểm tra. Hãy tạo bài kiểm tra trước.
+              </small>
+            </div>
+
+            <div class="form-field">
               <label for="session-start">
                 Thời gian bắt đầu *
               </label>
@@ -512,12 +537,16 @@ const router = useRouter()
 /* STATE */
 const danhSachPhien = ref([])
 const danhSachLop = ref([])
+const danhSachBaiTap = ref([])
+const loadingBaiTap = ref(false)
+const baiTapError = ref("")
 
 const loading = ref(false)
 const loadingLop = ref(false)
 const hasLoaded = ref(false)
 const saving = ref(false)
 const endingId = ref(null)
+const startingId = ref(null)
 
 const error = ref("")
 const success = ref("")
@@ -535,11 +564,13 @@ const confirmSession = ref(null)
 const form = ref({
   tenPhien: "",
   lopId: "",
+  baiTapId: "",
   thoigianBatDau: "",
 })
 
 let sessionRequestId = 0
 let classRequestId = 0
+let examRequestId = 0
 let refreshTimer = null
 
 /* CHUẨN HÓA DANH SÁCH API */
@@ -586,6 +617,8 @@ function normalizePhien(item) {
       item.tenLop ??
       item.ten_lop ??
       "",
+    baiTapId: item.baiTapId ?? item.bai_tap_id ?? null,
+    tenBaiKiemTra: item.tenBaiKiemTra ?? item.tieuDeBaiTap ?? "",
     lopId:
       item.lopId ??
       item.lop_hoc_id ??
@@ -602,6 +635,29 @@ function normalizePhien(item) {
       item.trang_thai ??
       ""
     ).toUpperCase(),
+  }
+}
+
+const baiTapTrongLop = computed(() =>
+  danhSachBaiTap.value.filter(b => String(b.lopId) === String(form.value.lopId))
+)
+
+async function fetchBaiTap() {
+  const current = ++examRequestId
+  loadingBaiTap.value = true
+  baiTapError.value = ""
+  try {
+    const response = await api.get("/giang-vien/bai-tap")
+    if (current !== examRequestId) return
+    danhSachBaiTap.value = extractList(response).map(item => ({
+      id: item.id,
+      lopId: item.lopId ?? item.lop_hoc_id,
+      tieuDe: item.tieuDe ?? item.tieu_de ?? `Bài #${item.id}`,
+    }))
+  } catch (err) {
+    if (current === examRequestId) baiTapError.value = getErrorMessage(err, "Không tải được bài kiểm tra")
+  } finally {
+    if (current === examRequestId) loadingBaiTap.value = false
   }
 }
 
@@ -843,6 +899,17 @@ async function fetchLopHoc() {
 function xemGiamSat(phien) {
   if (!phien?.id) return
 
+  // Nếu phiên đang diễn ra: mở trang giám sát camera trực tiếp
+  const status = getStatus(phien).value
+  if (status === 'dang_dien_ra') {
+    router.push({
+      path: "/giang-vien/giam-sat-thi",
+      query: { phienId: phien.id },
+    })
+    return
+  }
+
+  // Nếu phiên đã kết thúc hoặc trạng thái khác: xem lịch sử ảnh màn hình
   router.push({
     path: "/giang-vien/anh-man-hinh",
     query: { phienId: phien.id },
@@ -854,6 +921,7 @@ function openCreateForm() {
   form.value = {
     tenPhien: "",
     lopId: selectedLopId.value,
+    baiTapId: "",
     thoigianBatDau: getLocalDateTime(),
   }
 
@@ -866,6 +934,7 @@ function openCreateForm() {
   ) {
     fetchLopHoc()
   }
+  if (!loadingBaiTap.value && danhSachBaiTap.value.length === 0) fetchBaiTap()
 }
 
 function closeCreateForm() {
@@ -883,6 +952,7 @@ async function createPhien() {
 
   const tenPhien = form.value.tenPhien.trim()
   const lopId = Number(form.value.lopId)
+  const baiTapId = Number(form.value.baiTapId)
   const startTime = new Date(form.value.thoigianBatDau)
 
   if (!tenPhien) {
@@ -901,6 +971,12 @@ async function createPhien() {
     return
   }
 
+  if (!Number.isInteger(baiTapId) || baiTapId <= 0 ||
+      !baiTapTrongLop.value.some(b => Number(b.id) === baiTapId)) {
+    formError.value = "Vui lòng chọn bài kiểm tra thuộc lớp đã chọn."
+    return
+  }
+
   if (Number.isNaN(startTime.getTime())) {
     formError.value = "Thời gian bắt đầu không hợp lệ."
     return
@@ -914,6 +990,7 @@ async function createPhien() {
       {
         tenPhien,
         lopId,
+        baiTapId,
         // Gửi giờ địa phương theo định dạng DATETIME của Laravel/MySQL.
         // Không dùng toISOString() vì sẽ chuyển thành UTC và lệch 7 giờ.
         thoigianBatDau: form.value.thoigianBatDau.replace("T", " ") + ":00",
@@ -964,6 +1041,33 @@ async function createPhien() {
     }
   } finally {
     saving.value = false
+  }
+}
+
+/* BẮT ĐẦU PHIÊN: dùng API Laravel sẵn có. */
+async function batDauPhien(phien) {
+  if (!phien?.id || getStatus(phien).value !== "chua_bat_dau" || startingId.value !== null) return
+
+  startingId.value = phien.id
+  error.value = ""
+  success.value = ""
+
+  try {
+    const response = await api.post(
+      `/giang-vien/phien-giam-sat/${encodeURIComponent(phien.id)}/bat-dau`
+    )
+
+    if (response.data?.status === false || response.data?.success === false) {
+      throw new Error(response.data?.message || "Không thể bắt đầu phiên.")
+    }
+
+    success.value = `Đã gửi yêu cầu bắt đầu phiên #${phien.id}.`
+    await fetchData()
+  } catch (err) {
+    console.error("Lỗi bắt đầu phiên giám sát:", err)
+    error.value = err.response?.data?.message || getErrorMessage(err, "Không thể bắt đầu phiên.")
+  } finally {
+    startingId.value = null
   }
 }
 
@@ -1031,6 +1135,7 @@ async function ketThucPhien() {
 onMounted(() => {
   fetchData()
   fetchLopHoc()
+  fetchBaiTap()
   // Danh sách tự cập nhật để phiên đến giờ chuyển trạng thái.
   refreshTimer = setInterval(() => {
     if (!loading.value && !showCreateForm.value && !confirmSession.value) {
@@ -1043,6 +1148,7 @@ onBeforeUnmount(() => {
   clearInterval(refreshTimer)
   sessionRequestId++
   classRequestId++
+  examRequestId++
 })
 </script>
 
@@ -1482,6 +1588,19 @@ button:disabled {
   background: #dbeafe;
 }
 
+.start-btn {
+  padding: 11px 14px;
+  border: 1px solid #86efac;
+  border-radius: 10px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.start-btn:disabled { opacity: .5; cursor: not-allowed; }
+.start-btn:hover:not(:disabled) { background: #bbf7d0; }
+
 .end-btn {
   padding: 11px 13px;
   border: 1px solid #fecaca;
@@ -1866,6 +1985,7 @@ button:disabled {
   }
 }
 
+.exam-title { margin-top: 10px !important; color: #2563eb !important; font-weight: 700; }
 /* RESPONSIVE */
 @media (max-width: 1250px) {
   .stats-grid {

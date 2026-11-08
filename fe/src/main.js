@@ -2,6 +2,7 @@
 import { createApp } from "vue"
 import App from "./App.vue"
 import router from "./router"
+import './services/reverb'
 
 // Bootstrap CSS
 import "bootstrap/dist/css/bootstrap.min.css"

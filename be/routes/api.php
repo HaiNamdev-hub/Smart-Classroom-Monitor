@@ -25,6 +25,7 @@ use App\Http\Controllers\GiangVienNhapCauHoiController;
 use App\Http\Controllers\GiangVienViPhamKiemTraController;
 use App\Http\Controllers\SinhVienCanhBaoCameraController;
 use App\Http\Controllers\SinhVienKiemTraController;
+use App\Http\Controllers\WebRtcSignalController;
 use App\Http\Middleware\QuanTriVien;
 use App\Http\Middleware\GiangVien;
 use Illuminate\Support\Facades\Route;
@@ -125,6 +126,12 @@ Route::middleware('auth:sanctum')->group(function () {
         '/sinh-vien/bai-kiem-tra/{baiTapId}/canh-bao-camera',
         [SinhVienCanhBaoCameraController::class, 'store']
     )->middleware('throttle:30,1');
+
+    // WEBRTC SIGNALING CHO GIÁM SÁT THI (SANCTUM PROTECTED)
+    Route::post(
+        '/webrtc/signal',
+        [WebRtcSignalController::class, 'signal']
+    );
 
     /*
     |--------------------------------------------------------------------------
@@ -346,6 +353,11 @@ Route::post(
     '/phien-giam-sat/{id}/bat-dau',
     [GiangVienApiController::class, 'batDauPhien']
 );
+
+Route::get(
+    '/phien-giam-sat/{id}/chi-tiet',
+    [GiangVienApiController::class, 'chiTietPhien']
+)->whereNumber('id');
 
 Route::get(
     '/canh-bao-camera',

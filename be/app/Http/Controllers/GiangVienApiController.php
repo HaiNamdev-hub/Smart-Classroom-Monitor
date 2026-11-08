@@ -10,6 +10,7 @@ use App\Models\Diem;
 use App\Models\HoatDong;
 use App\Models\LopHoc;
 use App\Models\PhienGiamSat;
+use App\Models\SinhVien;
 use App\Models\ThanhVienLop;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -910,248 +911,329 @@ class GiangVienApiController extends Controller
 */
     public function phienGiamSat(Request $request): JsonResponse
     {
-        $timezone = 'Asia/Ho_Chi_Minh';
-        $now = Carbon::now($timezone)->format('Y-m-d H:i:s');
+        $sessions = PhienGiamSat::whereIn('lop_hoc_id', $this->classIds($request))
+            ->with(['lopHoc:id,ten_lop'])
+            ->latest('id')->get();
 
-        // Đồng bộ các phiên đã đến giờ bắt đầu.
-        // Chỉ cập nhật phiên chưa bắt đầu và có thời gian hợp lệ.
-        PhienGiamSat::query()
-            ->whereIn('lop_hoc_id', $this->classIds($request))
-            ->where('trang_thai', 'chua_bat_dau')
-            ->where('thoi_gian_bat_dau', '<=', $now)
-            ->update([
-                'trang_thai' => 'dang_dien_ra'
-            ]);
+        $titles = BaiTap::whereIn('id', $sessions->pluck('bai_tap_id')->filter()->unique())
+            ->pluck('tieu_de', 'id');
 
-        $sessions = PhienGiamSat::query()
-            ->whereIn('lop_hoc_id', $this->classIds($request))
-            ->with('lopHoc:id,ma_lop,ten_lop')
-            ->orderByDesc('id')
-            ->get();
-
-        $result = $sessions->map(function ($session) {
-            return [
-                'id' => $session->id,
-                'lopId' => $session->lop_hoc_id,
-                'baiTapId' => $session->bai_tap_id,
-                'tenPhien' => $session->ten_phien,
-
-                'tenLop' => $session->lopHoc?->ten_lop,
-                'maLop' => $session->lopHoc?->ma_lop,
-
-                'thoigianBatDau' => $this->dateValue(
-                    $session->thoi_gian_bat_dau
-                ),
-
-                'thoigianKetThuc' => $this->dateValue(
-                    $session->thoi_gian_ket_thuc
-                ),
-
-                'trangThai' => strtoupper(
-                    $session->trang_thai
-                ),
-            ];
-        });
-
-        return response()->json([
-            'status' => true,
-            'data' => $result,
-        ]);
+        return $this->listData($sessions->map(fn($s) => [
+            'id' => $s->id,
+            'tenPhien' => $s->ten_phien,
+            'tenLop' => $s->lopHoc?->ten_lop,
+            'lopId' => $s->lop_hoc_id,
+            'baiTapId' => $s->bai_tap_id,
+            'tenBaiKiemTra' => $titles[$s->bai_tap_id] ?? null,
+            'thoigianBatDau' => $this->dateValue($s->thoi_gian_bat_dau),
+            'thoigianKetThuc' => $this->dateValue($s->thoi_gian_ket_thuc),
+            'trangThai' => strtoupper($s->trang_thai),
+        ]));
     }
 
-    /*
-|--------------------------------------------------------------------------
-| TẠO PHIÊN GIÁM SÁT
-|--------------------------------------------------------------------------
-*/
     public function createPhien(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'lopId' => [
-                'required',
-                'integer',
-                'exists:lop_hoc,id'
-            ],
-            'tenPhien' => [
-                'required',
-                'string',
-                'max:255'
-            ],
-            'thoigianBatDau' => [
-                'required',
-                'date_format:Y-m-d H:i:s'
-            ],
+            'lopId' => ['required', 'integer'],
+            'baiTapId' => ['required', 'integer'],
+            'tenPhien' => ['required', 'string', 'max:255'],
+            'thoigianBatDau' => ['required', 'date'],
         ]);
 
-        $this->ownClass(
-            $request,
-            (int) $data['lopId']
+        $lop = $this->ownClass($request, (int) $data['lopId']);
+        $assignment = $this->ownAssignment($request, (int) $data['baiTapId']);
+        abort_unless(
+            (int) $assignment->lop_hoc_id === (int) $lop->id,
+            422,
+            'Bài kiểm tra không thuộc lớp đã chọn.'
         );
 
-        $timezone = 'Asia/Ho_Chi_Minh';
-
-        $start = Carbon::createFromFormat(
-            '!Y-m-d H:i:s',
-            $data['thoigianBatDau'],
-            $timezone
-        );
-
-        $now = Carbon::now($timezone);
-
-        $status = $start->greaterThan($now)
-            ? 'chua_bat_dau'
-            : 'dang_dien_ra';
-
+        $start = \Illuminate\Support\Carbon::parse($data['thoigianBatDau']);
         $session = PhienGiamSat::create([
-            'lop_hoc_id' => $data['lopId'],
+            'lop_hoc_id' => $lop->id,
             'nguoi_tao_id' => $request->user()->id,
-            'bai_tap_id' => null,
-
-            'ten_phien' => trim($data['tenPhien']),
-
-            'thoi_gian_bat_dau' =>
-            $start->format('Y-m-d H:i:s'),
-
+            'bai_tap_id' => $assignment->id,
+            'ten_phien' => $data['tenPhien'],
+            'thoi_gian_bat_dau' => $start,
             'thoi_gian_ket_thuc' => null,
-            'trang_thai' => $status,
+            // Tạo ở trạng thái chờ; giảng viên chủ động nhấn Bắt đầu.
+            'trang_thai' => 'chua_bat_dau',
         ]);
 
         return response()->json([
             'status' => true,
-            'message' => 'Tạo phiên giám sát thành công.',
-            'data' => [
-                'id' => $session->id,
-                'trangThai' => strtoupper($status),
-            ],
+            'data' => ['id' => $session->id],
+            'message' => 'Đã tạo phiên thi. Hãy nhấn Bắt đầu khi sẵn sàng.',
         ], 201);
     }
 
-    /*
-|--------------------------------------------------------------------------
-| BẮT ĐẦU PHIÊN GIÁM SÁT
-|--------------------------------------------------------------------------
-*/
-    public function batDauPhien(
-        Request $request,
-        int $id
-    ): JsonResponse {
-        $session = $this->ownSession($request, $id);
-
-        if ($session->trang_thai === 'da_ket_thuc') {
-            return response()->json([
-                'status' => false,
-                'message' => 'Phiên này đã kết thúc.',
-            ], 409);
-        }
-
-        if ($session->trang_thai === 'dang_dien_ra') {
-            return response()->json([
-                'status' => true,
-                'message' => 'Phiên đã bắt đầu.',
-                'data' => [
-                    'id' => $session->id,
-                    'trangThai' => 'DANG_DIEN_RA',
-                ],
-            ]);
-        }
-
-        $timezone = 'Asia/Ho_Chi_Minh';
-
-        $startText = $this->dateValue(
-            $session->thoi_gian_bat_dau
+    public function batDauPhien(Request $request, string $id): JsonResponse
+    {
+        abort_unless(ctype_digit($id) && (int) $id > 0, 422, 'Mã phiên không hợp lệ.');
+        $session = $this->ownSession($request, (int) $id);
+        abort_unless(
+            $session->bai_tap_id !== null,
+            422,
+            'Phiên chưa liên kết bài kiểm tra.'
         );
 
-        $start = Carbon::createFromFormat(
-            '!Y-m-d H:i:s',
-            $startText,
-            $timezone
-        );
-
-        if (Carbon::now($timezone)->lessThan($start)) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Chưa đến giờ bắt đầu phiên.',
-            ], 409);
-        }
-
-        $updated = PhienGiamSat::query()
-            ->whereKey($session->id)
+        // Cập nhật có điều kiện để tránh bắt đầu hai lần.
+        $updated = PhienGiamSat::whereKey($session->id)
             ->where('trang_thai', 'chua_bat_dau')
-            ->update([
-                'trang_thai' => 'dang_dien_ra',
-            ]);
+            ->update(['trang_thai' => 'dang_dien_ra']);
 
         if (!$updated) {
             return response()->json([
                 'status' => false,
-                'message' =>
-                'Trạng thái phiên đã thay đổi. Hãy tải lại.',
+                'message' => 'Phiên không ở trạng thái chờ bắt đầu.'
             ], 409);
         }
 
         return response()->json([
             'status' => true,
-            'message' => 'Đã bắt đầu phiên giám sát.',
-            'data' => [
-                'id' => $session->id,
-                'trangThai' => 'DANG_DIEN_RA',
-            ],
+            'data' => ['id' => $session->id, 'trangThai' => 'DANG_DIEN_RA'],
+            'message' => 'Đã bắt đầu phiên giám sát thi.',
         ]);
     }
+
 
     /*
 |--------------------------------------------------------------------------
 | KẾT THÚC PHIÊN GIÁM SÁT
 |--------------------------------------------------------------------------
 */
-    public function ketThucPhien(
-        Request $request,
-        int $id
-    ): JsonResponse {
+    
+public function ketThucPhien(
+    Request $request,
+    string $id
+): JsonResponse {
+
+    abort_unless(
+        ctype_digit($id) && (int) $id > 0,
+        422,
+        'Mã phiên giám sát không hợp lệ.'
+    );
+
+    $session = $this->ownSession(
+        $request,
+        (int) $id
+    );
+
+    $now = Carbon::now('Asia/Ho_Chi_Minh')
+        ->format('Y-m-d H:i:s');
+
+    $updated = PhienGiamSat::query()
+        ->whereKey($session->id)
+        ->where('trang_thai', 'dang_dien_ra')
+        ->update([
+            'trang_thai' => 'da_ket_thuc',
+            'thoi_gian_ket_thuc' => $now
+        ]);
+
+    if (!$updated) {
+        return response()->json([
+            'status' => false,
+            'message' =>
+                'Chỉ có thể kết thúc phiên đang diễn ra.'
+        ], 409);
+    }
+
+    return response()->json([
+        'status' => true,
+        'message' =>
+            'Đã kết thúc phiên giám sát thi.',
+        'data' => [
+            'id' => $session->id,
+            'trangThai' => 'DA_KET_THUC',
+            'thoigianKetThuc' => $now
+        ]
+    ]);
+}
+
+    /**
+     * Chi tiết phiên giám sát và danh sách Sinh viên phục vụ giám sát trực tiếp.
+     *
+     * GET /api/giang-vien/phien-giam-sat/{id}/chi-tiet
+     */
+    public function chiTietPhien(Request $request, int $id): JsonResponse
+    {
         $session = $this->ownSession($request, $id);
+        $session->load(['lopHoc', 'baiTap']);
 
-        $now = Carbon::now('Asia/Ho_Chi_Minh')
-            ->format('Y-m-d H:i:s');
+        $members = ThanhVienLop::query()
+            ->where('lop_hoc_id', $session->lop_hoc_id)
+            ->where('trang_thai', 'dang_hoc')
+            ->get();
 
-        $updated = PhienGiamSat::query()
-            ->whereKey($session->id)
-            ->where(function ($query) use ($now) {
-                $query->where('trang_thai', 'dang_dien_ra')
-                    ->orWhere(function ($sub) use ($now) {
-                        $sub->where(
-                            'trang_thai',
-                            'chua_bat_dau'
-                        )
-                            ->where(
-                                'thoi_gian_bat_dau',
-                                '<=',
-                                $now
-                            );
-                    });
-            })
-            ->update([
-                'trang_thai' => 'da_ket_thuc',
-                'thoi_gian_ket_thuc' => $now,
-            ]);
+        // ThanhVienLop.sinh_vien_id hiện tham chiếu nguoi_dung.id;
+        // WebRTC cần sinh_vien.id. Giữ riêng hai ID để không trộn khóa.
+        $memberUserIds = $members->pluck('sinh_vien_id')->filter()->unique()->values();
+        $studentProfilesByUserId = SinhVien::query()
+            ->with('nguoiDung:id,ho_ten,email')
+            ->whereIn('nguoi_dung_id', $memberUserIds)
+            ->get()
+            ->keyBy('nguoi_dung_id');
+        $studentProfilesById = $studentProfilesByUserId->keyBy('id');
+        $studentProfileIds = $studentProfilesByUserId->pluck('id')->filter()->unique()->values();
 
-        if (!$updated) {
-            return response()->json([
-                'status' => false,
-                'message' =>
-                'Phiên chưa đến giờ bắt đầu hoặc đã kết thúc.',
-            ], 409);
+        // 1. Bản đồ bài nộp
+        $submittedMap = [];
+        if ($session->bai_tap_id && $memberUserIds->isNotEmpty()) {
+            $submittedMap = DB::table('bai_nop')
+                ->where('bai_tap_id', $session->bai_tap_id)
+                ->whereIn('sinh_vien_id', $memberUserIds)
+                ->pluck('created_at', 'sinh_vien_id')
+                ->toArray();
+        }
+
+        // 2. Vi phạm rời tab
+        $tabViolations = [];
+        if ($session->bai_tap_id && $studentProfileIds->isNotEmpty()) {
+            $tabViolations = DB::table('vi_pham_kiem_tra')
+                ->where('bai_tap_id', $session->bai_tap_id)
+                ->whereIn('sinh_vien_id', $studentProfileIds)
+                ->select('sinh_vien_id', DB::raw('count(*) as count'))
+                ->groupBy('sinh_vien_id')
+                ->pluck('count', 'sinh_vien_id')
+                ->toArray();
+        }
+
+        // 3. Cảnh báo camera
+        $cameraRecords = collect();
+        if ($session->bai_tap_id && $studentProfileIds->isNotEmpty()) {
+            $cameraRecords = DB::table('canh_bao_camera')
+                ->where('bai_tap_id', $session->bai_tap_id)
+                ->whereIn('sinh_vien_id', $studentProfileIds)
+                ->orderByDesc('id')
+                ->get(['sinh_vien_id', 'loai_canh_bao', 'created_at']);
+        }
+
+        $cameraGrouped = $cameraRecords->groupBy('sinh_vien_id');
+
+        $tenLoaiCanhBao = [
+            'khong_co_khuon_mat' => 'Không có khuôn mặt',
+            'nhieu_khuon_mat' => 'Nhiều khuôn mặt',
+            'camera_ngat' => 'Camera bị ngắt',
+            'phat_hien_dien_thoai' => 'Phát hiện điện thoại',
+            'roi_tab' => 'Rời tab bài thi',
+        ];
+
+        // 4. Danh sách sinh viên tổng hợp
+        $students = $members->map(function ($m) use (
+            $submittedMap,
+            $tabViolations,
+            $cameraGrouped,
+            $tenLoaiCanhBao,
+            $studentProfilesByUserId
+        ) {
+            $memberUserId = $m->sinh_vien_id;
+            $profile = $studentProfilesByUserId->get($memberUserId);
+            $profileId = $profile?->id;
+            $cams = $cameraGrouped->get($profileId, collect());
+
+            $phoneCount = $cams->where('loai_canh_bao', 'phat_hien_dien_thoai')->count();
+            $otherCamCount = $cams->where('loai_canh_bao', '!=', 'phat_hien_dien_thoai')->count();
+            $tabCount = (int) ($tabViolations[$profileId] ?? 0);
+            $daNop = isset($submittedMap[$memberUserId]);
+
+            $isLocked = ($phoneCount >= 3) || ($otherCamCount >= 5) || ($tabCount >= 3);
+            $lockReason = $phoneCount >= 3
+                ? 'dien_thoai'
+                : ($otherCamCount >= 5
+                    ? 'camera'
+                    : ($tabCount >= 3 ? 'roi_tab' : null));
+
+            $latestCam = $cams->first();
+            $canhBaoGanNhat = null;
+            if ($latestCam) {
+                $canhBaoGanNhat = [
+                    'loai' => $latestCam->loai_canh_bao,
+                    'noiDung' => $tenLoaiCanhBao[$latestCam->loai_canh_bao] ?? $latestCam->loai_canh_bao,
+                    'thoiGian' => $latestCam->created_at,
+                ];
+            }
+
+            return [
+                'thanhVienId' => $m->id,
+                'sinhVienId' => $profile?->id,
+                'maSinhVien' => $profile?->ma_sinh_vien ?? ('SV' . str_pad($memberUserId, 4, '0', STR_PAD_LEFT)),
+                'hoTen' => $profile?->nguoiDung?->ho_ten ?? 'Sinh viên',
+                'email' => $profile?->nguoiDung?->email ?? '',
+                'daNopBai' => $daNop,
+                'soLanViPham' => $tabCount,
+                'soLanCamera' => $otherCamCount,
+                'soLanDienThoai' => $phoneCount,
+                'biKhoa' => $isLocked,
+                'lyDoKhoa' => $lockReason,
+                'canhBaoGanNhat' => $canhBaoGanNhat,
+            ];
+        })->values();
+
+        // 5. Danh sách cảnh báo gần đây của toàn phiên
+        $recentAlerts = collect();
+        if ($session->bai_tap_id) {
+            $camAlerts = DB::table('canh_bao_camera')
+                ->where('bai_tap_id', $session->bai_tap_id)
+                ->orderByDesc('id')
+                ->limit(30)
+                ->get()
+                ->map(function ($row) use ($studentProfilesById, $tenLoaiCanhBao) {
+                    $profile = $studentProfilesById->get($row->sinh_vien_id);
+                    return [
+                        'id' => 'cam_' . $row->id,
+                        'sinhVienId' => $profile?->id,
+                        'hoTen' => $profile?->nguoiDung?->ho_ten ?? 'Sinh viên',
+                        'maSinhVien' => $profile?->ma_sinh_vien ?? '',
+                        'loai' => $row->loai_canh_bao,
+                        'noiDung' => $tenLoaiCanhBao[$row->loai_canh_bao] ?? $row->loai_canh_bao,
+                        'thoiGian' => $row->created_at,
+                    ];
+                });
+
+            $tabAlerts = DB::table('vi_pham_kiem_tra')
+                ->where('bai_tap_id', $session->bai_tap_id)
+                ->orderByDesc('id')
+                ->limit(30)
+                ->get()
+                ->map(function ($row) use ($studentProfilesById) {
+                    $profile = $studentProfilesById->get($row->sinh_vien_id);
+                    return [
+                        'id' => 'tab_' . $row->id,
+                        'sinhVienId' => $profile?->id,
+                        'hoTen' => $profile?->nguoiDung?->ho_ten ?? 'Sinh viên',
+                        'maSinhVien' => $profile?->ma_sinh_vien ?? '',
+                        'loai' => 'roi_tab',
+                        'noiDung' => "Rời tab làm bài (lần {$row->lan_thu})",
+                        'thoiGian' => $row->created_at,
+                    ];
+                });
+
+            $recentAlerts = $camAlerts->concat($tabAlerts)
+                ->sortByDesc('thoiGian')
+                ->values()
+                ->take(30);
         }
 
         return response()->json([
             'status' => true,
-            'message' => 'Đã kết thúc phiên giám sát.',
             'data' => [
-                'id' => $session->id,
-                'trangThai' => 'DA_KET_THUC',
-                'thoigianKetThuc' => $now,
+                'phien' => [
+                    'id' => $session->id,
+                    'tenPhien' => $session->ten_phien,
+                    'trangThai' => $session->trang_thai,
+                    'lopId' => $session->lop_hoc_id,
+                    'tenLop' => $session->lopHoc?->ten_lop,
+                    'baiTapId' => $session->bai_tap_id,
+                    'tenBaiKiemTra' => $session->baiTap?->tieu_de,
+                    'thoigianBatDau' => $session->thoi_gian_bat_dau?->toISOString(),
+                    'thoigianKetThuc' => $session->thoi_gian_ket_thuc?->toISOString(),
+                ],
+                'students' => $students,
+                'recentAlerts' => $recentAlerts,
             ],
         ]);
     }
+
 
 
     /*
@@ -1559,39 +1641,35 @@ class GiangVienApiController extends Controller
     |--------------------------------------------------------------------------
     */
 
+
     
 public function xuLyCanhBao(
     Request $request,
     string $id
 ): JsonResponse {
 
-    // Chấp nhận ID số hoặc mã GS-KT-16
-    // GS-KT-16 tương ứng với ID số 16
-    if (preg_match('/^GS-KT-([1-9][0-9]*)$/', $id, $matches)) {
+    // Chỉ xử lý cảnh báo từ bảng canh_bao.
+    // Chấp nhận ID số hoặc mã GS-16.
+    if (preg_match('/^GS-([1-9][0-9]*)$/', $id, $matches)) {
         $id = $matches[1];
     }
 
-    // Kiểm tra ID hợp lệ
     abort_unless(
         ctype_digit($id) && (int) $id > 0,
         422,
         'Mã cảnh báo không hợp lệ.'
     );
 
-    $id = (int) $id;
-
-    // Chỉ lấy cảnh báo trong lớp Giảng viên phụ trách
     $warning = CanhBao::whereHas(
         'phien',
-        function ($q) use ($request) {
-            $q->whereIn(
+        function ($query) use ($request) {
+            $query->whereIn(
                 'lop_hoc_id',
                 $this->classIds($request)
             );
         }
-    )->findOrFail($id);
+    )->findOrFail((int) $id);
 
-    // Đánh dấu đã xử lý
     if (!$warning->da_xu_ly) {
         $warning->update([
             'da_xu_ly' => true

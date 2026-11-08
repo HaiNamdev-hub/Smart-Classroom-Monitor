@@ -3,7 +3,8 @@
     <!-- Camera giám sát cố định ở góc trái trên. Không ghi video. -->
     <Teleport to="body">
       <div v-if="exam && cameraEnabled && !locked && !loading" class="exam-camera-floating">
-        <GiamSatCamera @warning="handleCameraWarning" @normal="handleCameraNormal" @camera-state="handleCameraState" />
+        <GiamSatCamera @warning="handleCameraWarning" @normal="handleCameraNormal" @camera-state="handleCameraState"
+          @stream-ready="handleCameraStreamReady" @stream-stopped="handleCameraStreamStopped" />
       </div>
     </Teleport>
     <!-- HEADER -->
@@ -441,6 +442,41 @@ import {
 
 import api from "../../../services/api"
 import GiamSatCamera from "./GiamSatCamera.vue"
+import studentSender from "../../../services/webrtc/studentSender"
+
+import { shallowRef } from "vue"
+
+const examCameraStream = shallowRef(null)
+const phienGiamSatId = ref(null)
+const sinhVienId = ref(null)
+const webrtcConnected = ref(false)
+
+function initWebRtcIfReady() {
+  if (phienGiamSatId.value && sinhVienId.value && examCameraStream.value) {
+    console.log("[SinhVien WebRTC] Khởi tạo kết nối tới phiên:", phienGiamSatId.value)
+    studentSender.init(phienGiamSatId.value, sinhVienId.value, examCameraStream.value, (state) => {
+      webrtcConnected.value = state === 'connected'
+    })
+  }
+}
+
+function handleCameraStreamReady(stream) {
+  examCameraStream.value = stream
+  console.log("Đã nhận webcam để truyền sang Giảng viên:", stream.id)
+
+  if (studentSender.phienId && studentSender.connected) {
+    studentSender.updateStream(stream)
+  } else {
+    initWebRtcIfReady()
+  }
+}
+
+function handleCameraStreamStopped() {
+  examCameraStream.value = null
+  webrtcConnected.value = false
+  console.log("Webcam đã dừng")
+  studentSender.notifyCameraStopped()
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -495,6 +531,8 @@ let submittingAtDeadline = false
 let monitoringRequest = null
 let eventQueue = []
 let hiddenEventRecorded = false
+let visibilityRearmTimer = null
+const VISIBILITY_REARM_DELAY_MS = 1500
 let requestGeneration = 0
 let saveVersion = 0
 let disposed = false
@@ -849,6 +887,13 @@ async function fetchViolationState() {
   )
 
   const data = response.data?.data ?? response.data
+  if (data?.phienGiamSat?.id) {
+    phienGiamSatId.value = data.phienGiamSat.id
+  }
+  if (data?.sinhVienId) {
+    sinhVienId.value = data.sinhVienId
+  }
+  initWebRtcIfReady()
 
   if (
     response.data?.status === false ||
@@ -967,6 +1012,11 @@ async function resumeMonitoring() {
 
 function handleVisibilityChange() {
   if (document.hidden) {
+    if (visibilityRearmTimer !== null) {
+      clearTimeout(visibilityRearmTimer)
+      visibilityRearmTimer = null
+    }
+
     if (
       !loaded ||
       submitted ||
@@ -994,7 +1044,14 @@ function handleVisibilityChange() {
     return
   }
 
-  hiddenEventRecorded = false
+  // Chỉ coi lần quay lại là một episode mới nếu trang ổn định visible.
+  // Tránh nhiều eventId khi trình duyệt phát nhanh chuỗi hidden/visible.
+  if (hiddenEventRecorded && visibilityRearmTimer === null) {
+    visibilityRearmTimer = window.setTimeout(() => {
+      hiddenEventRecorded = false
+      visibilityRearmTimer = null
+    }, VISIBILITY_REARM_DELAY_MS)
+  }
 
   if (
     !loaded ||
@@ -1073,6 +1130,13 @@ async function loadExam() {
     if (generation !== requestGeneration) return
 
     exam.value = data
+    if (data?.phienGiamSat?.id) {
+      phienGiamSatId.value = data.phienGiamSat.id
+    }
+    if (data?.sinhVienId) {
+      sinhVienId.value = data.sinhVienId
+    }
+    initWebRtcIfReady()
 
     answers.value =
       data.answers &&
@@ -1303,6 +1367,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   disposed = true
+  studentSender.disconnect()
   cameraEnabled.value = false
   cameraReady.value = false
   loaded = false
@@ -1310,6 +1375,8 @@ onBeforeUnmount(() => {
 
   clearInterval(timerInterval)
   clearTimeout(saveTimer)
+  clearTimeout(visibilityRearmTimer)
+  visibilityRearmTimer = null
 
   document.removeEventListener(
     "visibilitychange",
@@ -2293,4 +2360,30 @@ onBeforeUnmount(() => {
     max-height: 65vh;
   }
 }
+
+.webrtc-live-indicator {
+  background: rgba(15, 23, 42, 0.9);
+  color: #10b981;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+  justify-content: center;
+}
+.webrtc-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  animation: pulse-webrtc 1.2s infinite;
+}
+@keyframes pulse-webrtc {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.8); }
+}
+
 </style>

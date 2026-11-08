@@ -451,6 +451,7 @@ import {
 } from "vue"
 
 import api from "../../../services/api"
+import echo from '../../../services/reverb'
 
 /* ==============================
    USER
@@ -499,6 +500,25 @@ const stats = ref({
   phienDangChay: null,
   canhBaoMoi: null,
 })
+
+function testPrivateChannel(phienId, sinhVienId) {
+    const channelName =
+        `exam-monitor.${phienId}.student.${sinhVienId}`
+
+    console.log('Đang kiểm tra kênh:', channelName)
+
+    const channel = echo.private(channelName)
+
+    channel.subscribed(() => {
+        console.log('✅ Private Channel đã xác thực thành công!')
+    })
+
+    channel.error((error) => {
+        console.error('❌ Không thể tham gia Private Channel:', error)
+    })
+
+    return channel
+}
 
 let requestId = 0
 
