@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Support\ExamScoreAllocator;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -21,7 +22,7 @@ class GiangVienLichKiemTraController extends Controller
         abort_unless(
             $assignment,
             404,
-            'Không tìm thấy bài kiểm tra của bạn.'
+            'KhĂ´ng tĂ¬m tháº¥y bĂ i kiá»ƒm tra cá»§a báº¡n.'
         );
 
         return $assignment;
@@ -81,7 +82,7 @@ class GiangVienLichKiemTraController extends Controller
         if ($start->lessThanOrEqualTo(now())) {
             throw ValidationException::withMessages([
                 'thoi_gian_bat_dau' =>
-                    'Thời gian bắt đầu phải ở tương lai.',
+                    'Thá»i gian báº¯t Ä‘áº§u pháº£i á»Ÿ tÆ°Æ¡ng lai.',
             ]);
         }
 
@@ -101,7 +102,7 @@ class GiangVienLichKiemTraController extends Controller
                 (int) $assignment->nguoi_tao_id ===
                 (int) $request->user()->id,
                 404,
-                'Không tìm thấy bài kiểm tra.'
+                'KhĂ´ng tĂ¬m tháº¥y bĂ i kiá»ƒm tra.'
             );
 
             if (
@@ -110,7 +111,7 @@ class GiangVienLichKiemTraController extends Controller
             ) {
                 abort(
                     409,
-                    'Bài kiểm tra đã bắt đầu, không thể đổi lịch.'
+                    'BĂ i kiá»ƒm tra Ä‘Ă£ báº¯t Ä‘áº§u, khĂ´ng thá»ƒ Ä‘á»•i lá»‹ch.'
                 );
             }
 
@@ -121,18 +122,10 @@ class GiangVienLichKiemTraController extends Controller
             abort_if(
                 $hasSubmission,
                 409,
-                'Bài kiểm tra đã có bài nộp.'
+                'BĂ i kiá»ƒm tra Ä‘Ă£ cĂ³ bĂ i ná»™p.'
             );
 
-            $questionCount = DB::table('cau_hoi')
-                ->where('bai_tap_id', $baiTapId)
-                ->count();
-
-            abort_if(
-                $questionCount === 0,
-                422,
-                'Vui lòng tạo câu hỏi trước khi đặt lịch.'
-            );
+            ExamScoreAllocator::assertPublishable($baiTapId);
 
             DB::table('bai_tap')
                 ->where('id', $baiTapId)
@@ -149,7 +142,7 @@ class GiangVienLichKiemTraController extends Controller
         return response()->json([
             'status' => true,
             'message' =>
-                'Đã lưu lịch. Bài thi sẽ tự mở đúng giờ.',
+                'ÄĂ£ lÆ°u lá»‹ch. BĂ i thi sáº½ tá»± má»Ÿ Ä‘Ăºng giá».',
             'data' => [
                 'thoi_gian_bat_dau' =>
                     $start->format('Y-m-d H:i:s'),

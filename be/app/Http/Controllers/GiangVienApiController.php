@@ -619,7 +619,6 @@ class GiangVienApiController extends Controller
             ->get()
             ->keyBy('cau_hoi_id');
 
-        $totalPoints = (float) $questions->sum('diem');
         $earnedPoints = 0.0;
 
         $coTuLuan = false;
@@ -697,6 +696,11 @@ class GiangVienApiController extends Controller
                         ? $studentAnswer->noi_dung_tra_loi
                         : null,
 
+                    'diemDatDuoc' =>
+                    $studentAnswer && $studentAnswer->diem !== null
+                        ? (float) $studentAnswer->diem
+                        : null,
+
                     'dapAn' => $options->map(
                         function ($option) use ($selectedId) {
                             return [
@@ -719,14 +723,8 @@ class GiangVienApiController extends Controller
             }
         )->values()->all();
 
-        // Điểm trắc nghiệm quy đổi
-        // theo tổng trọng số toàn đề.
-        $diemTracNghiem = $totalPoints > 0
-            ? round(
-                10 * $earnedPoints / $totalPoints,
-                2
-            )
-            : 0;
+        // Điểm câu trắc nghiệm đã được phân bổ theo thang điểm 10.
+        $diemTracNghiem = round($earnedPoints, 2);
 
         // Lấy điểm chính thức nếu đã có
         $diemDaLuu = DB::table('diem')

@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Support\ExamScoreAllocator;
 
 class SinhVienKiemTraController extends Controller
 {
@@ -715,6 +716,15 @@ class SinhVienKiemTraController extends Controller
                 ]);
             }
 
+            $examTotalCents = $questions->sum(
+                fn ($question) => ExamScoreAllocator::cents($question->diem)
+            );
+            abort_if(
+                $examTotalCents !== 1000,
+                422,
+                'Đề thi chưa có tổng điểm hợp lệ bằng 10. Vui lòng liên hệ Giảng viên.'
+            );
+
             // Không cho ghi câu trả lời vào câu hỏi ngoài đề
             $questionIds = $questions->pluck('id')
                 ->map(fn($id) => (int) $id)
@@ -732,7 +742,6 @@ class SinhVienKiemTraController extends Controller
         |--------------------------------------------------------------------------
         */
 
-            $totalPoints = (float) $questions->sum('diem');
             $earnedPoints = 0.0;
 
             $hasEssay = false;
@@ -771,14 +780,8 @@ class SinhVienKiemTraController extends Controller
                 }
             }
 
-            // Điểm trắc nghiệm được quy đổi
-            // theo tổng điểm toàn bài (thang 10).
-            $multipleChoiceScore = $totalPoints > 0
-                ? round(
-                    10 * $earnedPoints / $totalPoints,
-                    2
-                )
-                : 0.0;
+            // Điểm trắc nghiệm đã được phân bổ trực tiếp trên thang 10.
+            $multipleChoiceScore = round($earnedPoints, 2);
 
             /*
         |--------------------------------------------------------------------------

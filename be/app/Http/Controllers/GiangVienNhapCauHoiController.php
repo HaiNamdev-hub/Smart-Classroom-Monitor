@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use App\Support\ExamScoreAllocator;
+use Carbon\Carbon;
 use PhpOffice\PhpSpreadsheet\IOFactory as SpreadsheetFactory;
 use PhpOffice\PhpWord\IOFactory as WordFactory;
 use Smalot\PdfParser\Parser as PdfParser;
@@ -744,8 +746,8 @@ private function parseText(string $text): array
                 'questions.*.diem' => [
                     'required',
                     'numeric',
-                    'gt:0',
-                    'lte:100',
+                    'gte:0',
+                    'lte:10',
                 ],
 
                 'questions.*.dap_an' => [
@@ -778,6 +780,19 @@ private function parseText(string $text): array
             $data['questions']
             as $index => $question
         ) {
+            if ($question['loai_cau_hoi'] === 'tu_luan') {
+                if ((float) $question['diem'] <= 0) {
+                    throw ValidationException::withMessages([
+                        "questions.$index.diem" => 'Điểm tự luận phải lớn hơn 0.',
+                    ]);
+                }
+                if (!ExamScoreAllocator::hasTwoDecimals($question['diem'])) {
+                    throw ValidationException::withMessages([
+                        "questions.$index.diem" => 'Điểm chỉ được có tối đa 2 chữ số thập phân.',
+                    ]);
+                }
+            }
+
             if (
                 $question['loai_cau_hoi'] ===
                 'trac_nghiem'
@@ -824,6 +839,14 @@ private function parseText(string $text): array
                 ->where('id', $baiTapId)
                 ->lockForUpdate()
                 ->first();
+
+            $assignment = DB::table('bai_tap')->where('id', $baiTapId)->first();
+            abort_if(
+                $assignment && !empty($assignment->thoi_gian_bat_dau)
+                    && Carbon::parse($assignment->thoi_gian_bat_dau)->lessThanOrEqualTo(now()),
+                409,
+                'Bài kiểm tra đã đến giờ bắt đầu. Không thể thay đổi câu hỏi.'
+            );
 
             // Không sửa đề khi đã có bài nộp.
             abort_if(
@@ -898,6 +921,8 @@ private function parseText(string $text): array
                     }
                 }
             }
+
+            ExamScoreAllocator::rebalance($baiTapId);
         });
 
         return response()->json([

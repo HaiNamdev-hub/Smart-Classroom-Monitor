@@ -58,8 +58,20 @@
       </div>
 
       <div>
-        <span>Tổng điểm</span>
-        <strong>{{ totalPoints }}</strong>
+        <span>Điểm tự luận</span>
+        <strong>{{ formatPoints(scoreSummary.essay) }}</strong>
+      </div>
+      <div>
+        <span>Điểm trắc nghiệm</span>
+        <strong>{{ formatPoints(scoreSummary.multipleChoice) }}</strong>
+      </div>
+      <div>
+        <span>Tổng điểm bài</span>
+        <strong>{{ formatPoints(scoreSummary.total) }} / 10</strong>
+      </div>
+      <div>
+        <span>Điểm còn lại</span>
+        <strong>{{ formatPoints(scoreSummary.remaining) }}</strong>
       </div>
     </section>
 
@@ -132,17 +144,18 @@
               ></textarea>
             </div>
 
-            <div class="field">
+            <div v-if="form.loai_cau_hoi === 'tu_luan'" class="field">
               <label>Điểm *</label>
               <input
                 v-model.number="form.diem"
                 type="number"
                 min="0.01"
-                max="100"
+                max="10"
                 step="0.01"
                 required
               />
             </div>
+            <p v-else class="hint">Điểm trắc nghiệm được hệ thống tự chia từ phần điểm còn lại.</p>
 
             <!-- TRẮC NGHIỆM -->
             <template v-if="form.loai_cau_hoi === 'trac_nghiem'">
@@ -300,6 +313,12 @@ Loại: Tự luận
 
           <!-- DANH SÁCH XEM TRƯỚC -->
           <div v-if="previewQuestions.length" class="preview">
+            <p class="hint">
+              Tự luận {{ formatPoints(previewSummary.essay) }} ·
+              Trắc nghiệm {{ formatPoints(previewSummary.multipleChoice) }} ·
+              Tổng {{ formatPoints(previewSummary.total) }}/10 ·
+              Còn {{ formatPoints(previewSummary.remaining) }} điểm
+            </p>
             <div class="preview-heading">
               <h3>
                 Xem trước {{ previewQuestions.length }} câu
@@ -327,10 +346,10 @@ Loại: Tự luận
               <div class="preview-heading">
                 <strong>Câu {{ i + 1 }}</strong>
 
-                <button
+              <button
                   type="button"
                   class="btn danger"
-                  @click="previewQuestions.splice(i, 1)"
+                @click="removePreviewQuestion(i)"
                 >
                   Bỏ câu
                 </button>
@@ -354,17 +373,18 @@ Loại: Tự luận
                 placeholder="Nội dung câu hỏi"
               ></textarea>
 
-              <label>
-                Điểm
-
+              <label v-if="q.loai_cau_hoi === 'tu_luan'">
+                Điểm tối đa câu tự luận (0,01–10)
                 <input
                   v-model.number="q.diem"
                   type="number"
                   step="0.01"
                   min="0.01"
-                  max="100"
+                  max="10"
+                  @input="allocatePreviewPoints"
                 />
               </label>
+              <p v-else class="hint">Điểm trắc nghiệm sẽ được chia đều từ phần điểm còn lại.</p>
 
               <template v-if="q.loai_cau_hoi === 'trac_nghiem'">
                 <div
@@ -456,7 +476,7 @@ Loại: Tự luận
               }}
             </strong>
 
-            <span>{{ q.diem }} điểm</span>
+            <span>{{ formatPoints(q._allocatedPoints ?? q.diem) }} điểm</span>
           </div>
 
           <p class="question-text">
@@ -571,14 +591,34 @@ function blankForm() {
 
 const form = ref(blankForm())
 
-const totalPoints = computed(() =>
-  questions.value
-    .reduce(
-      (sum, q) => sum + Number(q.diem || 0),
-      0
-    )
-    .toFixed(2)
-)
+const toCents = value => Math.round((Number(value) || 0) * 100)
+const formatPoints = cents => (Number(cents || 0) / 100).toFixed(2)
+
+const scoreSummary = computed(() => {
+  const essay = questions.value
+    .filter(q => q.loai_cau_hoi === 'tu_luan')
+    .reduce((sum, q) => sum + toCents(q.diem), 0)
+  const multipleChoice = questions.value
+    .filter(q => q.loai_cau_hoi === 'trac_nghiem')
+    .reduce((sum, q) => sum + toCents(q.diem), 0)
+  const total = essay + multipleChoice
+  return {
+    essay,
+    multipleChoice,
+    total,
+    remaining: multipleChoice ? 0 : Math.max(0, 1000 - total),
+  }
+})
+
+const previewSummary = computed(() => {
+  const all = [...questions.value, ...previewQuestions.value]
+  const essay = all.filter(q => q.loai_cau_hoi === 'tu_luan')
+    .reduce((sum, q) => sum + toCents(q.diem), 0)
+  const multipleChoice = all.filter(q => q.loai_cau_hoi === 'trac_nghiem')
+    .reduce((sum, q) => sum + toCents(q._allocatedPoints ?? q.diem), 0)
+  const total = essay + multipleChoice
+  return { essay, multipleChoice, total, remaining: Math.max(0, 1000 - total) }
+})
 
 function message(err) {
   const errors = err.response?.data?.errors
@@ -637,6 +677,26 @@ function fixPreviewType(q) {
     q.dap_an = ["", ""]
     q.dap_an_dung_index = null
   }
+  allocatePreviewPoints()
+}
+
+function removePreviewQuestion(index) {
+  previewQuestions.value.splice(index, 1)
+  allocatePreviewPoints()
+}
+
+function allocatePreviewPoints() {
+  const all = [...questions.value, ...previewQuestions.value]
+  const essays = all.filter(q => q.loai_cau_hoi === 'tu_luan')
+  const multipleChoice = all.filter(q => q.loai_cau_hoi === 'trac_nghiem')
+  const essayCents = essays.reduce((sum, q) => sum + toCents(q.diem), 0)
+  const remaining = Math.max(0, 1000 - essayCents)
+  const base = multipleChoice.length ? Math.floor(remaining / multipleChoice.length) : 0
+  const remainder = multipleChoice.length ? remaining % multipleChoice.length : 0
+
+  multipleChoice.forEach((question, index) => {
+    question._allocatedPoints = base + (index < remainder ? 1 : 0)
+  })
 }
 
 function validate(q) {
@@ -644,11 +704,10 @@ function validate(q) {
     return "Nội dung câu hỏi không được trống."
   }
 
-  if (
-    !(Number(q.diem) > 0 &&
-      Number(q.diem) <= 100)
-  ) {
-    return "Điểm phải lớn hơn 0 và không quá 100."
+  if (q.loai_cau_hoi === 'tu_luan' &&
+    (!(Number(q.diem) > 0 && Number(q.diem) <= 10) ||
+      Math.abs(Number(q.diem) * 100 - Math.round(Number(q.diem) * 100)) > 0.000001)) {
+    return "Điểm tự luận phải lớn hơn 0, tối đa 10 và không quá 2 chữ số thập phân."
   }
 
   if (q.loai_cau_hoi === "trac_nghiem") {
@@ -680,7 +739,9 @@ function payload(q) {
   return {
     loai_cau_hoi: q.loai_cau_hoi,
     noi_dung: String(q.noi_dung).trim(),
-    diem: Number(q.diem),
+    diem: q.loai_cau_hoi === 'trac_nghiem'
+      ? Number(q._allocatedPoints ?? toCents(q.diem)) / 100
+      : Number(q.diem),
 
     dap_an:
       q.loai_cau_hoi === "trac_nghiem"
@@ -728,6 +789,16 @@ async function saveManual() {
 
   if (validation) {
     error.value = validation
+    return
+  }
+
+  const currentEssayCents = questions.value
+    .filter(q => q.loai_cau_hoi === 'tu_luan' && q.id !== editingId.value)
+    .reduce((sum, q) => sum + toCents(q.diem), 0)
+  const essayTotal = currentEssayCents +
+    (form.value.loai_cau_hoi === 'tu_luan' ? toCents(form.value.diem) : 0)
+  if (essayTotal > 1000) {
+    error.value = "Tổng điểm tự luận không được vượt quá 10."
     return
   }
 
@@ -863,6 +934,7 @@ async function previewFile() {
         _key: `${Date.now()}-${index}`,
       })
     )
+    allocatePreviewPoints()
 
     success.value = data.length
       ? `Đọc được ${data.length} câu. Kiểm tra và sửa trước khi lưu.`
@@ -897,6 +969,17 @@ async function saveImport() {
         `Câu ${index + 1}: ${validation}`
       return
     }
+  }
+
+  const essayPoints = previewQuestions.value
+    .filter(q => q.loai_cau_hoi === 'tu_luan')
+    .reduce((sum, q) => sum + toCents(q.diem), 0)
+  const savedEssayPoints = questions.value
+    .filter(q => q.loai_cau_hoi === 'tu_luan')
+    .reduce((sum, q) => sum + toCents(q.diem), 0)
+  if (essayPoints + savedEssayPoints > 1000) {
+    error.value = "Tổng điểm tự luận không được vượt quá 10."
+    return
   }
 
   busy.value = true
@@ -986,7 +1069,7 @@ h2 {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   gap: 14px;
   margin-bottom: 19px;
 }

@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use App\Support\ExamScoreAllocator;
+use Carbon\Carbon;
 
 class GiangVienCauHoiController extends Controller
 {
@@ -38,6 +40,15 @@ class GiangVienCauHoiController extends Controller
      */
     private function checkCanEdit(int $baiTapId): void
     {
+        $assignment = DB::table('bai_tap')->where('id', $baiTapId)->first();
+        if ($assignment && !empty($assignment->thoi_gian_bat_dau)) {
+            abort_if(
+                Carbon::parse($assignment->thoi_gian_bat_dau)->lessThanOrEqualTo(now()),
+                409,
+                'Bài kiểm tra đã đến giờ bắt đầu. Không thể thay đổi câu hỏi.'
+            );
+        }
+
         $hasSubmission = DB::table('bai_nop')
             ->where('bai_tap_id', $baiTapId)
             ->exists();
@@ -109,8 +120,8 @@ class GiangVienCauHoiController extends Controller
             'diem' => [
                 'required',
                 'numeric',
-                'gt:0',
-                'lte:100',
+                'gte:0',
+                'lte:10',
             ],
             'dap_an_mau' => [
                 'nullable',
@@ -129,6 +140,19 @@ class GiangVienCauHoiController extends Controller
                 'min:0',
             ],
         ])->validate();
+
+        if ($data['loai_cau_hoi'] === 'tu_luan') {
+            if ((float) $data['diem'] <= 0) {
+                throw ValidationException::withMessages([
+                    'diem' => 'Điểm tự luận phải lớn hơn 0.',
+                ]);
+            }
+            if (!ExamScoreAllocator::hasTwoDecimals($data['diem'])) {
+                throw ValidationException::withMessages([
+                    'diem' => 'Điểm chỉ được có tối đa 2 chữ số thập phân.',
+                ]);
+            }
+        }
 
         if ($data['loai_cau_hoi'] === 'trac_nghiem') {
             $options = $data['dap_an'] ?? [];
@@ -202,6 +226,7 @@ class GiangVienCauHoiController extends Controller
                 ]);
 
                 $this->saveOptions($id, $data);
+                ExamScoreAllocator::rebalance($baiTapId);
 
                 return $id;
             }
@@ -263,6 +288,7 @@ class GiangVienCauHoiController extends Controller
                     ->delete();
 
                 $this->saveOptions($cauHoiId, $data);
+                ExamScoreAllocator::rebalance($baiTapId);
             }
         );
 
@@ -309,6 +335,8 @@ class GiangVienCauHoiController extends Controller
                 DB::table('cau_hoi')
                     ->where('id', $cauHoiId)
                     ->delete();
+
+                ExamScoreAllocator::rebalance($baiTapId);
             }
         );
 

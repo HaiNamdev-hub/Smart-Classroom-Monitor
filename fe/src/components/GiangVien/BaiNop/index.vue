@@ -292,8 +292,9 @@
                 <strong>{{ isPureMultipleChoice ? 'Bài trắc nghiệm' : 'Bài kiểm tra trực tuyến' }}</strong>
                 <span v-if="isPureMultipleChoice">Điểm hệ thống tính: <b>{{ formatScore(examDetail.diemTracNghiem)
                     }}/10</b></span>
-                <span v-else>Điểm trắc nghiệm đã đạt: <b>{{ formatScore(examDetail.diemTracNghiem) }}/10</b> (chưa gồm
-                  tự luận)</span>
+                <span v-else>Điểm trắc nghiệm: <b>{{ formatScore(examDetail.diemTracNghiem) }}</b> ·
+                  Điểm tự luận: <b>{{ formatScore(essayScoreTotal) }}</b> ·
+                  Tổng dự kiến: <b>{{ formatScore(essayScoreTotal + Number(examDetail.diemTracNghiem || 0)) }}/10</b></span>
                 <p v-if="isPureMultipleChoice && gradingItem?.diem === null" class="muted">Bài cũ chưa có bản ghi điểm.
                   Hãy dùng chức năng chấm lại ở Backend, không nhập điểm thủ công thay kết quả tự động.</p>
                 <p v-if="!isPureMultipleChoice && examDetail.coTuLuan" class="muted">Giảng viên cần đánh giá câu tự luận
@@ -313,14 +314,21 @@
                         đúng</strong><em v-if="a.daChon">(Sinh viên chọn)</em>
                     </div>
                   </template>
-                  <div v-else class="essay-answer">{{ q.traLoiTuLuan || 'Sinh viên chưa trả lời câu này.' }}</div>
+                  <div v-else class="essay-answer">
+                    <p>{{ q.traLoiTuLuan || 'Sinh viên chưa trả lời câu này.' }}</p>
+                    <label class="form-field essay-score-field">
+                      Điểm câu tự luận (tối đa {{ formatScore(q.diem) }})
+                      <input v-model.number="q.diemDatDuoc" type="number" min="0" :max="q.diem" step="0.01"
+                        :disabled="saving" />
+                    </label>
+                  </div>
                 </article>
               </div>
               <p v-else-if="examDetail.laBaiTrucTuyen" class="muted">Chưa có câu hỏi trong bài kiểm tra.</p>
             </template>
 
             <template v-if="!detailLoading && !detailError && (!examDetail?.laBaiTrucTuyen || !isPureMultipleChoice)">
-              <div class="form-field">
+              <div v-if="!examDetail?.laBaiTrucTuyen" class="form-field">
                 <label for="score">Điểm số (0–10) *</label>
                 <input id="score" v-model="gradeForm.diem" type="number" min="0" max="10" step="0.01"
                   placeholder="Nhập điểm, ví dụ 8.5" required :disabled="saving" />
@@ -414,6 +422,11 @@ const gradeForm = ref({
   nhanXet: "",
   ketQua: "",
 })
+const essayScoreTotal = computed(() =>
+  (examDetail.value?.cauHoi || [])
+    .filter(question => question.loaiCauHoi === 'tu_luan')
+    .reduce((sum, question) => sum + (Number(question.diemDatDuoc) || 0), 0)
+)
 
 let lopRequestId = 0
 let baiTapRequestId = 0
@@ -823,16 +836,35 @@ async function saveGrade() {
     return
   }
 
-  if (!gradingItem.value || gradeForm.value.diem === "") {
+  const onlineEssay = !!examDetail.value?.laBaiTrucTuyen
+  if (!gradingItem.value || (!onlineEssay && gradeForm.value.diem === "")) {
     gradeError.value = "Vui lòng nhập điểm."
     return
   }
 
   const diem = Number(gradeForm.value.diem)
 
-  if (!Number.isFinite(diem) || diem < 0 || diem > 10) {
+  if (!onlineEssay && (!Number.isFinite(diem) || diem < 0 || diem > 10)) {
     gradeError.value = "Điểm phải nằm trong khoảng từ 0 đến 10."
     return
+  }
+
+  const essayQuestions = (examDetail.value?.cauHoi || [])
+    .filter(question => question.loaiCauHoi === 'tu_luan')
+  if (onlineEssay) {
+    for (const question of essayQuestions) {
+      const score = Number(question.diemDatDuoc)
+      if (question.diemDatDuoc === '' || question.diemDatDuoc === null ||
+        !Number.isFinite(score) || score < 0 || score > Number(question.diem) ||
+        Math.abs(score * 100 - Math.round(score * 100)) > 0.000001) {
+        gradeError.value = `Điểm câu tự luận phải từ 0 đến ${question.diem}, tối đa 2 chữ số thập phân.`
+        return
+      }
+    }
+    if (essayScoreTotal.value + Number(examDetail.value.diemTracNghiem || 0) > 10) {
+      gradeError.value = 'Tổng điểm bài không được vượt quá 10.'
+      return
+    }
   }
 
   saving.value = true
@@ -841,7 +873,9 @@ async function saveGrade() {
     const response = await api.put(
       `/giang-vien/bai-nop/${gradingItem.value.id}/cham-diem`,
       {
-        diem,
+        ...(onlineEssay
+          ? { essayScores: Object.fromEntries(essayQuestions.map(question => [question.id, Number(question.diemDatDuoc)])) }
+          : { diem }),
         nhanXet: gradeForm.value.nhanXet.trim() || null,
         ketQua: gradeForm.value.ketQua || null,
       }

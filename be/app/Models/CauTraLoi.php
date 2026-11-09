@@ -16,7 +16,10 @@ class CauTraLoi extends Model
         'cau_hoi_id',
         'dap_an_id',
         'noi_dung_tra_loi',
+        'diem',
     ];
+
+    protected $casts = ['diem' => 'decimal:2'];
 
     public function baiNop()
     {
