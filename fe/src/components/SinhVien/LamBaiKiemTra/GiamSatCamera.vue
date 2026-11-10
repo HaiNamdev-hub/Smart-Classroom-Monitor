@@ -96,6 +96,7 @@ let phoneSince = null
 let phoneWarningSent = false
 let phoneMissingSince = null
 let mostRecentWarning = ''
+const evidenceCapturedFor = new Set()
 
 function emitWarning(type, message) {
     mostRecentWarning = message
@@ -105,6 +106,46 @@ function emitWarning(type, message) {
         message,
         at: new Date().toISOString(),
         timestamp: new Date().toISOString(),
+        evidence: type === 'camera_ngat' || evidenceCapturedFor.has(type)
+            ? null
+            : captureEvidenceForEpisode(type),
+    })
+}
+
+function captureEvidenceForEpisode(type) {
+    evidenceCapturedFor.add(type)
+    return captureEvidenceFrame()
+}
+
+function captureEvidenceFrame() {
+    const video = videoRef.value
+    if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth || !video.videoHeight) {
+        return Promise.resolve(null)
+    }
+
+    const scale = Math.min(1, 640 / video.videoWidth, 480 / video.videoHeight)
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale))
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale))
+    const context = canvas.getContext('2d', { alpha: false })
+    if (!context) return Promise.resolve(null)
+
+    try {
+        // Draw synchronously at warning time so the encoded image matches the AI-confirmed frame.
+        context.drawImage(video, 0, 0, canvas.width, canvas.height)
+    } catch {
+        return Promise.resolve(null)
+    }
+    return new Promise(resolve => {
+        const qualities = [0.72, 0.55, 0.4]
+        const encode = index => canvas.toBlob(blob => {
+            if (!blob || blob.size > 512 * 1024) {
+                if (index + 1 < qualities.length) return encode(index + 1)
+                return resolve(null)
+            }
+            resolve(blob)
+        }, 'image/jpeg', qualities[index])
+        encode(0)
     })
 }
 
@@ -117,6 +158,7 @@ function updateWarningText() {
         warning.value = 'Phát hiện điện thoại trong camera.'
     } else {
         if (warning.value) emit('normal', { at: new Date().toISOString() })
+        evidenceCapturedFor.clear()
         warning.value = ''
     }
 }

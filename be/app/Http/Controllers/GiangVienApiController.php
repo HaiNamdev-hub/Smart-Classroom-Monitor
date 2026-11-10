@@ -15,6 +15,7 @@ use App\Models\ThanhVienLop;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Carbon;
 
@@ -1177,6 +1178,7 @@ public function ketThucPhien(
                 ->get()
                 ->map(function ($row) use ($studentProfilesById, $tenLoaiCanhBao) {
                     $profile = $studentProfilesById->get($row->sinh_vien_id);
+                    $imageId = DB::table('anh_man_hinh')->where('event_id', $row->event_id)->value('id');
                     return [
                         'id' => 'cam_' . $row->id,
                         'sinhVienId' => $profile?->id,
@@ -1185,6 +1187,10 @@ public function ketThucPhien(
                         'loai' => $row->loai_canh_bao,
                         'noiDung' => $tenLoaiCanhBao[$row->loai_canh_bao] ?? $row->loai_canh_bao,
                         'thoiGian' => $row->created_at,
+                        'eventId' => $row->event_id,
+                        'evidenceStatus' => $row->evidence_status ?? 'none',
+                        'imageAvailable' => $imageId !== null,
+                        'evidenceUrl' => $imageId ? "/api/giang-vien/anh-man-hinh/{$imageId}/file" : null,
                     ];
                 });
 
@@ -1330,94 +1336,100 @@ public function ketThucPhien(
     public function anhManHinh(
         Request $request
     ): JsonResponse {
-        // 1. Kiểm tra ID phiên
         $data = $request->validate([
-            'phienId' => [
-                'required',
-                'integer',
-                'min:1',
-            ],
+            'phienId' => ['required', 'integer', 'min:1'],
+            'sinhVienId' => ['nullable', 'integer', 'min:1'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+            'loaiCanhBao' => ['nullable', 'string', 'max:50'],
+            'nguon' => ['nullable', 'in:man_hinh,webcam_ai'],
         ]);
 
         $phienId = (int) $data['phienId'];
+        $session = $this->ownSession($request, $phienId);
+        // Keep the legacy gallery usable while the evidence metadata migration is pending.
+        $hasExamId = Schema::hasColumn('anh_man_hinh', 'bai_tap_id');
+        $hasEventId = Schema::hasColumn('anh_man_hinh', 'event_id');
+        $hasSource = Schema::hasColumn('anh_man_hinh', 'nguon');
+        $hasAlertType = Schema::hasColumn('anh_man_hinh', 'loai_canh_bao');
+        $hasDisk = Schema::hasColumn('anh_man_hinh', 'storage_disk');
+        $hasMime = Schema::hasColumn('anh_man_hinh', 'mime_type');
+        $hasSize = Schema::hasColumn('anh_man_hinh', 'kich_thuoc_bytes');
+        $hasExpiry = Schema::hasColumn('anh_man_hinh', 'expires_at');
 
-        // 2. Kiểm tra quyền Giảng viên
-        $this->ownSession($request, $phienId);
+        $select = [
+            'amh.id', 'amh.phien_id', 'amh.sinh_vien_id', 'amh.duong_dan',
+            'amh.thoi_gian_chup', 'sv.ma_sinh_vien', 'sv.id as profile_id', 'nd.ho_ten',
+            $hasExamId ? 'amh.bai_tap_id' : DB::raw('NULL as bai_tap_id'),
+            $hasEventId ? 'amh.event_id' : DB::raw('NULL as event_id'),
+            $hasSource ? 'amh.nguon' : DB::raw("'man_hinh' as nguon"),
+            $hasAlertType ? 'amh.loai_canh_bao' : DB::raw('NULL as loai_canh_bao'),
+            $hasDisk ? 'amh.storage_disk' : DB::raw("'public' as storage_disk"),
+            $hasMime ? 'amh.mime_type' : DB::raw('NULL as mime_type'),
+            $hasSize ? 'amh.kich_thuoc_bytes' : DB::raw('NULL as kich_thuoc_bytes'),
+            $hasExpiry ? 'amh.expires_at' : DB::raw('NULL as expires_at'),
+        ];
 
-        // 3. Lấy ảnh từ Database
         $images = DB::table('anh_man_hinh as amh')
-            ->join(
-                'sinh_vien as sv',
-                'amh.sinh_vien_id',
-                '=',
-                'sv.id'
-            )
-            ->join(
-                'nguoi_dung as nd',
-                'sv.nguoi_dung_id',
-                '=',
-                'nd.id'
-            )
-            ->where('amh.phien_id', $phienId)
-            ->select([
-                'amh.id',
-                'amh.phien_id',
-                'amh.sinh_vien_id',
-                'amh.duong_dan',
-                'amh.thoi_gian_chup',
-                'sv.ma_sinh_vien',
-                'nd.ho_ten',
-            ])
-            ->orderByDesc('amh.thoi_gian_chup')
-            ->limit(200)
-            ->get();
-
-        // 4. Chuẩn hóa dữ liệu cho Vue
-        $result = $images->map(function ($image) {
-            $imageUrl = null;
-
-            if (!empty($image->duong_dan)) {
-                $path = ltrim(
-                    (string) $image->duong_dan,
-                    '/'
-                );
-
-                if (Storage::disk('public')->exists($path)) {
-                    $imageUrl = url('/storage/' . $path);
+            ->leftJoin('nguoi_dung as nd', 'nd.id', '=', 'amh.sinh_vien_id')
+            ->leftJoin('sinh_vien as sv', 'sv.nguoi_dung_id', '=', 'nd.id')
+            ->where(function ($query) use ($phienId, $session) {
+                $query->where('amh.phien_id', $phienId);
+                if (Schema::hasColumn('anh_man_hinh', 'bai_tap_id') && $session->bai_tap_id) {
+                    $query->orWhere(function ($legacyOrExam) use ($session) {
+                        $legacyOrExam->whereNull('amh.phien_id')
+                            ->where('amh.bai_tap_id', $session->bai_tap_id);
+                    });
                 }
-            }
+            })
+            ->select($select)
+            ->orderByDesc('amh.thoi_gian_chup')
+            ->when(!empty($data['sinhVienId']), fn ($query) => $query->where('sv.id', $data['sinhVienId']))
+            ->when(!empty($data['from']), fn ($query) => $query->where('amh.thoi_gian_chup', '>=', $data['from']))
+            ->when(!empty($data['to']), fn ($query) => $query->where('amh.thoi_gian_chup', '<=', $data['to']))
+            ->when(!empty($data['loaiCanhBao']), function ($query) use ($hasAlertType, $data) {
+                $hasAlertType ? $query->where('amh.loai_canh_bao', $data['loaiCanhBao']) : $query->whereRaw('1 = 0');
+            })
+            ->when(!empty($data['nguon']), function ($query) use ($hasSource, $data) {
+                if ($hasSource) {
+                    $query->where('amh.nguon', $data['nguon']);
+                } elseif ($data['nguon'] !== 'man_hinh') {
+                    $query->whereRaw('1 = 0');
+                }
+            })
+            ->limit(300)->get();
+
+        $result = $images->map(function ($image) {
+            $disk = $image->storage_disk ?: 'public';
+            $isExpired = $image->expires_at && Carbon::parse($image->expires_at)->isPast();
+            $fileExists = !empty($image->duong_dan)
+                && Storage::disk($disk)->exists($image->duong_dan)
+                && !$isExpired;
 
             return [
                 'id' => $image->id,
-
                 'phienId' => $image->phien_id,
-
-                'sinhVienId' =>
-                $image->sinh_vien_id,
-
-                'tenSinhVien' =>
-                $image->ho_ten,
-
-                'mssv' =>
-                $image->ma_sinh_vien,
-
-                // Chỉ trả dữ liệu có thật.
+                'baiTapId' => $image->bai_tap_id,
+                'sinhVienId' => $image->profile_id ?? $image->sinh_vien_id,
+                'eventId' => $image->event_id,
+                'nguon' => $image->nguon ?: 'man_hinh',
+                'loaiCanhBao' => $image->loai_canh_bao,
+                'tenSinhVien' => $image->ho_ten,
+                'mssv' => $image->ma_sinh_vien,
                 'tenMay' => null,
                 'trangThai' => null,
-
-                'imageUrl' => $imageUrl,
-
-                'thoiGianCapNhat' =>
-                $this->dateValue(
-                    $image->thoi_gian_chup
-                ),
+                'imageUrl' => $fileExists ? "/api/giang-vien/anh-man-hinh/{$image->id}/file" : null,
+                'imageAvailable' => $fileExists,
+                'evidenceStatus' => $fileExists ? 'available' : ($isExpired ? 'expired' : 'missing'),
+                'mimeType' => $image->mime_type,
+                'sizeBytes' => $image->kich_thuoc_bytes,
+                'thoiGianCapNhat' => $this->dateValue($image->thoi_gian_chup),
             ];
         });
 
         return response()->json([
             'status' => true,
-            'message' =>
-            'Lấy danh sách ảnh màn hình thành công.',
+            'message' => 'Lấy danh sách ảnh thành công.',
             'data' => $result,
         ]);
     }

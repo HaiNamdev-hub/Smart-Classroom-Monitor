@@ -250,6 +250,16 @@
 
               <td>
                 <div class="row-actions">
+                  <button v-if="item.nguon === 'camera'" type="button" class="detail-btn"
+                    :disabled="!item.imageAvailable" @click="openEvidence(item)">
+                    Xem ảnh bằng chứng
+                  </button>
+                  <small v-if="item.nguon === 'camera'" class="evidence-status-label">
+                    {{ evidenceStatusText(item) }}
+                  </small>
+                  <small v-else-if="item.loaiCanhBao === 'roi_tab'" class="evidence-status-label">
+                    Không có ảnh: bài thi không yêu cầu chia sẻ màn hình.
+                  </small>
                   <button type="button" class="detail-btn" @click="openDetail(item)">
                     Chi tiết
                   </button>
@@ -298,7 +308,7 @@
     </div>
 
     <!-- MODAL CHI TIẾT -->
-    <div v-if="selectedAlert" class="modal-overlay" @click.self="selectedAlert = null">
+    <div v-if="selectedAlert" class="modal-overlay" @click.self="closeDetail">
       <div class="detail-modal" role="dialog" aria-modal="true" aria-labelledby="detail-title">
         <header class="modal-header">
           <div>
@@ -307,7 +317,7 @@
             </span>
             <h2 id="detail-title">Chi tiết vi phạm</h2>
           </div>
-          <button type="button" class="close-btn" aria-label="Đóng" @click="selectedAlert = null">
+          <button type="button" class="close-btn" aria-label="Đóng" @click="closeDetail">
             ×
           </button>
         </header>
@@ -369,10 +379,17 @@
               {{ selectedAlert.chiTiet || "Chưa có mô tả." }}
             </p>
           </div>
+          <section v-if="selectedAlert.nguon === 'camera'" class="evidence-panel">
+            <h3>Ảnh bằng chứng</h3>
+            <p v-if="evidenceLoading">Đang tải ảnh bảo vệ bằng quyền Giảng viên...</p>
+            <p v-else-if="evidenceError" role="alert">{{ evidenceError }}</p>
+            <img v-else-if="evidenceObjectUrl" :src="evidenceObjectUrl" alt="Ảnh webcam tại thời điểm cảnh báo" />
+            <p v-else>{{ evidenceStatusText(selectedAlert) }}</p>
+          </section>
         </div>
 
         <footer class="modal-footer">
-          <button type="button" class="btn-outline" @click="selectedAlert = null">
+          <button type="button" class="btn-outline" @click="closeDetail">
             Đóng
           </button>
           <button v-if="isPending(selectedAlert)" type="button" class="btn-primary" :disabled="isBusy"
@@ -445,6 +462,10 @@ const actionError = ref("")
 const lastUpdatedAt = ref("")
 
 const selectedAlert = ref(null)
+const evidenceObjectUrl = ref("")
+const evidenceLoading = ref(false)
+const evidenceError = ref("")
+let evidenceRequestId = 0
 const confirmAction = ref(null)
 
 const filters = ref({
@@ -1000,7 +1021,49 @@ async function fetchData() {
 
 /* XEM CHI TIẾT */
 function openDetail(item) {
+  clearEvidence()
   selectedAlert.value = item
+}
+
+function evidenceStatusText(item) {
+  if (item.imageAvailable) return 'Ảnh bằng chứng đã lưu.'
+  if (item.evidenceStatus === 'failed') return 'Upload ảnh thất bại.'
+  if (item.evidenceStatus === 'pending') return 'Ảnh đang chờ upload.'
+  if (item.evidenceStatus === 'expired') return 'Ảnh đã hết thời hạn lưu và được xóa.'
+  if (item.loaiCanhBao === 'camera_ngat') return 'Camera đã ngắt; không có ảnh tại thời điểm này.'
+  return 'Cảnh báo này chưa có ảnh bằng chứng.'
+}
+
+function clearEvidence() {
+  evidenceRequestId++
+  if (evidenceObjectUrl.value) URL.revokeObjectURL(evidenceObjectUrl.value)
+  evidenceObjectUrl.value = ""
+  evidenceError.value = ""
+  evidenceLoading.value = false
+}
+
+function closeDetail() {
+  clearEvidence()
+  selectedAlert.value = null
+}
+
+async function openEvidence(item) {
+  openDetail(item)
+  if (!item.imageAvailable || !item.evidenceUrl) return
+  const current = ++evidenceRequestId
+  evidenceLoading.value = true
+  try {
+    const response = await api.get(item.evidenceUrl, { responseType: 'blob' })
+    if (current !== evidenceRequestId) return
+    evidenceObjectUrl.value = URL.createObjectURL(response.data)
+  } catch (err) {
+    if (current !== evidenceRequestId) return
+    evidenceError.value = err.response?.status === 403
+      ? 'Bạn không có quyền xem ảnh này.'
+      : 'Không thể tải ảnh bằng chứng.'
+  } finally {
+    if (current === evidenceRequestId) evidenceLoading.value = false
+  }
 }
 
 /* MỞ XÁC NHẬN */
@@ -1165,6 +1228,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   requestId++
+  clearEvidence()
   if (refreshTimer) clearInterval(refreshTimer)
 })
 </script>
@@ -1275,6 +1339,22 @@ button:disabled {
   color: #1e40af;
   font-size: 12px;
 }
+
+.evidence-status-label {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.evidence-panel {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.evidence-panel h3 { margin: 0 0 10px; }
+.evidence-panel img { display: block; max-width: 100%; max-height: 65vh; margin: 0 auto; border-radius: 8px; }
 
 .camera-summary span {
   color: #475569;

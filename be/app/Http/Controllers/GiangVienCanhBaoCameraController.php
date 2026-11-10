@@ -64,6 +64,8 @@ class GiangVienCanhBaoCameraController extends Controller
                 'cb.bai_tap_id',
                 'cb.sinh_vien_id',
                 'cb.loai_canh_bao',
+                'cb.event_id',
+                'cb.evidence_status',
                 'cb.created_at',
                 'bt.tieu_de',
                 'lh.ten_lop',
@@ -163,9 +165,14 @@ class GiangVienCanhBaoCameraController extends Controller
         // 6. CHUYỂN ĐỔI DỮ LIỆU CHO FRONTEND
         // ==========================================
 
+        $evidenceIds = DB::table('anh_man_hinh')
+            ->whereIn('event_id', $alerts->pluck('event_id')->filter()->all())
+            ->pluck('id', 'event_id');
+
         $result = $alerts->map(function ($item) use (
             $cameraStats,
-            $tabStats
+            $tabStats,
+            $evidenceIds
         ) {
             $key = $item->bai_tap_id
                 . '_'
@@ -254,6 +261,13 @@ class GiangVienCanhBaoCameraController extends Controller
 
                 'loaiCanhBao' =>
                     $item->loai_canh_bao,
+
+                'eventId' => $item->event_id,
+                'evidenceStatus' => $item->evidence_status ?? 'none',
+                'imageAvailable' => $evidenceIds->has($item->event_id),
+                'evidenceUrl' => $evidenceIds->has($item->event_id)
+                    ? '/api/giang-vien/anh-man-hinh/' . $evidenceIds->get($item->event_id) . '/file'
+                    : null,
 
                 'tenLoaiCanhBao' =>
                     $tenLoaiCanhBao,

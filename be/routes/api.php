@@ -26,6 +26,7 @@ use App\Http\Controllers\GiangVienViPhamKiemTraController;
 use App\Http\Controllers\SinhVienCanhBaoCameraController;
 use App\Http\Controllers\SinhVienKiemTraController;
 use App\Http\Controllers\WebRtcSignalController;
+use App\Http\Controllers\ExamEvidenceFileController;
 use App\Http\Middleware\QuanTriVien;
 use App\Http\Middleware\GiangVien;
 use Illuminate\Support\Facades\Route;
@@ -125,6 +126,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post(
         '/sinh-vien/bai-kiem-tra/{baiTapId}/canh-bao-camera',
         [SinhVienCanhBaoCameraController::class, 'store']
+    )->middleware('throttle:30,1');
+    Route::post(
+        '/sinh-vien/bai-kiem-tra/{baiTapId}/canh-bao-camera/{eventId}/anh',
+        [SinhVienCanhBaoCameraController::class, 'storeEvidence']
+    )->middleware('throttle:20,1');
+    Route::post(
+        '/sinh-vien/bai-kiem-tra/{baiTapId}/canh-bao-camera/{eventId}/anh-that-bai',
+        [SinhVienCanhBaoCameraController::class, 'markEvidenceFailed']
     )->middleware('throttle:30,1');
 
     // WEBRTC SIGNALING CHO GIÁM SÁT THI (SANCTUM PROTECTED)
@@ -425,6 +434,10 @@ Route::get(
         '/anh-man-hinh',
         [$controller, 'anhManHinh']
     );
+    Route::get(
+        '/anh-man-hinh/{imageId}/file',
+        [ExamEvidenceFileController::class, 'show']
+    )->whereNumber('imageId');
 
     // CẢNH BÁO HỆ THỐNG
     Route::get(

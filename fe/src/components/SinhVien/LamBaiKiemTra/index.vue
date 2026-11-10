@@ -108,6 +108,10 @@
           trên bên trái. Sau khi camera hoạt động, câu hỏi sẽ hiển thị.
           Thời gian bài thi vẫn tiếp tục đếm.
         </p>
+        <p class="evidence-privacy-notice">
+          Khi AI xác nhận cảnh báo, hệ thống có thể lưu một ảnh JPEG từ webcam để Giảng viên xem xét.
+          Không ghi video và không yêu cầu chia sẻ màn hình; camera ngắt sẽ không dùng ảnh cũ làm bằng chứng.
+        </p>
       </div>
 
       <template v-else>
@@ -141,6 +145,7 @@
             {{ cameraWarningCount }}/5
           </strong>
         </div>
+        <p v-if="evidenceNotice" class="evidence-upload-notice" role="status">{{ evidenceNotice }}</p>
 
         <!-- CẢNH BÁO ĐIỆN THOẠI: BỘ ĐẾM RIÊNG -->
         <div class="phone-warning-counter" role="status">
@@ -511,6 +516,7 @@ const phoneWarningCount = ref(0)
 const lockReason = ref("")
 let cameraQueue = []
 let cameraRequest = null
+const evidenceNotice = ref("")
 const locked = ref(false)
 const monitorReady = ref(false)
 const cameraEnabled = ref(false)
@@ -596,6 +602,9 @@ function handleCameraWarning(event) {
   cameraQueue.push({
     eventId: createEventId(),
     loaiCanhBao,
+    evidence: event.type === 'camera_ngat' || loaiCanhBao === 'camera_ngat'
+      ? null
+      : (event.evidence ?? null),
   })
 
   monitorReady.value = false
@@ -627,7 +636,7 @@ async function flushCameraQueue() {
 
       const response = await api.post(
         endpoint("/canh-bao-camera"),
-        event
+        { eventId: event.eventId, loaiCanhBao: event.loaiCanhBao }
       )
 
       if (
@@ -645,6 +654,9 @@ async function flushCameraQueue() {
       // Chỉ xóa sau khi Backend phản hồi thành công.
       cameraQueue.shift()
 
+      // Keep warning persistence independent from image encoding/network latency.
+      void uploadCameraEvidence(event, data).catch(() => {})
+
       // Backend trả ba bộ đếm độc lập: camera, điện thoại và rời tab.
       // Dùng cùng một hàm với API /trang-thai để tránh lệch trạng thái.
       const stillAllowed = applyViolationState(data)
@@ -658,6 +670,39 @@ async function flushCameraQueue() {
   })
 
   return cameraRequest
+}
+
+async function uploadCameraEvidence(event, alertResponse) {
+  if (!alertResponse?.eventAccepted || event.loaiCanhBao === 'camera_ngat') return
+  const base = endpoint(`/canh-bao-camera/${encodeURIComponent(event.eventId)}`)
+  let blob = null
+  try {
+    blob = await Promise.resolve(event.evidence)
+  } catch {
+    blob = null
+  }
+
+  if (!blob) {
+    evidenceNotice.value = 'Cảnh báo đã ghi nhận nhưng không tạo được ảnh webcam.'
+    await api.post(`${base}/anh-that-bai`, { eventId: event.eventId }).catch(() => {})
+    return
+  }
+
+  const formData = new FormData()
+  formData.append('eventId', event.eventId)
+  formData.append('image', blob, `${event.eventId}.jpg`)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await api.post(`${base}/anh`, formData)
+      evidenceNotice.value = 'Ảnh webcam bằng chứng đã được lưu.'
+      return
+    } catch (uploadError) {
+      if (attempt === 1) {
+        evidenceNotice.value = 'Cảnh báo đã ghi nhận nhưng upload ảnh thất bại.'
+        await api.post(`${base}/anh-that-bai`, { eventId: event.eventId }).catch(() => {})
+      }
+    }
+  }
 }
 
 function handleCameraNormal(event) {

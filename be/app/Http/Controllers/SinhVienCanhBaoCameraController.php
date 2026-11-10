@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class SinhVienCanhBaoCameraController extends Controller
@@ -78,7 +79,7 @@ class SinhVienCanhBaoCameraController extends Controller
             ->where('bt.id', $baiTapId)
             ->where(
                 'tv.sinh_vien_id',
-                $sinhVienId
+                (int) $request->user()->id
             )
             ->where(
                 'tv.trang_thai',
@@ -179,12 +180,30 @@ class SinhVienCanhBaoCameraController extends Controller
             // ======================================
 
             // Mỗi eventId chỉ được ghi nhận một lần.
-            $existed = (clone $cameraQuery)
+            $existingAlert = (clone $cameraQuery)
                 ->where(
                     'event_id',
                     $data['eventId']
                 )
-                ->exists();
+                ->first();
+
+            if ($existingAlert) {
+                abort_if(
+                    $existingAlert->loai_canh_bao !== $data['loaiCanhBao'],
+                    409,
+                    'eventId đã được dùng cho một loại cảnh báo khác.'
+                );
+                return $this->responseState(
+                    $otherCameraCount,
+                    $phoneCount,
+                    $tabCount,
+                    $daNop,
+                    true,
+                    (int) $existingAlert->id,
+                    $data['eventId'],
+                    $existingAlert->evidence_status ?? 'none'
+                );
+            }
 
             // ======================================
             // 8. NẾU ĐÃ KHÓA HOẶC ĐÃ NỘP
@@ -201,21 +220,16 @@ class SinhVienCanhBaoCameraController extends Controller
                     $otherCameraCount,
                     $phoneCount,
                     $tabCount,
-                    $daNop
+                    $daNop,
+                    false,
+                    null,
+                    $data['eventId'],
+                    'none'
                 );
             }
 
             // Nếu eventId đã tồn tại,
             // trả lại bộ đếm hiện tại.
-            if ($existed) {
-                return $this->responseState(
-                    $otherCameraCount,
-                    $phoneCount,
-                    $tabCount,
-                    $daNop
-                );
-            }
-
             // ======================================
             // 9. KIỂM TRA THỜI GIAN THI
             // ======================================
@@ -291,7 +305,7 @@ class SinhVienCanhBaoCameraController extends Controller
             // 10. LƯU CẢNH BÁO VÀO MYSQL
             // ======================================
 
-            DB::table('canh_bao_camera')->insert([
+            $alertId = DB::table('canh_bao_camera')->insertGetId([
                 'bai_tap_id' => $baiTapId,
                 'sinh_vien_id' => $sinhVienId,
 
@@ -299,6 +313,10 @@ class SinhVienCanhBaoCameraController extends Controller
 
                 'loai_canh_bao' =>
                     $data['loaiCanhBao'],
+
+                'evidence_status' => $data['loaiCanhBao'] === 'camera_ngat'
+                    ? 'not_applicable'
+                    : 'pending',
 
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -376,7 +394,11 @@ class SinhVienCanhBaoCameraController extends Controller
                 $otherCameraCount,
                 $phoneCount,
                 $tabCount,
-                false
+                false,
+                true,
+                (int) $alertId,
+                $data['eventId'],
+                $data['loaiCanhBao'] === 'camera_ngat' ? 'not_applicable' : 'pending'
             );
         });
     }
@@ -388,7 +410,11 @@ class SinhVienCanhBaoCameraController extends Controller
         int $otherCameraCount,
         int $phoneCount,
         int $tabCount,
-        bool $daNop
+        bool $daNop,
+        bool $eventAccepted = false,
+        ?int $alertId = null,
+        ?string $eventId = null,
+        string $evidenceStatus = 'none'
     ): JsonResponse {
 
         // ======================================
@@ -474,7 +500,113 @@ class SinhVienCanhBaoCameraController extends Controller
 
                 // camera / dien_thoai / roi_tab
                 'lyDoKhoa' => $lyDoKhoa,
+                'eventAccepted' => $eventAccepted,
+                'alertId' => $alertId,
+                'eventId' => $eventId,
+                'evidenceStatus' => $evidenceStatus,
             ],
         ]);
+    }
+
+    public function storeEvidence(Request $request, int $baiTapId, string $eventId): JsonResponse
+    {
+        $request->validate([
+            'eventId' => ['required', 'uuid', 'in:' . $eventId],
+            'image' => ['required', 'image', 'mimes:jpeg,jpg,webp', 'max:512'],
+        ]);
+
+        $userId = (int) $request->user()->id;
+        $student = DB::table('sinh_vien')->where('nguoi_dung_id', $userId)->first();
+        abort_unless($student, 403, 'Tài khoản không phải sinh viên.');
+
+        $membership = DB::table('bai_tap as bt')
+            ->join('thanh_vien_lop as tv', 'tv.lop_hoc_id', '=', 'bt.lop_hoc_id')
+            ->where('bt.id', $baiTapId)
+            // Membership rows use the account ID; the alert table uses the profile ID.
+            ->where('tv.sinh_vien_id', $userId)
+            ->where('tv.trang_thai', 'dang_hoc')
+            ->exists();
+        abort_unless($membership, 403, 'Bạn không có quyền gửi ảnh cho bài kiểm tra này.');
+
+        $alert = DB::table('canh_bao_camera')
+            ->where('bai_tap_id', $baiTapId)
+            ->where('sinh_vien_id', $student->id)
+            ->where('event_id', $eventId)
+            ->first();
+        abort_unless($alert, 404, 'Không tìm thấy cảnh báo đã được Backend chấp nhận.');
+        abort_if($alert->loai_canh_bao === 'camera_ngat', 422, 'Camera đã ngắt; không thể dùng ảnh cũ làm bằng chứng.');
+
+        $existing = DB::table('anh_man_hinh')->where('event_id', $eventId)->first();
+        if ($existing && Storage::disk($existing->storage_disk)->exists($existing->duong_dan)) {
+            return response()->json(['status' => true, 'data' => ['eventId' => $eventId, 'imageId' => $existing->id, 'evidenceStatus' => 'available']]);
+        }
+
+        $file = $request->file('image');
+        $extension = $file->getMimeType() === 'image/webp' ? 'webp' : 'jpg';
+        $path = "exam-evidence/{$baiTapId}/{$student->id}/{$eventId}.{$extension}";
+        $stored = Storage::disk('local')->putFileAs(dirname($path), $file, basename($path));
+        abort_unless($stored, 500, 'Không thể lưu ảnh bằng chứng.');
+
+        try {
+            $imageId = DB::transaction(function () use ($alert, $baiTapId, $student, $userId, $eventId, $path, $file) {
+                $existing = DB::table('anh_man_hinh')->where('event_id', $eventId)->first();
+                if ($existing) {
+                    DB::table('anh_man_hinh')->where('id', $existing->id)->update([
+                        'duong_dan' => $path,
+                        'storage_disk' => 'local',
+                        'mime_type' => $file->getMimeType(),
+                        'kich_thuoc_bytes' => $file->getSize(),
+                        'thoi_gian_chup' => $existing->thoi_gian_chup,
+                        'expires_at' => $existing->expires_at ?: now()->addDays(90),
+                    ]);
+                    DB::table('canh_bao_camera')->where('id', $alert->id)->update(['evidence_status' => 'available', 'updated_at' => now()]);
+                    return (int) $existing->id;
+                }
+
+                $sessionId = DB::table('phien_giam_sat')
+                    ->where('bai_tap_id', $baiTapId)
+                    ->where('trang_thai', 'dang_dien_ra')
+                    ->orderByDesc('id')
+                    ->value('id');
+                $id = DB::table('anh_man_hinh')->insertGetId([
+                    'phien_id' => $sessionId,
+                    'sinh_vien_id' => $userId,
+                    'bai_tap_id' => $baiTapId,
+                    'event_id' => $eventId,
+                    'nguon' => 'webcam_ai',
+                    'loai_canh_bao' => $alert->loai_canh_bao,
+                    'duong_dan' => $path,
+                    'storage_disk' => 'local',
+                    'mime_type' => $file->getMimeType(),
+                    'kich_thuoc_bytes' => $file->getSize(),
+                    'thoi_gian_chup' => $alert->created_at,
+                    'expires_at' => now()->addDays(90),
+                    'created_at' => now(),
+                ]);
+                DB::table('canh_bao_camera')->where('id', $alert->id)->update(['evidence_status' => 'available', 'updated_at' => now()]);
+                return $id;
+            });
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($path);
+            throw $exception;
+        }
+
+        return response()->json(['status' => true, 'data' => ['eventId' => $eventId, 'imageId' => $imageId, 'evidenceStatus' => 'available']], 201);
+    }
+
+    public function markEvidenceFailed(Request $request, int $baiTapId, string $eventId): JsonResponse
+    {
+        $request->validate(['eventId' => ['required', 'uuid', 'in:' . $eventId]]);
+        $studentId = DB::table('sinh_vien')->where('nguoi_dung_id', $request->user()->id)->value('id');
+        abort_unless($studentId, 403, 'Tài khoản không phải sinh viên.');
+        $alert = DB::table('canh_bao_camera')->where('bai_tap_id', $baiTapId)
+            ->where('sinh_vien_id', $studentId)->where('event_id', $eventId)->first();
+        abort_unless($alert, 404, 'Không tìm thấy cảnh báo đã được chấp nhận.');
+        if ($alert->evidence_status === 'pending') {
+            DB::table('canh_bao_camera')->where('id', $alert->id)->update([
+                'evidence_status' => 'failed', 'updated_at' => now(),
+            ]);
+        }
+        return response()->json(['status' => true, 'data' => ['eventId' => $eventId, 'evidenceStatus' => $alert->evidence_status === 'pending' ? 'failed' : $alert->evidence_status]]);
     }
 }

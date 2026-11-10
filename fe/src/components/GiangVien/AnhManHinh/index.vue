@@ -162,6 +162,24 @@
         </button>
       </div>
 
+      <div class="evidence-filter-grid">
+        <select v-model="sourceFilter" :disabled="!hasLoaded" @change="fetchAnhManHinh">
+          <option value="">Mọi nguồn ảnh</option>
+          <option value="man_hinh">Ảnh màn hình</option>
+          <option value="webcam_ai">Ảnh webcam AI</option>
+        </select>
+        <select v-model="alertTypeFilter" :disabled="!hasLoaded" @change="fetchAnhManHinh">
+          <option value="">Mọi loại cảnh báo</option>
+          <option value="phat_hien_dien_thoai">Phát hiện điện thoại</option>
+          <option value="nhieu_khuon_mat">Nhiều khuôn mặt</option>
+          <option value="khong_co_khuon_mat">Không có khuôn mặt</option>
+          <option value="camera_ngat">Camera ngắt</option>
+        </select>
+        <input v-model="studentFilter" type="number" min="1" placeholder="ID Sinh viên" @change="fetchAnhManHinh" />
+        <label>Từ <input v-model="fromFilter" type="datetime-local" @change="fetchAnhManHinh" /></label>
+        <label>Đến <input v-model="toFilter" type="datetime-local" @change="fetchAnhManHinh" /></label>
+      </div>
+
       <!-- ERROR -->
       <div v-if="error" class="error-box" role="alert">
         <div>
@@ -234,33 +252,28 @@
         <article
           v-for="item in filteredImages"
           :key="item.id"
+          :ref="(el) => setThumbnailRef(el, item)"
+          :data-image-id="getImageKey(item)"
           class="screen-card"
         >
           <!-- ẢNH PREVIEW -->
           <div class="screen-preview">
             <img
-              v-if="getImageUrl(item) && !imageErrors[getImageKey(item)]"
-              :src="getImageUrl(item)"
-              :alt="`Ảnh màn hình của ${item.tenSinhVien || 'sinh viên'}`"
-              loading="lazy"
-              @error="markImageError(item)"
+              v-if="imageObjectUrls[getImageKey(item)]"
+              :src="imageObjectUrls[getImageKey(item)]"
+              :alt="`Ảnh bằng chứng của ${item.tenSinhVien || 'sinh viên'}`"
+              @error="handleThumbnailImageError(item)"
+              @click="phongToAnh(item)"
             />
 
             <div v-else class="no-image">
-              <span class="no-image-icon">▣</span>
+              <span v-if="thumbnailStatus(item) === 'loading'" class="thumbnail-spinner"></span>
+              <span v-else class="no-image-icon">▣</span>
               <strong>
-                {{
-                  imageErrors[getImageKey(item)]
-                    ? "Không thể tải ảnh"
-                    : "Chưa có ảnh hiển thị"
-                }}
+                {{ thumbnailStatusText(item) }}
               </strong>
               <small>
-                {{
-                  imageErrors[getImageKey(item)]
-                    ? "Vui lòng kiểm tra liên kết hoặc quyền truy cập"
-                    : "Hệ thống chưa cung cấp liên kết ảnh"
-                }}
+                {{ thumbnailHint(item) }}
               </small>
             </div>
 
@@ -319,7 +332,8 @@
               class="view-image-btn"
               :disabled="
                 !getImageUrl(item) ||
-                !!imageErrors[getImageKey(item)]
+                !item.imageAvailable ||
+                ['loading', 'unauthorized', 'forbidden', 'expired', 'retry_exhausted'].includes(thumbnailStatus(item))
               "
               @click="phongToAnh(item)"
             >
@@ -381,7 +395,7 @@
 
         <div class="large-image-wrapper">
           <img
-            :src="getImageUrl(selectedImage)"
+            :src="selectedImageUrl"
             alt="Ảnh màn hình phóng to"
             @error="handleLargeImageError"
           />
@@ -422,10 +436,17 @@ const danhSachAnh = ref([])
 
 const selectedPhienId = ref("")
 const selectedImage = ref(null)
+const selectedImageUrl = ref("")
+const imageObjectUrls = ref({})
+const imageLoadStates = ref({})
+const sourceFilter = ref("")
+const alertTypeFilter = ref("")
+const studentFilter = ref("")
+const fromFilter = ref("")
+const toFilter = ref("")
 
 const search = ref("")
 const imageFilter = ref("all")
-const imageErrors = ref({})
 
 const loadingPhien = ref(false)
 const loading = ref(false)
@@ -437,6 +458,18 @@ const lastUpdatedAt = ref("")
 let sessionRequestId = 0
 let imageRequestId = 0
 let refreshTimer = null
+let thumbnailObserver = null
+let thumbnailGeneration = 0
+let activeThumbnailLoads = 0
+const MAX_PARALLEL_THUMBNAILS = 4
+const thumbnailQueue = []
+const thumbnailPromises = new Map()
+const thumbnailAbortControllers = new Map()
+const thumbnailElements = new Map()
+const terminalImageFailures = new Map()
+const thumbnailAttempts = new Map()
+const MAX_THUMBNAIL_ATTEMPTS = 2
+let backgroundRefreshInFlight = false
 
 /* HELPERS API */
 function extractList(response) {
@@ -461,6 +494,7 @@ function extractList(response) {
 function normalizePhien(item) {
   return {
     id: item.id,
+    baiTapId: item.baiTapId ?? item.bai_tap_id ?? null,
     tenPhien:
       item.tenPhien ??
       item.ten_phien ??
@@ -480,6 +514,8 @@ function normalizePhien(item) {
 function normalizeAnh(item) {
   return {
     id: item.id,
+    phienId: item.phienId ?? item.phien_id ?? null,
+    baiTapId: item.baiTapId ?? item.bai_tap_id ?? null,
     sinhVienId:
       item.sinhVienId ??
       item.sinh_vien_id ??
@@ -504,6 +540,10 @@ function normalizeAnh(item) {
       item.imageUrl ??
       item.image_url ??
       "",
+    imageAvailable: item.imageAvailable === true,
+    evidenceStatus: item.evidenceStatus ?? item.evidence_status ?? null,
+    nguon: item.nguon ?? "man_hinh",
+    loaiCanhBao: item.loaiCanhBao ?? null,
     thoiGianCapNhat:
       item.thoiGianCapNhat ??
       item.thoi_gian_chup ??
@@ -537,14 +577,10 @@ function getImageUrl(item) {
 
   const value = url.trim()
 
-  // Không cho phép javascript: hoặc URL không hợp lệ.
-  if (/^https?:\/\//i.test(value)) return value
-
-  if (
-    value.startsWith("/") &&
-    !value.startsWith("//")
-  ) {
-    return value
+  // Chỉ tải ảnh từ endpoint có xác thực do backend cấp.
+  if (value.startsWith("/api/giang-vien/anh-man-hinh/") && !value.startsWith("//")) {
+    // Axios đã tự thêm /api qua baseURL.
+    return value.replace(/^\/api(?=\/)/, "")
   }
 
   return ""
@@ -554,31 +590,231 @@ function getImageKey(item) {
   return String(item?.id ?? "")
 }
 
-function markImageError(item) {
-  imageErrors.value = {
-    ...imageErrors.value,
-    [getImageKey(item)]: true,
+function canLoadForSelectedSession(item) {
+  if (!selectedPhienId.value || !item?.imageAvailable || !getImageUrl(item)) return false
+  if (String(item.phienId ?? '') === selectedPhienId.value) return true
+  return item.phienId == null && item.baiTapId != null &&
+    String(item.baiTapId) === String(selectedPhien.value?.baiTapId ?? '')
+}
+
+function thumbnailStatus(item) {
+  const key = getImageKey(item)
+  if (imageObjectUrls.value[key]) return 'loaded'
+  if (!item.imageAvailable && item.evidenceStatus === 'expired') return 'expired'
+  if (!item.imageAvailable && item.evidenceStatus === 'missing') return 'missing'
+  return imageLoadStates.value[key] || (item.imageAvailable ? 'waiting' : 'missing')
+}
+
+function thumbnailStatusText(item) {
+  const status = thumbnailStatus(item)
+  if (status === 'loading') return 'Đang tải ảnh bằng chứng...'
+  if (status === 'waiting') return 'Ảnh sẽ được tải khi thẻ hiển thị'
+  if (status === 'unauthorized') return 'Phiên đăng nhập đã hết hạn'
+  if (status === 'forbidden') return 'Bạn không có quyền xem ảnh'
+  if (status === 'expired') return 'Ảnh đã hết hạn hoặc không còn trên máy chủ'
+  if (status === 'server_error') return 'Máy chủ chưa thể tải ảnh'
+  if (status === 'network_error') return 'Không thể kết nối để tải ảnh'
+  if (status === 'retry_exhausted') return 'Đã hết số lần thử tải ảnh'
+  if (status === 'missing') return 'Không có ảnh bằng chứng'
+  return 'Không thể tải ảnh'
+}
+
+function thumbnailHint(item) {
+  const status = thumbnailStatus(item)
+  if (status === 'unauthorized') return 'Đăng nhập lại để tiếp tục xem ảnh.'
+  if (status === 'forbidden') return 'Quyền truy cập ảnh bị từ chối.'
+  if (status === 'expired') return 'Ảnh có thể đã hết hạn lưu hoặc bị xóa.'
+  if (status === 'server_error') return 'Hãy thử lại sau.'
+  if (status === 'network_error') return 'Kiểm tra kết nối rồi thử lại.'
+  if (status === 'retry_exhausted') return 'Tải ảnh thất bại sau số lần thử giới hạn.'
+  if (status === 'missing') return 'Sự kiện này không có ảnh được lưu.'
+  if (status === 'waiting') return 'Ảnh sẽ được tải khi thẻ vào vùng hiển thị.'
+  if (status === 'loading') return 'Ảnh đang được tải qua API có xác thực.'
+  return ''
+}
+
+function setThumbnailRef(element, item) {
+  const key = getImageKey(item)
+  const previous = thumbnailElements.get(key)
+  if (previous && thumbnailObserver) thumbnailObserver.unobserve(previous)
+  if (!element) {
+    thumbnailElements.delete(key)
+    return
+  }
+  thumbnailElements.set(key, element)
+  if (thumbnailObserver) thumbnailObserver.observe(element)
+}
+
+function startThumbnailObserver() {
+  if (!('IntersectionObserver' in window)) {
+    filteredImages.value.forEach(item => { void loadThumbnail(item).catch(() => {}) })
+    return
+  }
+  thumbnailObserver = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue
+      thumbnailObserver.unobserve(entry.target)
+      const item = filteredImages.value.find(
+        candidate => getImageKey(candidate) === entry.target.dataset.imageId
+      )
+      if (item) void loadThumbnail(item).catch(() => {})
+    }
+  }, { rootMargin: '240px 0px', threshold: 0.01 })
+  thumbnailElements.forEach(element => thumbnailObserver.observe(element))
+}
+
+function loadThumbnail(item) {
+  const key = getImageKey(item)
+  const terminalFailureKey = `${selectedPhienId.value}:${key}`
+  const terminalFailure = terminalImageFailures.get(terminalFailureKey)
+  if (terminalFailure) {
+    imageLoadStates.value = { ...imageLoadStates.value, [key]: terminalFailure }
+    return Promise.reject(new Error('Image request has a terminal HTTP status.'))
+  }
+  if (imageObjectUrls.value[key]) return Promise.resolve(imageObjectUrls.value[key])
+  if (thumbnailPromises.has(key)) return thumbnailPromises.get(key)
+  if (!canLoadForSelectedSession(item)) {
+    imageLoadStates.value = { ...imageLoadStates.value, [key]: 'missing' }
+    return Promise.reject(new Error('Image is not available for the selected session.'))
+  }
+
+  const attempts = thumbnailAttempts.get(terminalFailureKey) || 0
+  if (attempts >= MAX_THUMBNAIL_ATTEMPTS) {
+    imageLoadStates.value = { ...imageLoadStates.value, [key]: 'retry_exhausted' }
+    terminalImageFailures.set(terminalFailureKey, 'retry_exhausted')
+    return Promise.reject(new Error('Thumbnail retry limit reached.'))
+  }
+  thumbnailAttempts.set(terminalFailureKey, attempts + 1)
+
+  const generation = thumbnailGeneration
+  imageLoadStates.value = { ...imageLoadStates.value, [key]: 'loading' }
+  let resolveTask
+  let rejectTask
+  const promise = new Promise((resolve, reject) => {
+    resolveTask = resolve
+    rejectTask = reject
+  })
+  thumbnailQueue.push({ item, key, generation, resolve: resolveTask, reject: rejectTask, promise })
+  thumbnailPromises.set(key, promise)
+  pumpThumbnailQueue()
+  return promise
+}
+
+function pumpThumbnailQueue() {
+  while (activeThumbnailLoads < MAX_PARALLEL_THUMBNAILS && thumbnailQueue.length) {
+    const task = thumbnailQueue.shift()
+    if (task.generation !== thumbnailGeneration || !canLoadForSelectedSession(task.item)) {
+      if (thumbnailPromises.get(task.key) === task.promise) thumbnailPromises.delete(task.key)
+      task.reject(new Error('Image request was cancelled.'))
+      continue
+    }
+
+    activeThumbnailLoads++
+    const controller = new AbortController()
+    thumbnailAbortControllers.set(task.key, controller)
+    api.get(getImageUrl(task.item), {
+      responseType: 'blob',
+      signal: controller.signal,
+    }).then(response => {
+      const isCurrent = task.generation === thumbnailGeneration &&
+        canLoadForSelectedSession(task.item) &&
+        danhSachAnh.value.some(image =>
+          getImageKey(image) === task.key &&
+          getImageUrl(image) === getImageUrl(task.item) &&
+          image.imageAvailable
+        )
+      if (!isCurrent) {
+        task.reject(new Error('Image response is stale.'))
+        return
+      }
+      const url = URL.createObjectURL(response.data)
+      imageObjectUrls.value = { ...imageObjectUrls.value, [task.key]: url }
+      imageLoadStates.value = { ...imageLoadStates.value, [task.key]: 'loaded' }
+      task.resolve(url)
+    }).catch(err => {
+      if (controller.signal.aborted || task.generation !== thumbnailGeneration) {
+        task.reject(err)
+        return
+      }
+      const status = err.response?.status
+      const state = status === 401
+        ? 'unauthorized'
+        : status === 403
+          ? 'forbidden'
+        : status === 404
+          ? 'expired'
+          : status >= 500
+            ? 'server_error'
+            : 'network_error'
+      imageLoadStates.value = { ...imageLoadStates.value, [task.key]: state }
+      const failureKey = `${selectedPhienId.value}:${task.key}`
+      const attempts = thumbnailAttempts.get(failureKey) || 0
+      if ([401, 403, 404].includes(status)) {
+        terminalImageFailures.set(failureKey, state)
+      } else if (attempts >= MAX_THUMBNAIL_ATTEMPTS) {
+        imageLoadStates.value = { ...imageLoadStates.value, [task.key]: 'retry_exhausted' }
+        terminalImageFailures.set(failureKey, 'retry_exhausted')
+      }
+      task.reject(err)
+    }).finally(() => {
+      if (thumbnailAbortControllers.get(task.key) === controller) {
+        thumbnailAbortControllers.delete(task.key)
+      }
+      if (thumbnailPromises.get(task.key) === task.promise) thumbnailPromises.delete(task.key)
+      activeThumbnailLoads = Math.max(0, activeThumbnailLoads - 1)
+      pumpThumbnailQueue()
+    })
   }
 }
 
-function phongToAnh(item) {
-  if (
-    !getImageUrl(item) ||
-    imageErrors.value[getImageKey(item)]
-  ) {
-    return
-  }
+function clearThumbnailResources() {
+  thumbnailGeneration++
+  thumbnailQueue.splice(0).forEach(task => task.reject(new Error('Image list changed.')))
+  thumbnailAbortControllers.forEach(controller => controller.abort())
+  thumbnailAbortControllers.clear()
+  thumbnailPromises.clear()
+  Object.values(imageObjectUrls.value).forEach(URL.revokeObjectURL)
+  imageObjectUrls.value = {}
+  imageLoadStates.value = {}
+  selectedImageUrl.value = ''
+  selectedImage.value = null
+}
 
-  selectedImage.value = item
+function handleThumbnailImageError(item) {
+  const key = getImageKey(item)
+  const url = imageObjectUrls.value[key]
+  if (url) URL.revokeObjectURL(url)
+  const { [key]: removedUrl, ...remainingUrls } = imageObjectUrls.value
+  imageObjectUrls.value = remainingUrls
+  imageLoadStates.value = { ...imageLoadStates.value, [key]: 'expired' }
+  terminalImageFailures.set(`${selectedPhienId.value}:${key}`, 'expired')
+}
+
+async function phongToAnh(item) {
+  if (!canLoadForSelectedSession(item)) return
+  try {
+    const url = await loadThumbnail(item)
+    if (String(item.phienId ?? selectedPhienId.value) !== selectedPhienId.value) return
+    selectedImage.value = item
+    selectedImageUrl.value = url
+  } catch (err) {
+    if (err.response?.status === 401) {
+      error.value = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
+    }
+  }
 }
 
 function closeImage() {
   selectedImage.value = null
+  selectedImageUrl.value = ""
 }
 
 function handleLargeImageError() {
   if (selectedImage.value) {
-    markImageError(selectedImage.value)
+    imageLoadStates.value = {
+      ...imageLoadStates.value,
+      [getImageKey(selectedImage.value)]: 'expired',
+    }
   }
 
   closeImage()
@@ -677,7 +913,7 @@ const soSinhVienCoAnh = computed(() => {
 
 const soAnhCoLink = computed(() =>
   danhSachAnh.value.filter(
-    (item) => Boolean(getImageUrl(item))
+    (item) => item.imageAvailable
   ).length
 )
 
@@ -690,7 +926,7 @@ const filteredImages = computed(() => {
       `${item.tenSinhVien} ${item.mssv} ${item.tenMay}`
     )
 
-    const hasLink = Boolean(getImageUrl(item))
+    const hasLink = item.imageAvailable
 
     const matchedFilter =
       imageFilter.value === "all" ||
@@ -704,6 +940,12 @@ const filteredImages = computed(() => {
 function clearFilters() {
   search.value = ""
   imageFilter.value = "all"
+  sourceFilter.value = ""
+  alertTypeFilter.value = ""
+  studentFilter.value = ""
+  fromFilter.value = ""
+  toFilter.value = ""
+  fetchAnhManHinh()
 }
 
 function getInitials(name) {
@@ -823,35 +1065,104 @@ async function fetchPhienGiamSat() {
 }
 
 /* LOAD ẢNH */
-async function fetchAnhManHinh() {
+function preserveAvailableThumbnails(nextImages) {
+  const previous = new Map(danhSachAnh.value.map(item => [getImageKey(item), item]))
+  const next = new Map(nextImages.map(item => [getImageKey(item), item]))
+  const keep = new Set()
+
+  for (const [key, oldItem] of previous) {
+    const newItem = next.get(key)
+    if (newItem && newItem.imageAvailable && oldItem.imageAvailable &&
+      getImageUrl(oldItem) === getImageUrl(newItem)) {
+      keep.add(key)
+      continue
+    }
+
+    if (imageObjectUrls.value[key]) URL.revokeObjectURL(imageObjectUrls.value[key])
+    const { [key]: removedUrl, ...remainingUrls } = imageObjectUrls.value
+    imageObjectUrls.value = remainingUrls
+    const { [key]: removedState, ...remainingStates } = imageLoadStates.value
+    imageLoadStates.value = remainingStates
+    const activeController = thumbnailAbortControllers.get(key)
+    if (activeController) {
+      activeController.abort()
+      thumbnailAbortControllers.delete(key)
+    }
+    const failureKey = `${selectedPhienId.value}:${key}`
+    terminalImageFailures.delete(failureKey)
+    thumbnailAttempts.delete(failureKey)
+    thumbnailPromises.delete(key)
+    const retainedTasks = []
+    for (const task of thumbnailQueue.splice(0)) {
+      if (task.key === key) {
+        task.reject(new Error('Image record changed.'))
+        if (thumbnailPromises.get(key) === task.promise) thumbnailPromises.delete(key)
+      } else {
+        retainedTasks.push(task)
+      }
+    }
+    thumbnailQueue.push(...retainedTasks)
+  }
+
+  for (const key of Object.keys(imageObjectUrls.value)) {
+    if (!keep.has(key)) {
+      URL.revokeObjectURL(imageObjectUrls.value[key])
+      const { [key]: removedUrl, ...remainingUrls } = imageObjectUrls.value
+      imageObjectUrls.value = remainingUrls
+    }
+  }
+  return keep
+}
+
+async function fetchAnhManHinh({ preserveThumbnails = false } = {}) {
+  if (preserveThumbnails && backgroundRefreshInFlight) return
+  if (preserveThumbnails) backgroundRefreshInFlight = true
   const current = ++imageRequestId
   const phienId = selectedPhienId.value
 
   error.value = ""
-  hasLoaded.value = false
-  danhSachAnh.value = []
-  imageErrors.value = {}
-  selectedImage.value = null
+  if (!preserveThumbnails) {
+    hasLoaded.value = false
+    danhSachAnh.value = []
+    clearThumbnailResources()
+  }
 
   if (!phienId) {
     loading.value = false
     return
   }
 
-  loading.value = true
+    loading.value = !preserveThumbnails
 
   try {
     const response = await api.get(
       "/giang-vien/anh-man-hinh",
       {
-        params: { phienId },
+        params: {
+          phienId,
+          nguon: sourceFilter.value || undefined,
+          loaiCanhBao: alertTypeFilter.value || undefined,
+          sinhVienId: studentFilter.value || undefined,
+          from: fromFilter.value || undefined,
+          to: toFilter.value || undefined,
+        },
       }
     )
 
     if (current !== imageRequestId) return
 
-    danhSachAnh.value =
-      extractList(response).map(normalizeAnh)
+    const nextImages = extractList(response).map(normalizeAnh)
+    if (preserveThumbnails) preserveAvailableThumbnails(nextImages)
+    danhSachAnh.value = nextImages
+    for (const item of danhSachAnh.value) {
+      const failedState = terminalImageFailures.get(`${selectedPhienId.value}:${getImageKey(item)}`)
+      if (failedState) {
+        imageLoadStates.value = {
+          ...imageLoadStates.value,
+          [getImageKey(item)]: failedState,
+        }
+      }
+    }
 
     hasLoaded.value = true
     lastUpdatedAt.value =
@@ -870,12 +1181,12 @@ async function fetchAnhManHinh() {
     if (current === imageRequestId) {
       loading.value = false
     }
+    if (preserveThumbnails) backgroundRefreshInFlight = false
   }
 }
 
 function changeSession() {
   clearFilters()
-  fetchAnhManHinh()
 }
 
 function refreshData() {
@@ -901,13 +1212,13 @@ watch(
     ) {
       selectedPhienId.value = id
       clearFilters()
-      fetchAnhManHinh()
     }
   }
 )
 
 
 onMounted(() => {
+  startThumbnailObserver()
   fetchPhienGiamSat()
 
   // Cập nhật ảnh mới mỗi 15 giây.
@@ -917,7 +1228,7 @@ onMounted(() => {
       !loading.value &&
       !selectedImage.value
     ) {
-      fetchAnhManHinh()
+      fetchAnhManHinh({ preserveThumbnails: true })
     }
   }, 15000)
 })
@@ -930,6 +1241,12 @@ onBeforeUnmount(() => {
     clearInterval(refreshTimer)
     refreshTimer = null
   }
+  clearThumbnailResources()
+  thumbnailObserver?.disconnect()
+  thumbnailObserver = null
+  thumbnailElements.clear()
+  terminalImageFailures.clear()
+  thumbnailAttempts.clear()
 })
 
 </script>
@@ -1199,6 +1516,24 @@ button:disabled {
   padding: 0 22px 22px;
 }
 
+.evidence-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  padding: 12px 0 18px;
+}
+
+.evidence-filter-grid input,
+.evidence-filter-grid select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
 .search-box {
   flex: 1;
   min-width: 230px;
@@ -1286,6 +1621,7 @@ button:disabled {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  cursor: zoom-in;
 }
 
 .image-code {
@@ -1316,6 +1652,15 @@ button:disabled {
 
 .no-image-icon {
   font-size: 37px;
+}
+
+.thumbnail-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(203, 213, 225, 0.35);
+  border-top-color: #60a5fa;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
 .no-image strong {
