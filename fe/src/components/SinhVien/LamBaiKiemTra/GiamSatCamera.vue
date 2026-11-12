@@ -6,7 +6,7 @@
                 <p>Nhận diện khuôn mặt và điện thoại ngay trên thiết bị, không lưu video.</p>
             </div>
             <span :class="['state', active ? 'running' : 'stopped']">
-                {{ active ? 'Đang giám sát' : 'Chưa bật' }}
+                {{ active ? 'Đang giám sát' : (props.examInProgress ? 'Camera đang tắt' : 'Chưa bật') }}
             </span>
         </div>
 
@@ -18,7 +18,7 @@
         </div>
 
         <div class="monitor-info">
-            <div><span>Camera</span><strong :class="active ? 'good' : 'bad'">{{ active ? 'Đang bật' : 'Chưa bật'
+            <div><span>Camera</span><strong :class="active ? 'good' : 'bad'">{{ active ? 'Đang bật' : (props.examInProgress ? 'Đang tắt' : 'Chưa bật')
             }}</strong></div>
             <div><span>Số khuôn mặt</span><strong>{{ active ? faceCount : '—' }}</strong></div>
             <div><span>Điện thoại</span><strong :class="phoneDetected ? 'bad' : 'good'">{{ active ? (phoneDetected ?
@@ -33,7 +33,7 @@
 
         <div class="actions">
             <button v-if="!active" type="button" :disabled="starting" @click="startCamera">
-                {{ starting ? 'Đang khởi tạo AI...' : 'Bật camera và bắt đầu giám sát' }}
+                {{ starting ? 'Đang khởi tạo AI...' : (props.examInProgress ? 'Bật lại camera' : 'Bật camera và bắt đầu giám sát') }}
             </button>
             <button v-else type="button" class="stop" @click="stopCameraManually">Tắt camera</button>
         </div>
@@ -51,11 +51,15 @@ import { FaceDetector, ObjectDetector, FilesetResolver } from '@mediapipe/tasks-
 
 const emit = defineEmits([
   "warning",
+  "camera-starting",
   "camera-state",
   "normal",
   "stream-ready",
   "stream-stopped"
 ])
+const props = defineProps({
+  examInProgress: { type: Boolean, default: false },
+})
 const videoRef = ref(null)
 const active = ref(false)
 const starting = ref(false)
@@ -288,6 +292,7 @@ async function startCamera() {
     starting.value = true
     error.value = ''
     warning.value = ''
+    emit('camera-starting')
 
     resetDetection()
 

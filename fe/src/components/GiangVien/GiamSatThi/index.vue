@@ -182,7 +182,18 @@
                 <strong class="student-name">{{ alert.hoTen }}</strong>
                 <span class="student-mssv">{{ alert.maSinhVien }}</span>
               </div>
+              <strong v-if="isScreenshotAlert(alert)" class="screenshot-alert-title">Nghi vấn chụp màn hình</strong>
               <p class="alert-desc">{{ alert.noiDung }}</p>
+              <div v-if="isScreenshotAlert(alert)" class="screenshot-alert-details">
+                <span>Tín hiệu: {{ screenshotSignalLabel(alert) }}</span>
+                <span>Chỉ là nghi vấn; không xác nhận ảnh đã được chụp.</span>
+                <span class="review-state" :class="{ reviewed: alert.daXem }">{{ alert.daXem ? 'Đã xem' : 'Cần xem xét' }}</span>
+                <button v-if="!alert.daXem" type="button" class="mark-reviewed-btn"
+                  :disabled="reviewingEventIds.includes(alert.eventId)" @click="markAlertViewed(alert)">
+                  {{ reviewingEventIds.includes(alert.eventId) ? 'Đang cập nhật…' : 'Đánh dấu đã xem' }}
+                </button>
+                <small v-if="reviewErrors[alert.eventId]" class="review-error">{{ reviewErrors[alert.eventId] }}</small>
+              </div>
               <time class="alert-time">{{ formatTime(alert.thoiGian) }}</time>
             </div>
 
@@ -246,6 +257,8 @@ const error = ref('')
 const phienInfo = ref(null)
 const students = ref([])
 const recentAlerts = ref([])
+const reviewingEventIds = ref([])
+const reviewErrors = ref({})
 
 const keyword = ref('')
 const filterStatus = ref('all')
@@ -330,10 +343,42 @@ function formatTime(isoString) {
 }
 
 function alertTypeClass(loai) {
+  if (['copy_blocked', 'cut_blocked', 'select_all_blocked', 'context_menu_blocked', 'drag_blocked', 'screenshot_shortcut_key', 'SCREENSHOT_SHORTCUT_DETECTED', 'focus_lost', 'fullscreen_exit'].includes(loai)) return 'alert-protection'
   if (loai === 'phat_hien_dien_thoai') return 'alert-phone'
   if (loai === 'roi_tab') return 'alert-tab'
   if (loai === 'camera_ngat') return 'alert-cam'
   return 'alert-face'
+}
+
+function isScreenshotAlert(alert) {
+  return alert?.loai === 'SCREENSHOT_SHORTCUT_DETECTED'
+}
+
+function screenshotSignalLabel(alert) {
+  if (alert?.signalLabel) return alert.signalLabel
+  const labels = {
+    PRINT_SCREEN: 'phím Print Screen',
+    META_SHIFT_S: 'tổ hợp Meta + Shift + S',
+    META_SHIFT_3: 'tổ hợp Meta + Shift + 3',
+    META_SHIFT_4: 'tổ hợp Meta + Shift + 4',
+    META_SHIFT_5: 'tổ hợp Meta + Shift + 5',
+  }
+  return labels[alert?.signal?.signal] || labels[alert?.signal] || 'phím tắt nghi vấn'
+}
+
+async function markAlertViewed(alert) {
+  if (!isScreenshotAlert(alert) || !alert.eventId || alert.daXem || reviewingEventIds.value.includes(alert.eventId)) return
+  reviewingEventIds.value = [...reviewingEventIds.value, alert.eventId]
+  delete reviewErrors.value[alert.eventId]
+  try {
+    const response = await api.put(`/giang-vien/su-kien-bao-ve/${encodeURIComponent(alert.eventId)}/da-xem`)
+    alert.daXem = response.data?.data?.daXem === true
+    alert.daXemLuc = response.data?.data?.daXemLuc || new Date().toISOString()
+  } catch (err) {
+    reviewErrors.value[alert.eventId] = err.response?.data?.message || err.message || 'Không thể cập nhật trạng thái đã xem.'
+  } finally {
+    reviewingEventIds.value = reviewingEventIds.value.filter(eventId => eventId !== alert.eventId)
+  }
 }
 
 function goBack() {
@@ -383,14 +428,21 @@ function handleConnectionState({ sinhVienId, status }) {
 }
 
 function handleAlertReceived(alertData) {
+  const eventId = alertData.eventId || `live_${Date.now()}`
+  if (recentAlerts.value.some(alert => alert.id === eventId || alert.eventId === eventId)) return
+
   // Thêm vào danh sách alert mới nhất ở đầu
   recentAlerts.value.unshift({
-    id: 'live_' + Date.now(),
+    id: eventId,
+    eventId,
     sinhVienId: alertData.sinhVienId,
     hoTen: alertData.hoTen,
     maSinhVien: alertData.maSinhVien,
-    loai: alertData.loaiCanhBao,
+    loai: alertData.loaiCanhBao || alertData.loaiSuKien,
     noiDung: alertData.noiDung,
+    signal: alertData.signal ? { signal: alertData.signal, source: alertData.signalSource } : null,
+    signalLabel: screenshotSignalLabel({ signal: alertData.signal }),
+    daXem: alertData.daXem === true,
     thoiGian: alertData.thoiGian || new Date().toISOString(),
   })
 
@@ -793,6 +845,55 @@ onBeforeUnmount(() => {
 .alert-item.alert-face {
   border-color: #ec4899;
   background: #fdf2f8;
+}
+
+.alert-item.alert-protection {
+  border-color: #0ea5e9;
+  background: #f0f9ff;
+}
+
+.screenshot-alert-details {
+  display: grid;
+  gap: 5px;
+  padding-top: 4px;
+  color: #475569;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.screenshot-alert-title {
+  color: #075985;
+  font-size: 11px;
+}
+
+.review-state {
+  color: #9a3412;
+  font-weight: 700;
+}
+
+.review-state.reviewed {
+  color: #166534;
+}
+
+.mark-reviewed-btn {
+  justify-self: start;
+  padding: 5px 8px;
+  border: 1px solid #7dd3fc;
+  border-radius: 6px;
+  background: #e0f2fe;
+  color: #075985;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mark-reviewed-btn:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+
+.review-error {
+  color: #b91c1c;
 }
 
 .alert-top {

@@ -1,12 +1,5 @@
 <template>
-  <div class="exam-page">
-    <!-- Camera giám sát cố định ở góc trái trên. Không ghi video. -->
-    <Teleport to="body">
-      <div v-if="exam && cameraEnabled && !locked && !loading" class="exam-camera-floating">
-        <GiamSatCamera @warning="handleCameraWarning" @normal="handleCameraNormal" @camera-state="handleCameraState"
-          @stream-ready="handleCameraStreamReady" @stream-stopped="handleCameraStreamStopped" />
-      </div>
-    </Teleport>
+  <div ref="examRootRef" class="exam-page" :class="{ 'exam-protection-active': protectionActive }">
     <!-- HEADER -->
     <header class="exam-header">
       <div>
@@ -37,6 +30,11 @@
       <button v-if="!locked" type="button" @click="reloadExam">
         Thử lại
       </button>
+    </div>
+
+    <div v-if="protectionNotice && exam && !loading" class="exam-protection-notice"
+      :class="{ 'notice-error': protectionNoticeError }" role="status">
+      {{ protectionNotice }}
     </div>
 
     <!-- LOADING -->
@@ -76,259 +74,151 @@
         <strong>Đình chỉ bài kiểm tra</strong>
       </div>
 
+      <button v-if="canSubmit" type="button" class="btn primary" @click="openSubmitConfirmation">Nộp bài kiểm tra</button>
       <button type="button" class="btn primary" @click="goBack">
         Quay về danh sách bài tập
       </button>
     </div>
 
-    <!-- MẤT ĐỒNG BỘ GIÁM SÁT -->
-    <div v-else-if="!monitorReady && exam" class="state-card">
-      <div class="state-icon">⚠️</div>
-
-      <h2>Tạm dừng bài kiểm tra</h2>
-
-      <p>
-        Không thể xác minh trạng thái giám sát.
-        Vui lòng kiểm tra kết nối và thử lại.
-      </p>
-
-      <button type="button" class="btn primary" @click="resumeMonitoring">
-        Kết nối lại
-      </button>
+    <div v-else-if="examPhase === 'SUBMITTED'" class="state-card submitted-card" role="status">
+      <div class="state-icon">✓</div>
+      <h2>Bài kiểm tra đã được nộp</h2>
+      <p>Hệ thống đã xác nhận bài nộp. Bạn không thể tiếp tục chỉnh sửa hoặc phát sinh cảnh báo giám sát cho bài thi này.</p>
+      <button type="button" class="btn primary" @click="goBack">Quay về danh sách bài tập</button>
     </div>
 
     <!-- NỘI DUNG BÀI THI -->
-    <div v-else-if="exam && monitorReady" class="exam-wrap">
-      <!-- Yêu cầu bật camera mới được làm bài -->
-      <div v-if="!cameraReady" class="camera-required" role="alert">
-        <div class="camera-required-icon">📷</div>
-        <h2>Vui lòng bật camera để làm bài kiểm tra</h2>
-        <p>
-          Nhấn <strong>Bật camera và bắt đầu giám sát</strong> ở góc
-          trên bên trái. Sau khi camera hoạt động, câu hỏi sẽ hiển thị.
-          Thời gian bài thi vẫn tiếp tục đếm.
-        </p>
-        <p class="evidence-privacy-notice">
-          Khi AI xác nhận cảnh báo, hệ thống có thể lưu một ảnh JPEG từ webcam để Giảng viên xem xét.
-          Không ghi video và không yêu cầu chia sẻ màn hình; camera ngắt sẽ không dùng ảnh cũ làm bằng chứng.
-        </p>
-      </div>
+    <div v-else-if="exam" class="exam-wrap">
+      <div class="exam-workspace" :class="{ 'exam-workspace-preparing': !fullscreenActive }">
+        <section class="exam-main">
+          <section v-if="!fullscreenActive" class="fullscreen-required" :class="{ 'fullscreen-return-prompt': officialExamActive }" role="alert">
+            <h2>{{ officialExamActive ? 'Quay lại toàn màn hình để tiếp tục' : 'Vào toàn màn hình để bắt đầu làm bài' }}</h2>
+            <p v-if="officialExamActive">Câu trả lời và thời gian được giữ nguyên. Bật lại toàn màn hình để tiếp tục thao tác.</p>
+            <p v-else>Đây là bước chuẩn bị. Hệ thống chỉ ghi nhận rời tab sau khi bài thi bắt đầu.</p>
+            <span v-if="officialExamActive" class="camera-presence-pill" :class="cameraReady ? 'camera-online' : 'camera-offline'">
+              Camera {{ cameraReady ? 'đang hoạt động; giám sát vẫn tiếp tục' : 'đang tắt' }}
+            </span>
+            <button type="button" class="btn primary" @click="requestExamFullscreen">{{ officialExamActive ? 'Quay lại toàn màn hình' : 'Bật toàn màn hình' }}</button>
+            <small>Website không thể chặn chụp màn hình ở cấp hệ điều hành.</small>
+          </section>
 
-      <template v-else>
-        <!-- CẢNH BÁO GIÁM SÁT -->
-        <div class="monitor-banner">
-          <div>
-            <strong>◉ Giám sát bài kiểm tra</strong>
+          <section v-else-if="!officialExamActive" class="exam-preparing" role="status" aria-live="polite">
+            <div v-if="cameraReady" class="spinner"></div>
+            <h2>{{ cameraReady ? 'Đang chuẩn bị bài thi' : 'Bật camera để tiếp tục' }}</h2>
+            <p v-if="error">{{ error }}</p>
+            <p v-else-if="cameraReady">Đang xác nhận trạng thái làm bài với máy chủ. Câu hỏi sẽ xuất hiện sau khi xác nhận thành công.</p>
+            <p v-else>Cho phép webcam để tiếp tục. Câu trả lời và thời gian làm bài được giữ nguyên khi camera kết nối lại.</p>
+            <p class="evidence-privacy-notice">AI có thể lưu ảnh webcam khi xác nhận cảnh báo; không ghi video và không yêu cầu chia sẻ màn hình.</p>
+            <button v-if="error && cameraReady" type="button" class="btn primary" @click="beginExamWhenReady">Thử bắt đầu lại</button>
+          </section>
 
-            <p>
-              Không chuyển sang tab khác hoặc thu nhỏ trình duyệt.
-              Mỗi lần rời tab được gửi về hệ thống.
-              Bài sẽ bị khóa sau 3 lần phát hiện điện thoại,
-              5 cảnh báo camera khác hoặc 3 lần rời tab.
-            </p>
-          </div>
+          <template v-else>
+            <div v-if="!monitorReady" class="monitor-sync-notice" role="status">
+              Đang đồng bộ trạng thái giám sát. Câu trả lời vẫn được giữ; thao tác trả lời tạm khóa.
+              <button type="button" @click="resumeMonitoring">Kết nối lại</button>
+            </div>
 
-          <span class="violation-badge" :class="{
-            'warning-level': warningCount >= 2
-          }">
-            {{ warningCount }}/3 vi phạm
-          </span>
-        </div>
+            <div class="monitor-banner">
+              <div>
+                <strong>◉ Giám sát bài kiểm tra</strong>
+                <p>Rời tab 3 lần, phát hiện điện thoại 3 lần hoặc có 5 cảnh báo camera khác sẽ khóa bài.</p>
+              </div>
+              <span class="violation-badge" :class="{ 'warning-level': warningCount >= 2 }">{{ warningCount }}/3 lần rời tab</span>
+            </div>
 
-        <!-- THỐNG KÊ CẢNH BÁO CAMERA -->
-        <div class="camera-warning-counter" role="status">
-          <div>
-            <strong>📷 Cảnh báo camera</strong>
-            <small>Không thấy khuôn mặt, nhiều khuôn mặt hoặc camera bị ngắt</small>
-          </div>
-          <strong :class="{ danger: cameraWarningCount >= 4 }">
-            {{ cameraWarningCount }}/5
-          </strong>
-        </div>
-        <p v-if="evidenceNotice" class="evidence-upload-notice" role="status">{{ evidenceNotice }}</p>
+            <div v-if="examPhase === 'CAMERA_BLOCKED'" class="camera-off-notice" role="alert">
+              <strong>Camera đang tắt</strong>
+              <span>Hãy bật lại camera ở bảng bên cạnh. Bài làm và thời gian còn lại được giữ nguyên.</span>
+            </div>
 
-        <!-- CẢNH BÁO ĐIỆN THOẠI: BỘ ĐẾM RIÊNG -->
-        <div class="phone-warning-counter" role="status">
-          <div>
-            <strong>📱 Phát hiện điện thoại</strong>
-            <small>3 lần phát hiện điện thoại sẽ khóa bài kiểm tra</small>
-          </div>
-          <strong :class="{ danger: phoneWarningCount >= 2 }">
-            {{ phoneWarningCount }}/3
-          </strong>
-        </div>
+            <p v-if="evidenceNotice" class="evidence-upload-notice" role="status">{{ evidenceNotice }}</p>
 
-        <!-- THỐNG KÊ -->
-        <section class="overview">
-          <div>
-            <small>SINH VIÊN</small>
-            <strong>{{ studentName }}</strong>
-          </div>
+            <section class="overview">
+              <div><small>SINH VIÊN</small><strong>{{ studentName }}</strong></div>
+              <div><small>SỐ CÂU HỎI</small><strong>{{ questions.length }}</strong></div>
+              <div><small>ĐÃ TRẢ LỜI</small><strong>{{ answeredCount }}/{{ questions.length }}</strong></div>
+              <div><small>SỐ LẦN RỜI TAB</small><strong :class="{ 'text-danger': warningCount >= 2 }">{{ warningCount }}/3</strong></div>
+            </section>
 
-          <div>
-            <small>SỐ CÂU HỎI</small>
-            <strong>{{ questions.length }}</strong>
-          </div>
+            <div v-if="questions.length === 0" class="state-card">
+              <h3>Bài kiểm tra chưa có câu hỏi</h3>
+              <p>Vui lòng liên hệ giảng viên.</p>
+            </div>
 
-          <div>
-            <small>ĐÃ TRẢ LỜI</small>
-            <strong>
-              {{ answeredCount }}/{{ questions.length }}
-            </strong>
-          </div>
+            <main v-else ref="protectedQuestionsRef" class="question-card">
+              <div class="question-meta">
+                <span>Câu {{ currentIndex + 1 }}/{{ questions.length }}</span>
+                <span class="point">{{ currentQuestion?.diem ?? 0 }} điểm</span>
+              </div>
+              <h2>{{ currentQuestion?.noi_dung }}</h2>
 
-          <div>
-            <small>SỐ LẦN RỜI TAB</small>
-            <strong :class="{ 'text-danger': warningCount >= 2 }">
-              {{ warningCount }}/3
-            </strong>
-          </div>
+              <div v-if="currentQuestion?.loai_cau_hoi === 'trac_nghiem'" class="answers">
+                <label v-for="(answer, index) in currentQuestion.dap_an" :key="answer.id" class="answer" :class="{
+                  selected: String(answers[String(currentQuestion.id)]) === String(answer.id)
+                }">
+                  <input v-model="answers[String(currentQuestion.id)]" type="radio"
+                    :name="`question-${currentQuestion.id}`" :value="answer.id" :disabled="!canEdit" />
+                  <span class="letter">{{ String.fromCharCode(65 + index) }}</span>
+                  <span>{{ answer.noi_dung }}</span>
+                </label>
+              </div>
+
+              <textarea v-else-if="currentQuestion?.loai_cau_hoi === 'tu_luan'"
+                v-model="answers[String(currentQuestion.id)]" :disabled="!canEdit" maxlength="20000" rows="9"
+                placeholder="Nhập câu trả lời của bạn..."></textarea>
+              <p v-else class="muted">Loại câu hỏi không được hỗ trợ.</p>
+
+              <div class="question-nav">
+                <button type="button" class="btn pale" :disabled="currentIndex === 0" @click="currentIndex--">← Câu trước</button>
+                <button v-if="currentIndex < questions.length - 1" type="button" class="btn primary" @click="currentIndex++">Câu tiếp →</button>
+                <button v-else type="button" class="btn primary" :disabled="!canSubmit" @click="openSubmitConfirmation">Kiểm tra & nộp</button>
+              </div>
+            </main>
+          </template>
         </section>
 
-        <!-- KHÔNG CÓ CÂU HỎI -->
-        <div v-if="questions.length === 0" class="state-card">
-          <div class="state-icon">📋</div>
-          <h3>Bài kiểm tra chưa có câu hỏi</h3>
-          <p>Vui lòng liên hệ giảng viên.</p>
-        </div>
+        <aside class="exam-sidebar">
+          <section v-if="exam && cameraEnabled && (fullscreenActive || cameraReady) && !locked && !loading"
+            class="camera-panel" :class="{ 'camera-panel-paused': officialExamActive && !fullscreenActive }">
+            <GiamSatCamera :exam-in-progress="officialExamActive" @warning="handleCameraWarning" @normal="handleCameraNormal"
+              @camera-starting="handleCameraStarting" @camera-state="handleCameraState"
+              @stream-ready="handleCameraStreamReady" @stream-stopped="handleCameraStreamStopped" />
+          </section>
 
-        <!-- LAYOUT -->
-        <div v-else class="exam-layout">
-          <!-- CÂU HỎI -->
-          <main class="question-card">
-            <div class="question-meta">
-              <span>
-                Câu {{ currentIndex + 1 }}/{{ questions.length }}
-              </span>
-
-              <span class="point">
-                {{ currentQuestion?.diem ?? 0 }} điểm
-              </span>
+          <section v-if="officialExamActive && fullscreenActive" class="sidebar">
+            <div class="sidebar-heading">
+              <h3>Danh sách câu hỏi</h3>
+              <span>{{ answeredCount }}/{{ questions.length }} đã trả lời</span>
             </div>
-
-            <h2>
-              {{ currentQuestion?.noi_dung }}
-            </h2>
-
-            <!-- TRẮC NGHIỆM -->
-            <div v-if="currentQuestion?.loai_cau_hoi === 'trac_nghiem'" class="answers">
-              <label v-for="(answer, index) in currentQuestion.dap_an" :key="answer.id" class="answer" :class="{
-                selected:
-                  String(answers[String(currentQuestion.id)]) ===
-                  String(answer.id)
-              }">
-                <input v-model="answers[String(currentQuestion.id)]" type="radio"
-                  :name="`question-${currentQuestion.id}`" :value="answer.id" :disabled="!canEdit" />
-
-                <span class="letter">
-                  {{ String.fromCharCode(65 + index) }}
-                </span>
-
-                <span>{{ answer.noi_dung }}</span>
-              </label>
-            </div>
-
-            <!-- TỰ LUẬN -->
-            <textarea v-else-if="currentQuestion?.loai_cau_hoi === 'tu_luan'"
-              v-model="answers[String(currentQuestion.id)]" :disabled="!canEdit" maxlength="20000" rows="9"
-              placeholder="Nhập câu trả lời của bạn..."></textarea>
-
-            <p v-else class="muted">
-              Loại câu hỏi không được hỗ trợ.
-            </p>
-
-            <!-- ĐIỀU HƯỚNG -->
-            <div class="question-nav">
-              <button type="button" class="btn pale" :disabled="currentIndex === 0" @click="currentIndex--">
-                ← Câu trước
-              </button>
-
-              <button v-if="currentIndex < questions.length - 1" type="button" class="btn primary"
-                @click="currentIndex++">
-                Câu tiếp →
-              </button>
-
-              <button v-else type="button" class="btn primary" :disabled="!canEdit" @click="showConfirm = true">
-                Kiểm tra & nộp
-              </button>
-            </div>
-          </main>
-
-          <!-- SIDEBAR -->
-          <aside class="sidebar">
-            <h3>Danh sách câu hỏi</h3>
-
-            <p class="muted">
-              Chọn số câu để chuyển đến câu hỏi tương ứng.
-            </p>
-
             <div class="question-grid">
               <button v-for="(question, index) in questions" :key="question.id" type="button" class="q-button" :class="{
-                answered: isAnswered(question.id),
-                active: index === currentIndex
-              }" @click="currentIndex = index">
-                {{ index + 1 }}
-              </button>
+                answered: isAnswered(question.id), active: index === currentIndex
+              }" @click="currentIndex = index">{{ index + 1 }}</button>
             </div>
-
-            <!-- TIẾN ĐỘ -->
             <div class="progress">
-              <div class="progress-header">
-                <span>Tiến độ làm bài</span>
-                <strong>{{ progress }}%</strong>
-              </div>
-
-              <div class="progress-track">
-                <div class="progress-fill" :style="{ width: progress + '%' }"></div>
-              </div>
+              <div class="progress-header"><span>Tiến độ làm bài</span><strong>{{ progress }}%</strong></div>
+              <div class="progress-track"><div class="progress-fill" :style="{ width: progress + '%' }"></div></div>
             </div>
 
-            <!-- GIÁM SÁT -->
-            <div class="monitor-box">
-              <strong>🛡 Quy định giám sát</strong>
+            <details class="monitor-box">
+              <summary>Chi tiết cảnh báo và quy định</summary>
+              <p>Rời tab 3 lần, phát hiện điện thoại 3 lần hoặc 5 cảnh báo camera khác sẽ khóa bài.</p>
+              <p>Cảnh báo camera khác: <strong>{{ cameraWarningCount }}/5</strong></p>
+              <p>Phát hiện điện thoại: <strong>{{ phoneWarningCount }}/3</strong></p>
+              <p>Rời tab: <strong>{{ warningCount }}/3</strong></p>
+            </details>
 
-              <p>
-                Rời tab 3 lần, ghi nhận 5 cảnh báo camera khác
-                hoặc phát hiện điện thoại 3 lần sẽ khóa bài.
-                Ba bộ đếm độc lập.
-              </p>
-              <p>📷 Cảnh báo camera khác: <strong>{{ cameraWarningCount }}/5</strong></p>
-              <p>📱 Phát hiện điện thoại: <strong>{{ phoneWarningCount }}/3</strong></p>
-
-              <div class="violation-list">
-                <div v-for="number in 3" :key="number" class="violation-item" :class="{
-                  violated: warningCount >= number
-                }">
-                  <span>
-                    {{ warningCount >= number ? "⚠" : "○" }}
-                    Lần {{ number }}
-                  </span>
-
-                  <span>
-                    {{
-                      warningCount >= number
-                        ? "Đã ghi nhận"
-                        : "Chưa vi phạm"
-                    }}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <button type="button" class="btn submit-button" :disabled="!canEdit" @click="showConfirm = true">
-              Nộp bài kiểm tra
-            </button>
-          </aside>
-        </div>
-      </template>
+            <button type="button" class="btn submit-button" :disabled="!canSubmit" @click="openSubmitConfirmation">Nộp bài kiểm tra</button>
+          </section>
+        </aside>
+      </div>
     </div>
 
     <!-- XÁC NHẬN NỘP -->
 
     <!-- HỘP THOẠI XÁC NHẬN NỘP BÀI -->
-    <Teleport to="body">
-      <div v-if="showConfirm && !locked" class="exam-modal-overlay" @click.self="showConfirm = false">
-        <div class="exam-modal-content" role="dialog" aria-modal="true" aria-labelledby="submit-dialog-title">
+    <div v-if="showConfirm" class="exam-modal-overlay" @click.self="showConfirm = false">
+        <div ref="submitDialogRef" class="exam-modal-content" role="dialog" aria-modal="true" aria-labelledby="submit-dialog-title" tabindex="-1" @keydown.esc.prevent="showConfirm = false">
           <div class="exam-modal-icon">📤</div>
 
           <h2 id="submit-dialog-title">
@@ -356,12 +246,14 @@
             chỉnh sửa câu trả lời.
           </p>
 
+          <p v-if="submitError" class="notice error-notice" role="alert">{{ submitError }}</p>
+
           <div class="exam-modal-actions">
             <button type="button" class="exam-modal-cancel" :disabled="submitting" @click="showConfirm = false">
               Tiếp tục làm
             </button>
 
-            <button type="button" class="exam-modal-submit" :disabled="submitting || !canEdit"
+            <button type="button" class="exam-modal-submit" :disabled="!canSubmit"
               @click="submitExam(false)">
               {{
                 submitting
@@ -371,8 +263,7 @@
             </button>
           </div>
         </div>
-      </div>
-    </Teleport>
+    </div>
 
 
     <!-- POPUP CẢNH BÁO -->
@@ -436,6 +327,7 @@ import {
   ref,
   computed,
   watch,
+  nextTick,
   onMounted,
   onBeforeUnmount,
 } from "vue"
@@ -448,6 +340,7 @@ import {
 import api from "../../../services/api"
 import GiamSatCamera from "./GiamSatCamera.vue"
 import studentSender from "../../../services/webrtc/studentSender"
+import { useExamProtection } from "../../../services/useExamProtection"
 
 import { shallowRef } from "vue"
 
@@ -498,11 +391,14 @@ const baiTapId = computed(() =>
    STATE
 ================================== */
 const exam = ref(null)
+const examRootRef = ref(null)
+const protectedQuestionsRef = ref(null)
 const answers = ref({})
 const currentIndex = ref(0)
 
 const loading = ref(false)
 const submitting = ref(false)
+const submitError = ref("")
 const error = ref("")
 const saveStatus = ref("Chưa có thay đổi")
 
@@ -521,20 +417,44 @@ const locked = ref(false)
 const monitorReady = ref(false)
 const cameraEnabled = ref(false)
 const cameraReady = ref(false)
+const examPhase = ref('PRE_EXAM')
+const officialExamActive = computed(() => ['IN_PROGRESS', 'CAMERA_BLOCKED'].includes(examPhase.value))
+
+const protectionActive = computed(() => Boolean(
+  exam.value &&
+  examPhase.value === 'IN_PROGRESS' &&
+  !locked.value &&
+  !submitting.value &&
+  remainingSeconds.value > 0
+))
+
+const protection = useExamProtection({
+  active: protectionActive,
+  protectedElement: protectedQuestionsRef,
+  onEvent: recordProtectionEvent,
+})
+// Expose refs at the top level so Vue templates unwrap them reliably.
+const fullscreenActive = protection.fullscreenActive
+const protectionNotice = protection.notice
+const protectionNoticeError = protection.noticeError
 
 const showWarning = ref(false)
 const showLockNotice = ref(false)
 const showConfirm = ref(false)
+const submitDialogRef = ref(null)
+const submitReturnFocusRef = ref(null)
 
 let deadlineMs = 0
 let timerInterval = null
 let saveTimer = null
 let saveInFlight = null
+let lastSavedVersion = -1
 
 let loaded = false
 let submitted = false
 let submittingAtDeadline = false
 let monitoringRequest = null
+let startExamRequest = null
 let eventQueue = []
 let hiddenEventRecorded = false
 let visibilityRearmTimer = null
@@ -564,14 +484,37 @@ function isAnswered(questionId) {
 
 function handleCameraState(isActive) {
   cameraReady.value = isActive === true
+  if (!cameraReady.value && examPhase.value === 'IN_PROGRESS') {
+    examPhase.value = 'CAMERA_BLOCKED'
+  } else if (cameraReady.value && examPhase.value === 'CAMERA_BLOCKED') {
+    examPhase.value = 'IN_PROGRESS'
+  } else if (cameraReady.value && !officialExamActive.value && examPhase.value !== 'SUBMITTED') {
+    examPhase.value = 'PREPARING'
+    void beginExamWhenReady()
+  }
   if (!cameraReady.value) {
-    showConfirm.value = false
     clearTimeout(saveTimer)
   } else if (canEdit.value && saveStatus.value === "Chưa lưu") {
     clearTimeout(saveTimer)
     saveTimer = setTimeout(saveDraft, 700)
   }
 }
+
+function openSubmitConfirmation(event) {
+  if (!canSubmit.value) return
+  submitReturnFocusRef.value = event?.currentTarget ?? null
+  showConfirm.value = true
+}
+
+watch(showConfirm, async (isOpen) => {
+  await nextTick()
+  if (isOpen) {
+    submitDialogRef.value?.focus()
+    return
+  }
+  submitReturnFocusRef.value?.focus?.()
+  submitReturnFocusRef.value = null
+})
 
 function handleCameraWarning(event) {
   if (
@@ -734,8 +677,78 @@ const canEdit = computed(() =>
   !locked.value &&
   !submitted &&
   !submitting.value &&
+  officialExamActive.value &&
+  protection.fullscreenActive.value &&
   remainingSeconds.value > 0
 )
+
+// Nộp bài là thao tác kết thúc: lỗi camera, giám sát hoặc fullscreen không
+// được giữ Sinh viên mắc kẹt trong bài. Backend vẫn xác thực attempt và hạn nộp.
+const canSubmit = computed(() =>
+  loaded &&
+  exam.value !== null &&
+  !submitted &&
+  !submitting.value &&
+  officialExamActive.value &&
+  (remainingSeconds.value > 0 || submittingAtDeadline)
+)
+
+function recordProtectionEvent(event) {
+  if (!protectionActive.value || !baiTapId.value) return Promise.resolve()
+  return api.post(endpoint("/bao-ve"), event)
+}
+
+function requestExamFullscreen() {
+  if (examPhase.value === 'PRE_EXAM') examPhase.value = 'PREPARING'
+  return protection.requestFullscreen(examRootRef.value)
+}
+
+function handleCameraStarting() {
+  if (examPhase.value === 'PRE_EXAM') examPhase.value = 'PREPARING'
+}
+
+async function beginExamWhenReady() {
+  if (officialExamActive.value || examPhase.value === 'SUBMITTED' || startExamRequest) {
+    return startExamRequest
+  }
+  if (examPhase.value === 'PRE_EXAM' && fullscreenActive.value) examPhase.value = 'PREPARING'
+  if (!loaded || !fullscreenActive.value || !cameraReady.value || !monitorReady.value || locked.value || submitted) {
+    return
+  }
+  if (document.visibilityState !== 'visible' || (typeof document.hasFocus === 'function' && !document.hasFocus())) {
+    return
+  }
+
+  examPhase.value = 'PREPARING'
+  startExamRequest = api.post(endpoint('/bat-dau'), {
+    fullscreen: fullscreenActive.value,
+    cameraReady: cameraReady.value,
+  })
+    .then((response) => {
+      if (response.data?.status === false || response.data?.success === false) {
+        throw new Error(response.data?.message || 'Máy chủ chưa xác nhận bắt đầu bài thi.')
+      }
+      hiddenEventRecorded = false
+      if (visibilityRearmTimer !== null) {
+        clearTimeout(visibilityRearmTimer)
+        visibilityRearmTimer = null
+      }
+      examPhase.value = 'IN_PROGRESS'
+      error.value = ''
+    })
+    .catch((err) => {
+      examPhase.value = 'PREPARING'
+      error.value = `Chưa thể bắt đầu bài thi: ${handleApiError(err)}`
+    })
+    .finally(() => {
+      startExamRequest = null
+    })
+  return startExamRequest
+}
+
+watch([fullscreenActive, cameraReady, monitorReady], () => {
+  if (examPhase.value !== 'SUBMITTED') void beginExamWhenReady()
+})
 
 /* ==================================
    TIMER
@@ -753,7 +766,7 @@ const formattedTime = computed(() => {
 })
 
 function clockTick() {
-  if (!exam.value || locked.value || submitted) {
+  if (!exam.value || submitted) {
     return
   }
 
@@ -845,7 +858,6 @@ function applyLocked() {
   showWarning.value = false
   showLockNotice.value = exam.value !== null
 
-  clearInterval(timerInterval)
   clearTimeout(saveTimer)
 
   saveStatus.value = "Bài kiểm tra đã khóa"
@@ -948,6 +960,12 @@ async function fetchViolationState() {
       response.data?.message ||
       "Không xác minh được trạng thái giám sát."
     )
+  }
+
+  if (data?.trangThaiLamBai === 'SUBMITTED' || data?.daNop === true) {
+    submitted = true
+    examPhase.value = 'SUBMITTED'
+    return false
   }
 
   return applyViolationState(data)
@@ -1056,6 +1074,11 @@ async function resumeMonitoring() {
 }
 
 function handleVisibilityChange() {
+  if (!officialExamActive.value || submitting.value || submitted) {
+    if (!document.hidden) void beginExamWhenReady()
+    return
+  }
+
   if (document.hidden) {
     if (visibilityRearmTimer !== null) {
       clearTimeout(visibilityRearmTimer)
@@ -1071,6 +1094,7 @@ function handleVisibilityChange() {
       return
     }
 
+    void saveDraft(true)
     hiddenEventRecorded = true
     monitorReady.value = false
     showConfirm.value = false
@@ -1109,6 +1133,17 @@ function handleVisibilityChange() {
   resumeMonitoring()
 }
 
+function handleExamWindowFocus() {
+  if (!officialExamActive.value) void beginExamWhenReady()
+}
+
+watch(fullscreenActive, (isFullscreen, wasFullscreen) => {
+  if (wasFullscreen && !isFullscreen && examPhase.value === 'IN_PROGRESS') {
+    clearTimeout(saveTimer)
+    void saveDraft(true)
+  }
+})
+
 /* ==================================
    LOAD EXAM
 ================================== */
@@ -1122,6 +1157,7 @@ async function loadExam() {
 
   loading.value = true
   error.value = ""
+  examPhase.value = 'PRE_EXAM'
   monitorReady.value = false
   loaded = false
   exam.value = null
@@ -1198,6 +1234,7 @@ async function loadExam() {
     deadlineMs = deadline
 
     submitted = false
+    examPhase.value = data.trangThaiLamBai === 'IN_PROGRESS' ? 'PREPARING' : 'PRE_EXAM'
     submittingAtDeadline = false
     loaded = true
 
@@ -1230,13 +1267,12 @@ function reloadExam() {
 /* ==================================
    AUTOSAVE
 ================================== */
-async function saveDraft() {
+async function saveDraft(force = false) {
   if (
     !loaded ||
     submitted ||
     locked.value ||
-    !monitorReady.value ||
-    !cameraReady.value ||
+    (!force && (!monitorReady.value || !cameraReady.value)) ||
     submitting.value ||
     remainingSeconds.value <= 0
   ) {
@@ -1247,10 +1283,11 @@ async function saveDraft() {
   if (saveInFlight) {
     await saveInFlight
 
-    if (!canEdit.value) return
+    if (lastSavedVersion === saveVersion || (!force && !canEdit.value)) return
   }
 
   const version = saveVersion
+  if (version === lastSavedVersion) return
   const payload = cloneAnswers()
 
   saveStatus.value = "Đang lưu..."
@@ -1264,15 +1301,16 @@ async function saveDraft() {
 
   try {
     await request
+    lastSavedVersion = version
 
     saveStatus.value =
       saveVersion === version
         ? "✓ Đã lưu bài nháp"
         : "Có thay đổi chưa lưu"
 
-    if (saveVersion !== version && canEdit.value) {
+    if (saveVersion !== version && (canEdit.value || force)) {
       clearTimeout(saveTimer)
-      saveTimer = setTimeout(saveDraft, 700)
+      saveTimer = setTimeout(() => saveDraft(force), 700)
     }
   } catch (err) {
     saveStatus.value = "Lưu nháp thất bại"
@@ -1309,47 +1347,32 @@ async function submitExam(auto = false) {
   if (
     submitting.value ||
     submitted ||
-    locked.value ||
     !exam.value ||
     !loaded
   ) {
     return
   }
 
-  if (!auto && !canEdit.value) {
+  if (!auto && !canSubmit.value) {
     return
   }
 
-  showConfirm.value = false
   clearTimeout(saveTimer)
 
   submitting.value = true
   error.value = ""
+  submitError.value = ""
 
   try {
-    // Nếu có request lưu nháp đang chạy,
-    // cho request đó kết thúc trước.
+    // Lỗi mạng khi lưu nháp không được chặn gửi snapshot đáp án hiện tại.
     if (saveInFlight) {
-      await saveInFlight
+      await saveInFlight.catch(() => {})
     }
-
-    // Không nộp khi còn cảnh báo camera chưa xác minh.
-    await flushCameraQueue()
-    if (locked.value) return
-    await flushViolationQueue()
-
-    const allowed = await fetchViolationState()
-
-    if (!allowed || locked.value) {
-      return
-    }
-
-    // Nếu đang tự nộp do hết giờ, chỉ thực hiện
-    // khi đã đồng bộ được trạng thái giám sát.
+    const answerSnapshot = cloneAnswers()
     const response = await api.post(
       endpoint("/nop"),
       {
-        answers: cloneAnswers(),
+        answers: answerSnapshot,
         tuDongNop: auto,
       }
     )
@@ -1365,9 +1388,18 @@ async function submitExam(auto = false) {
     }
 
     submitted = true
+    submitReturnFocusRef.value = null
+    showConfirm.value = false
+    examPhase.value = 'SUBMITTED'
     cameraEnabled.value = false
     loaded = false
     monitorReady.value = false
+
+    // The camera component unmounts only after the backend accepted the
+    // submission. Mark protection inactive first so fullscreen exit is not
+    // recorded as an exam violation.
+    await nextTick()
+    await protection.exitFullscreen()
 
     clearInterval(timerInterval)
 
@@ -1379,10 +1411,8 @@ async function submitExam(auto = false) {
 
     router.push("/sinh-vien/bai-tap")
   } catch (err) {
-    error.value =
-      "Không thể nộp bài: " + handleApiError(err)
-
-    monitorReady.value = false
+    submitError.value = "Không thể nộp bài: " + handleApiError(err)
+    error.value = submitError.value
   } finally {
     submitting.value = false
   }
@@ -1406,6 +1436,7 @@ onMounted(() => {
     "visibilitychange",
     handleVisibilityChange
   )
+  window.addEventListener('focus', handleExamWindowFocus)
 
   loadExam()
 })
@@ -1427,6 +1458,7 @@ onBeforeUnmount(() => {
     "visibilitychange",
     handleVisibilityChange
   )
+  window.removeEventListener('focus', handleExamWindowFocus)
 })
 </script>
 
@@ -1443,14 +1475,233 @@ onBeforeUnmount(() => {
   font-family: Inter, system-ui, sans-serif;
 }
 
+.exam-page:fullscreen {
+  height: 100vh;
+  min-height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.exam-protection-active .question-card,
+.exam-protection-active .question-card * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.exam-protection-active .question-card input,
+.exam-protection-active .question-card textarea,
+.exam-protection-active .question-card select,
+.exam-protection-active .question-card [contenteditable="true"],
+.exam-protection-active .question-card [role="textbox"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.exam-protection-notice {
+  margin: 12px 0;
+  padding: 12px 15px;
+  border: 1px solid #f59e0b;
+  border-radius: 10px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.exam-protection-notice.notice-error {
+  border-color: #ef4444;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.fullscreen-required {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  min-height: 300px;
+  padding: 40px 25px;
+  border: 1px solid #93c5fd;
+  border-radius: 16px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  text-align: center;
+}
+
+.exam-preparing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-height: 300px;
+  padding: 40px 24px;
+  border: 1px solid #cbd5e1;
+  border-radius: 16px;
+  background: #f8fafc;
+  color: #334155;
+  text-align: center;
+}
+
+.exam-preparing p {
+  max-width: 600px;
+  line-height: 1.7;
+}
+
+.fullscreen-required p,
+.fullscreen-required small {
+  max-width: 600px;
+  line-height: 1.7;
+}
+
+.fullscreen-required small {
+  color: #475569;
+  font-size: 12px;
+}
+
+.fullscreen-return-prompt {
+  display: grid;
+  place-content: center;
+  min-height: min(55vh, 440px);
+  padding: clamp(22px, 5vw, 44px);
+}
+
+.camera-presence-pill {
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.camera-presence-pill.camera-online {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.camera-presence-pill.camera-offline {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+:global(html.dark-theme) .exam-protection-notice,
+:global(html.dark-theme) .fullscreen-required {
+  background: #252b35;
+  border-color: #475569;
+  color: #dbeafe;
+}
+
+:global(html.dark-theme) .exam-preparing {
+  border-color: #475569;
+  background: #252b35;
+  color: #e2e8f0;
+}
+
 .exam-header,
-.exam-wrap,
 .notice,
 .state-card,
 .locked-card {
   max-width: 1350px;
   margin-left: auto;
   margin-right: auto;
+}
+
+.exam-wrap {
+  width: 100%;
+  max-width: 1800px;
+  margin: 0 auto;
+}
+
+.exam-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: 20px;
+}
+
+.exam-workspace-preparing {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.exam-main,
+.exam-sidebar {
+  min-width: 0;
+}
+
+.exam-sidebar {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.camera-panel {
+  min-width: 0;
+}
+
+.camera-panel-paused {
+  display: none;
+}
+
+.sidebar-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sidebar-heading span {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.monitor-sync-notice,
+.camera-off-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  margin-bottom: 14px;
+  padding: 11px 14px;
+  border: 1px solid #fcd34d;
+  border-radius: 10px;
+  background: #fffbeb;
+  color: #854d0e;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.camera-off-notice strong {
+  white-space: nowrap;
+}
+
+.monitor-sync-notice button {
+  border: 0;
+  background: transparent;
+  color: #1d4ed8;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.monitor-box summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.monitor-box[open] summary {
+  margin-bottom: 12px;
+}
+
+.monitor-box p {
+  margin: 8px 0;
+}
+
+:global(html.dark-theme) .monitor-sync-notice,
+:global(html.dark-theme) .camera-off-notice {
+  border-color: #854d0e;
+  background: #292117;
+  color: #fcd34d;
 }
 
 /* HEADER */
@@ -1583,14 +1834,6 @@ onBeforeUnmount(() => {
   overflow-wrap: anywhere;
 }
 
-/* LAYOUT */
-.exam-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 310px;
-  align-items: start;
-  gap: 20px;
-}
-
 .question-card,
 .sidebar {
   padding: 26px;
@@ -1600,7 +1843,7 @@ onBeforeUnmount(() => {
 }
 
 .question-card {
-  min-height: 500px;
+  min-height: 420px;
 }
 
 .question-meta {
@@ -2181,12 +2424,12 @@ onBeforeUnmount(() => {
 
 /* RESPONSIVE */
 @media (max-width: 920px) {
-  .exam-layout {
-    grid-template-columns: 1fr;
+  .exam-workspace {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .sidebar {
-    order: -1;
+  .camera-panel {
+    width: min(100%, 420px);
   }
 
   .overview {
@@ -2344,66 +2587,6 @@ onBeforeUnmount(() => {
 
 :global(html.dark-theme) .phone-warning-counter small {
   color: #fecdd3;
-}
-
-/* YÊU CẦU CAMERA TRƯỚC KHI LÀM BÀI */
-.camera-required {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 300px;
-  padding: 40px 25px;
-  border: 1px solid #fbbf24;
-  border-radius: 16px;
-  background: #fffbeb;
-  color: #92400e;
-  text-align: center;
-}
-
-.camera-required-icon {
-  font-size: 46px;
-}
-
-.camera-required h2 {
-  font-size: 22px;
-  margin: 12px 0;
-}
-
-.camera-required p {
-  max-width: 550px;
-  font-size: 13px;
-  line-height: 1.8;
-}
-
-:global(html.dark-theme) .camera-required {
-  background: #292117;
-  border-color: #854d0e;
-  color: #fcd34d;
-}
-
-/* CAMERA CỐ ĐỊNH GÓC TRÊN BÊN TRÁI */
-:global(.exam-camera-floating) {
-  position: fixed;
-  top: 12px;
-  left: 12px;
-  z-index: 900;
-  width: 260px;
-  max-width: calc(100vw - 24px);
-  max-height: calc(100vh - 24px);
-  overflow-y: auto;
-  overflow-x: hidden;
-  border-radius: 15px;
-  box-shadow: 0 12px 35px rgba(0, 0, 0, .4);
-}
-
-@media (max-width: 650px) {
-  :global(.exam-camera-floating) {
-    top: 8px;
-    left: 8px;
-    width: 190px;
-    max-height: 65vh;
-  }
 }
 
 .webrtc-live-indicator {

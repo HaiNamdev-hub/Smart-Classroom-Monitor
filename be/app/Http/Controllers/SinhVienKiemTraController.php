@@ -68,6 +68,17 @@ class SinhVienKiemTraController extends Controller
         return (int) $id;
     }
 
+    private function studentUserId(int $studentId): int
+    {
+        $userId = DB::table('sinh_vien')
+            ->where('id', $studentId)
+            ->value('nguoi_dung_id');
+
+        abort_unless($userId, 403, 'Tài khoản không phải Sinh viên.');
+
+        return (int) $userId;
+    }
+
     /*
     |--------------------------------------------------------------------------
     | KIỂM TRA SINH VIÊN THUỘC LỚP
@@ -78,9 +89,11 @@ class SinhVienKiemTraController extends Controller
         int $baiTapId,
         int $studentId
     ): object {
+        $userId = $this->studentUserId($studentId);
+
         $assignment = DB::table('bai_tap as bt')
             ->where('bt.id', $baiTapId)
-            ->whereExists(function ($query) use ($studentId) {
+            ->whereExists(function ($query) use ($userId) {
                 $query->selectRaw('1')
                     ->from('thanh_vien_lop as tv')
                     ->whereColumn(
@@ -89,7 +102,7 @@ class SinhVienKiemTraController extends Controller
                     )
                     ->where(
                         'tv.sinh_vien_id',
-                        $studentId
+                        $userId
                     )
                     ->where(
                         'tv.trang_thai',
@@ -187,7 +200,7 @@ class SinhVienKiemTraController extends Controller
     ): bool {
         return DB::table('bai_nop')
             ->where('bai_tap_id', $baiTapId)
-            ->where('sinh_vien_id', $studentId)
+            ->where('sinh_vien_id', $this->studentUserId($studentId))
             ->exists();
     }
 
@@ -392,6 +405,11 @@ class SinhVienKiemTraController extends Controller
             ->orderByDesc('id')
             ->first(['id', 'ten_phien', 'trang_thai']);
 
+        $attempt = DB::table('bai_kiem_tra_luot_lam')
+            ->where('bai_tap_id', $baiTapId)
+            ->where('sinh_vien_id', $studentId)
+            ->first(['bat_dau_luc']);
+
         return response()->json([
             'status' => true,
             'data' => [
@@ -423,8 +441,69 @@ class SinhVienKiemTraController extends Controller
                     'trangThai' => $activeSession->trang_thai,
                 ] : null,
                 'sinhVienId' => $studentId,
+                'trangThaiLamBai' => $attempt ? 'IN_PROGRESS' : 'PRE_EXAM',
             ],
         ]);
+    }
+
+    /** Mark the moment the student has entered fullscreen and camera preparation is complete. */
+    public function startExam(Request $request, int $baiTapId): JsonResponse
+    {
+        $request->validate([
+            'fullscreen' => ['required', 'accepted'],
+            'cameraReady' => ['required', 'accepted'],
+        ]);
+        $studentId = $this->studentId($request);
+
+        return DB::transaction(function () use ($baiTapId, $studentId) {
+            DB::table('bai_tap')->where('id', $baiTapId)->lockForUpdate()->first();
+            $assignment = $this->assignment($baiTapId, $studentId);
+            $this->ensureStarted($assignment);
+            $this->assertExamNotLocked($baiTapId, $studentId);
+
+            abort_if(
+                $this->alreadySubmitted($baiTapId, $studentId),
+                409,
+                'Bài kiểm tra đã được nộp.'
+            );
+            abort_if(
+                $this->nowVN()->greaterThanOrEqualTo($this->deadline($assignment)),
+                409,
+                'Bài kiểm tra đã hết thời gian làm bài.'
+            );
+            abort_unless(
+                DB::table('cau_hoi')->where('bai_tap_id', $baiTapId)->exists(),
+                422,
+                'Bài kiểm tra chưa có câu hỏi.'
+            );
+
+            $attempt = DB::table('bai_kiem_tra_luot_lam')
+                ->where('bai_tap_id', $baiTapId)
+                ->where('sinh_vien_id', $studentId)
+                ->first();
+
+            if (!$attempt) {
+                $startedAt = $this->nowVN();
+                DB::table('bai_kiem_tra_luot_lam')->insert([
+                    'bai_tap_id' => $baiTapId,
+                    'sinh_vien_id' => $studentId,
+                    'bat_dau_luc' => $startedAt,
+                    'created_at' => $startedAt,
+                    'updated_at' => $startedAt,
+                ]);
+            } else {
+                $startedAt = $this->dateVN($attempt->bat_dau_luc);
+            }
+
+            return response()->json([
+                'status' => true,
+                'data' => [
+                    'trangThaiLamBai' => 'IN_PROGRESS',
+                    'batDauLuc' => $startedAt->toIso8601String(),
+                    'duplicate' => (bool) $attempt,
+                ],
+            ], $attempt ? 200 : 201);
+        }, 3);
     }
 
     /*
@@ -537,7 +616,7 @@ class SinhVienKiemTraController extends Controller
     ): JsonResponse {
         $input = $request->validate([
             'answers' => [
-                'required',
+                'present',
                 'array',
             ],
         ]);
@@ -621,7 +700,8 @@ class SinhVienKiemTraController extends Controller
     ): JsonResponse {
         // 1. Kiểm tra dữ liệu gửi lên
         $input = $request->validate([
-            'answers' => ['required', 'array'],
+            // Empty answers are valid when a student submits without answering.
+            'answers' => ['present', 'array'],
             'tuDongNop' => ['sometimes', 'boolean'],
         ]);
 
@@ -635,11 +715,6 @@ class SinhVienKiemTraController extends Controller
 
         // 3. Kiểm tra giờ và trạng thái khóa
         $this->ensureStarted($assignment);
-
-        $this->assertExamNotLocked(
-            $baiTapId,
-            $studentId
-        );
 
         // Sử dụng giờ Việt Nam giống lúc tạo lịch
         $timezone = 'Asia/Ho_Chi_Minh';
@@ -687,11 +762,6 @@ class SinhVienKiemTraController extends Controller
                 ->first();
 
             // Kiểm tra lại trạng thái sau khi lấy khóa
-            $this->assertExamNotLocked(
-                $baiTapId,
-                $studentId
-            );
-
             if (
                 $this->alreadySubmitted(
                     $baiTapId,
@@ -793,7 +863,7 @@ class SinhVienKiemTraController extends Controller
             // của SinhVienKiemTraController gốc.
             $baiNopId = DB::table('bai_nop')->insertGetId([
                 'bai_tap_id' => $baiTapId,
-                'sinh_vien_id' => $studentId,
+                'sinh_vien_id' => $this->studentUserId($studentId),
 
                 'ten_file' => 'bai-lam-truc-tuyen',
                 'duong_dan' => '',
@@ -974,6 +1044,10 @@ class SinhVienKiemTraController extends Controller
 
             $state = $this->violationStateData($baiTapId, $studentId);
             $daNop = $this->alreadySubmitted($baiTapId, $studentId);
+            $daBatDau = DB::table('bai_kiem_tra_luot_lam')
+                ->where('bai_tap_id', $baiTapId)
+                ->where('sinh_vien_id', $studentId)
+                ->exists();
 
             $query = DB::table('vi_pham_kiem_tra')
                 ->where('bai_tap_id', $baiTapId)
@@ -983,7 +1057,7 @@ class SinhVienKiemTraController extends Controller
                 ->where('event_id', $data['eventId'])
                 ->exists();
 
-            if (!$daNop && !$state['biKhoa'] && !$existing) {
+            if ($daBatDau && !$daNop && !$state['biKhoa'] && !$existing) {
                 $newCount = $state['soLanViPham'] + 1;
                 DB::table('vi_pham_kiem_tra')->insert([
                     'bai_tap_id' => $baiTapId,
@@ -1034,7 +1108,13 @@ class SinhVienKiemTraController extends Controller
                 'status' => true,
                 'message' => $message,
                 'daNop' => $daNop,
-                'data' => array_merge($state, ['daNop' => $daNop]),
+                'daBatDau' => $daBatDau,
+                'trangThaiLamBai' => $daNop ? 'SUBMITTED' : ($daBatDau ? 'IN_PROGRESS' : 'PRE_EXAM'),
+                'data' => array_merge($state, [
+                    'daNop' => $daNop,
+                    'daBatDau' => $daBatDau,
+                    'trangThaiLamBai' => $daNop ? 'SUBMITTED' : ($daBatDau ? 'IN_PROGRESS' : 'PRE_EXAM'),
+                ]),
             ], $state));
         }, 3);
     }
@@ -1071,6 +1151,14 @@ class SinhVienKiemTraController extends Controller
             'trangThai' => $activeSession->trang_thai,
         ] : null;
         $state['sinhVienId'] = $sinhVienId;
+        $state['trangThaiLamBai'] = $state['daNop']
+            ? 'SUBMITTED'
+            : (DB::table('bai_kiem_tra_luot_lam')
+                ->where('bai_tap_id', $baiTapId)
+                ->where('sinh_vien_id', $sinhVienId)
+                ->exists()
+                    ? 'IN_PROGRESS'
+                    : 'PRE_EXAM');
 
         return response()->json([
             'status' => true,

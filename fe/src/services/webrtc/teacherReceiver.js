@@ -85,6 +85,12 @@ export class TeacherReceiver {
         }
       })
 
+      conn.channel.listen('.exam.protection-alert', (event) => {
+        if (typeof conn.onAlert === 'function') {
+          conn.onAlert({ ...event, canXemXet: true, daXacMinh: false })
+        }
+      })
+
       // Khi kênh đã xác thực và đăng ký thành công trên Reverb
       conn.channel.subscribed(() => {
         debugLog(`Kênh đã subscribed thành công: ${channelName}`)

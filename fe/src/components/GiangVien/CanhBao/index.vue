@@ -107,6 +107,15 @@
             Website không cho phép
           </option>
           <option value="copy_paste">Copy / Paste</option>
+          <option value="copy_blocked">Sao chép đã bị chặn</option>
+          <option value="cut_blocked">Cắt nội dung đã bị chặn</option>
+          <option value="select_all_blocked">Chọn toàn bộ đã bị chặn</option>
+          <option value="context_menu_blocked">Menu chuột phải đã bị chặn</option>
+          <option value="drag_blocked">Kéo nội dung đã bị chặn</option>
+          <option value="screenshot_shortcut_key">Nhận được phím chụp màn hình</option>
+          <option value="SCREENSHOT_SHORTCUT_DETECTED">Nghi vấn chụp màn hình</option>
+          <option value="focus_lost">Mất focus cần xem xét</option>
+          <option value="fullscreen_exit">Thoát toàn màn hình</option>
           <option value="roi_phien">Rời phiên</option>
           <option value="mat_ket_noi">Mất kết nối</option>
           <option value="khong_co_khuon_mat">Không phát hiện khuôn mặt</option>
@@ -220,6 +229,7 @@
                     <small v-if="item.nguon === 'camera' && item.loaiCanhBao === 'phat_hien_dien_thoai'">
                       📱 {{ item.soLanDienThoai }}/3 lần phát hiện điện thoại
                     </small>
+                    <small v-if="item.nguon === 'bao_ve_bai_thi'">Bài kiểm tra: {{ item.tenBaiKiemTra || `#${item.baiTapId}` }} · Sự kiện cần xem xét, chưa xác minh gian lận.</small>
                     <small :title="item.chiTiet || ''">
                       {{ item.chiTiet || "Chưa có mô tả" }}
                     </small>
@@ -257,6 +267,9 @@
                   <small v-if="item.nguon === 'camera'" class="evidence-status-label">
                     {{ evidenceStatusText(item) }}
                   </small>
+                  <small v-else-if="item.nguon === 'bao_ve_bai_thi'" class="evidence-status-label">
+                    Ghi nhận để Giảng viên xem xét; không tự động trừ điểm hoặc khóa bài.
+                  </small>
                   <small v-else-if="item.loaiCanhBao === 'roi_tab'" class="evidence-status-label">
                     Không có ảnh: bài thi không yêu cầu chia sẻ màn hình.
                   </small>
@@ -275,6 +288,9 @@
 
                   <span v-else-if="item.nguon === 'camera'" class="camera-view-only">
                     Cần xem xét
+                  </span>
+                  <span v-else-if="item.nguon === 'bao_ve_bai_thi'" class="camera-view-only">
+                    Chưa xác minh
                   </span>
                   <span v-else class="processed-label">
                     Hoàn tất
@@ -355,9 +371,9 @@
               <strong>{{ formatDate(selectedAlert.thoiGian) }}</strong>
             </div>
             <div>
-              <small>{{ selectedAlert.nguon === 'camera' ? 'Bài kiểm tra' : 'Phiên giám sát' }}</small>
+              <small>{{ ['camera', 'bao_ve_bai_thi'].includes(selectedAlert.nguon) ? 'Bài kiểm tra' : 'Phiên giám sát' }}</small>
               <strong>
-                {{ selectedAlert.nguon === 'camera'
+                {{ ['camera', 'bao_ve_bai_thi'].includes(selectedAlert.nguon)
                   ? (selectedAlert.tenBaiKiemTra || `#${selectedAlert.baiTapId}`)
                   : (selectedAlert.phienId ? `#${selectedAlert.phienId}` : 'Chưa có dữ liệu') }}
               </strong>
@@ -508,7 +524,8 @@ function normalizeAlert(item, nguon = "phien") {
   // 1. Xác định nguồn cảnh báo thực tế
   const laCamera = nguon === "camera"
   const laViPhamKiemTra = item.nguon === "kiem_tra"
-  const laCanhBaoPhien = !laCamera && !laViPhamKiemTra
+  const laBaoVeBaiThi = item.nguon === "bao_ve_bai_thi"
+  const laCanhBaoPhien = !laCamera && !laViPhamKiemTra && !laBaoVeBaiThi
 
   // 2. Lấy trạng thái từ Backend
   const status =
@@ -549,6 +566,8 @@ function normalizeAlert(item, nguon = "phien") {
     displayId = `CAM-${rawId}`
   } else if (laViPhamKiemTra) {
     displayId = `KT-${viPhamId ?? rawId}`
+  } else if (laBaoVeBaiThi) {
+    displayId = `BV-${item.baoVeEventId ?? rawId.replace(/^BV-/, "")}`
   } else {
     displayId = `GS-${canhBaoId ?? rawId}`
   }
@@ -564,6 +583,8 @@ function normalizeAlert(item, nguon = "phien") {
 
   if (laCamera || laViPhamKiemTra) {
     trangThai = "CAN_XEM_XET"
+  } else if (laBaoVeBaiThi) {
+    trangThai = item.daXem ? "DA_XEM" : "CAN_XEM_XET"
   } else {
     trangThai = String(status).toUpperCase()
   }
@@ -580,7 +601,9 @@ function normalizeAlert(item, nguon = "phien") {
       ? "camera"
       : laViPhamKiemTra
         ? "kiem_tra"
-        : "phien",
+        : laBaoVeBaiThi
+          ? "bao_ve_bai_thi"
+          : "phien",
 
     // Thông tin bài kiểm tra
     baiTapId:
@@ -676,6 +699,15 @@ function normalizeAlert(item, nguon = "phien") {
 /* LOẠI VI PHẠM */
 
 const alertTypes = {
+  copy_blocked: { text: "Sao chép đã bị chặn", icon: "⧉" },
+  cut_blocked: { text: "Cắt nội dung đã bị chặn", icon: "✂" },
+  select_all_blocked: { text: "Chọn toàn bộ đã bị chặn", icon: "▣" },
+  context_menu_blocked: { text: "Menu chuột phải đã bị chặn", icon: "⋯" },
+  drag_blocked: { text: "Kéo nội dung đã bị chặn", icon: "↔" },
+  screenshot_shortcut_key: { text: "Nhận phím chụp màn hình (chưa xác minh)", icon: "▧" },
+  SCREENSHOT_SHORTCUT_DETECTED: { text: "Nghi vấn chụp màn hình (chưa xác minh)", icon: "▧" },
+  focus_lost: { text: "Mất focus cần xem xét", icon: "◉" },
+  fullscreen_exit: { text: "Thoát toàn màn hình", icon: "⛶" },
   ung_dung_khong_cho_phep: {
     text: "Ứng dụng không cho phép",
     icon: "▣"
@@ -763,6 +795,10 @@ function statusInfo(item) {
       text: "Đã xử lý",
       className: "status-complete",
     }
+  }
+
+  if (status === "DA_XEM") {
+    return { text: "Đã xem", className: "status-complete" }
   }
 
   return {

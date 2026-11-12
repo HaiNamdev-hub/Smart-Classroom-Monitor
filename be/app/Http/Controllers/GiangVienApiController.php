@@ -1212,7 +1212,44 @@ public function ketThucPhien(
                     ];
                 });
 
-            $recentAlerts = $camAlerts->concat($tabAlerts)
+            $screenshotAlerts = DB::table('su_kien_bao_ve_bai_kiem_tra as sbv')
+                ->join('sinh_vien as sv', 'sv.id', '=', 'sbv.sinh_vien_id')
+                ->join('nguoi_dung as nd', 'nd.id', '=', 'sv.nguoi_dung_id')
+                ->where('sbv.phien_id', $session->id)
+                ->where('sbv.loai_su_kien', 'SCREENSHOT_SHORTCUT_DETECTED')
+                ->orderByDesc('sbv.thoi_gian_su_kien')
+                ->limit(30)
+                ->get([
+                    'sbv.id', 'sbv.event_id', 'sbv.sinh_vien_id',
+                    'sbv.thong_tin_tin_hieu', 'sbv.thoi_gian_su_kien',
+                    'sbv.da_xem', 'sbv.xem_luc', 'sv.ma_sinh_vien', 'nd.ho_ten',
+                ])
+                ->map(function ($row) {
+                    $signalInfo = json_decode($row->thong_tin_tin_hieu ?? '[]', true) ?: [];
+                    $signal = $this->screenshotSignalLabel($signalInfo['signal'] ?? null);
+
+                    return [
+                        'id' => 'screenshot_' . $row->id,
+                        'eventId' => $row->event_id,
+                        'sinhVienId' => $row->sinh_vien_id,
+                        'hoTen' => $row->ho_ten,
+                        'maSinhVien' => $row->ma_sinh_vien,
+                        'loai' => 'SCREENSHOT_SHORTCUT_DETECTED',
+                        'noiDung' => sprintf(
+                            'Sinh viên %s (%s) đã nhấn %s trong lúc làm bài. Hệ thống không thể xác nhận ảnh chụp thực tế.',
+                            $row->ho_ten,
+                            $row->ma_sinh_vien ?: 'chưa có MSSV',
+                            $signal
+                        ),
+                        'tinHieu' => $signalInfo,
+                        'signalLabel' => $signal,
+                        'thoiGian' => $row->thoi_gian_su_kien,
+                        'daXem' => (bool) $row->da_xem,
+                        'daXemLuc' => $row->xem_luc,
+                    ];
+                });
+
+            $recentAlerts = $camAlerts->concat($tabAlerts)->concat($screenshotAlerts)
                 ->sortByDesc('thoiGian')
                 ->values()
                 ->take(30);
@@ -1624,6 +1661,81 @@ public function ketThucPhien(
                 ];
             });
 
+        $suKienBaoVeBaiThi = DB::table('su_kien_bao_ve_bai_kiem_tra as sbv')
+            ->join('bai_tap as bt', 'sbv.bai_tap_id', '=', 'bt.id')
+            ->join('lop_hoc as lh', 'bt.lop_hoc_id', '=', 'lh.id')
+            ->join('sinh_vien as sv', 'sbv.sinh_vien_id', '=', 'sv.id')
+            ->join('nguoi_dung as nd', 'sv.nguoi_dung_id', '=', 'nd.id')
+            ->leftJoin('phien_giam_sat as p', 'sbv.phien_id', '=', 'p.id')
+            ->where('lh.giang_vien_id', $nguoiDung->id)
+            ->select([
+                'sbv.id',
+                'sbv.event_id',
+                'sbv.phien_id',
+                'sbv.bai_tap_id',
+                'sbv.sinh_vien_id',
+                'sbv.loai_su_kien',
+                'sbv.thoi_gian_su_kien',
+                'sbv.thoi_gian_trinh_duyet',
+                'sbv.thong_tin_tin_hieu',
+                'sbv.da_xem',
+                'sbv.xem_luc',
+                'sbv.created_at',
+                'bt.tieu_de',
+                'sv.ma_sinh_vien',
+                'nd.ho_ten',
+                'lh.ten_lop',
+                'p.trang_thai as trang_thai_phien',
+            ])
+            ->orderByDesc('sbv.created_at')
+            ->limit(500)
+            ->get()
+            ->map(function ($item) {
+                $signalInfo = json_decode($item->thong_tin_tin_hieu ?? '[]', true) ?: [];
+                $descriptions = [
+                    'copy_blocked' => 'Thao tác sao chép nội dung câu hỏi/đáp án đã bị trình duyệt chặn.',
+                    'cut_blocked' => 'Thao tác cắt nội dung câu hỏi/đáp án đã bị trình duyệt chặn.',
+                    'select_all_blocked' => 'Thao tác chọn toàn bộ nội dung câu hỏi/đáp án đã bị trình duyệt chặn.',
+                    'context_menu_blocked' => 'Menu chuột phải trong vùng câu hỏi/đáp án đã bị chặn.',
+                    'drag_blocked' => 'Thao tác kéo nội dung câu hỏi/đáp án đã bị chặn.',
+                    'screenshot_shortcut_key' => 'Trình duyệt nhận được phím/tổ hợp phím chụp màn hình; không xác nhận ảnh đã được chụp.',
+                    'SCREENSHOT_SHORTCUT_DETECTED' => 'Trình duyệt nhận được tín hiệu phím có thể liên quan đến chụp màn hình; không xác nhận ảnh đã được chụp.',
+                    'focus_lost' => 'Cửa sổ bài thi mất focus khi tab vẫn hiển thị; đây chỉ là tín hiệu cần xem xét.',
+                    'fullscreen_exit' => 'Sinh viên đã thoát chế độ toàn màn hình trong lúc làm bài.',
+                ];
+
+                return [
+                    'id' => 'BV-' . $item->id,
+                    'baoVeEventId' => $item->event_id,
+                    'nguon' => 'bao_ve_bai_thi',
+                    'phienId' => $item->phien_id,
+                    'trangThaiPhien' => $item->trang_thai_phien,
+                    'baiTapId' => $item->bai_tap_id,
+                    'sinhVienId' => $item->sinh_vien_id,
+                    'tenSinhVien' => $item->ho_ten,
+                    'mssv' => $item->ma_sinh_vien,
+                    'tenBaiKiemTra' => $item->tieu_de,
+                    'tenLop' => $item->ten_lop,
+                    'loaiCanhBao' => $item->loai_su_kien,
+                    'chiTiet' => $item->loai_su_kien === 'SCREENSHOT_SHORTCUT_DETECTED'
+                        ? sprintf(
+                            'Sinh viên %s (%s) đã nhấn %s trong lúc làm bài. Hệ thống không thể xác nhận ảnh chụp thực tế.',
+                            $item->ho_ten,
+                            $item->ma_sinh_vien ?: 'chưa có MSSV',
+                            $this->screenshotSignalLabel($signalInfo['signal'] ?? null)
+                        )
+                        : ($descriptions[$item->loai_su_kien] ?? 'Sự kiện bảo vệ bài kiểm tra cần được xem xét.'),
+                    'tinHieu' => $signalInfo,
+                    'thoiGian' => $item->thoi_gian_su_kien,
+                    'thoiGianTrinhDuyet' => $item->thoi_gian_trinh_duyet,
+                    'daXacMinh' => false,
+                    'daXem' => (bool) $item->da_xem,
+                    'daXemLuc' => $item->xem_luc,
+                    'biKhoa' => false,
+                    'trangThai' => 'CAN_XEM_XET',
+                ];
+            });
+
         /*
     |--------------------------------------------------------------------------
     | 3. GỘP DANH SÁCH
@@ -1632,6 +1744,7 @@ public function ketThucPhien(
 
         $alerts = $canhBaoGiamSat
             ->concat($viPhamKiemTra)
+            ->concat($suKienBaoVeBaiThi)
             ->sortByDesc('thoiGian')
             ->take(500)
             ->values();
@@ -1653,6 +1766,57 @@ public function ketThucPhien(
 
 
     
+public function markExamProtectionEventViewed(
+    Request $request,
+    string $eventId
+): JsonResponse {
+    $teacherId = (int) $request->user()->id;
+    $event = DB::table('su_kien_bao_ve_bai_kiem_tra as sbv')
+        ->join('phien_giam_sat as p', 'p.id', '=', 'sbv.phien_id')
+        ->join('lop_hoc as lh', 'lh.id', '=', 'p.lop_hoc_id')
+        ->where('sbv.event_id', $eventId)
+        ->where('lh.giang_vien_id', $teacherId)
+        ->where('sbv.loai_su_kien', 'SCREENSHOT_SHORTCUT_DETECTED')
+        ->select('sbv.id', 'sbv.da_xem')
+        ->first();
+
+    abort_unless($event, 404, 'Không tìm thấy cảnh báo hoặc bạn không có quyền xem.');
+
+    $viewedAt = $event->da_xem ? null : now('UTC');
+    if ($viewedAt) {
+        DB::table('su_kien_bao_ve_bai_kiem_tra')
+            ->where('id', $event->id)
+            ->where('da_xem', false)
+            ->update([
+                'da_xem' => true,
+                'xem_boi_id' => $teacherId,
+                'xem_luc' => $viewedAt,
+                'updated_at' => now(),
+            ]);
+    }
+
+    return response()->json([
+        'status' => true,
+        'data' => [
+            'eventId' => $eventId,
+            'daXem' => true,
+            'daXemLuc' => $viewedAt?->toIso8601String(),
+        ],
+    ]);
+}
+
+private function screenshotSignalLabel(?string $signal): string
+{
+    return match ($signal) {
+        'PRINT_SCREEN' => 'phím Print Screen',
+        'META_SHIFT_S' => 'tổ hợp Meta + Shift + S',
+        'META_SHIFT_3' => 'tổ hợp Meta + Shift + 3',
+        'META_SHIFT_4' => 'tổ hợp Meta + Shift + 4',
+        'META_SHIFT_5' => 'tổ hợp Meta + Shift + 5',
+        default => 'phím tắt nghi vấn',
+    };
+}
+
 public function xuLyCanhBao(
     Request $request,
     string $id

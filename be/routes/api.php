@@ -24,6 +24,7 @@ use App\Http\Controllers\GiangVienLichKiemTraController;
 use App\Http\Controllers\GiangVienNhapCauHoiController;
 use App\Http\Controllers\GiangVienViPhamKiemTraController;
 use App\Http\Controllers\SinhVienCanhBaoCameraController;
+use App\Http\Controllers\SinhVienBaoVeBaiKiemTraController;
 use App\Http\Controllers\SinhVienKiemTraController;
 use App\Http\Controllers\WebRtcSignalController;
 use App\Http\Controllers\ExamEvidenceFileController;
@@ -96,6 +97,11 @@ Route::middleware('auth:sanctum')->group(function () {
         [SinhVienKiemTraController::class, 'submit']
     );
 
+    Route::post(
+        '/sinh-vien/bai-kiem-tra/{baiTapId}/bat-dau',
+        [SinhVienKiemTraController::class, 'startExam']
+    )->middleware('throttle:10,1');
+
 
     Route::get(
         '/sinh-vien/bai-kiem-tra/{baiTapId}/trang-thai',
@@ -106,6 +112,10 @@ Route::middleware('auth:sanctum')->group(function () {
         '/sinh-vien/bai-kiem-tra/{baiTapId}/roi-tab',
         [SinhVienKiemTraController::class, 'reportTabLeave']
     );
+    Route::post(
+        '/sinh-vien/bai-kiem-tra/{baiTapId}/bao-ve',
+        [SinhVienBaoVeBaiKiemTraController::class, 'store']
+    )->middleware('throttle:60,1');
 
     // Chỉ tài khoản quản trị viên đang hoạt động được dùng các API này.
     Route::get('/check-token', [
@@ -444,6 +454,11 @@ Route::get(
         '/canh-bao',
         [$controller, 'canhBao']
     );
+
+    Route::put(
+        '/su-kien-bao-ve/{eventId}/da-xem',
+        [$controller, 'markExamProtectionEventViewed']
+    )->whereUuid('eventId');
 
     // XỬ LÝ CẢNH BÁO
     Route::put(
