@@ -352,6 +352,12 @@ class SinhVienCanhBaoCameraController extends Controller
                     ->first();
 
                 if ($phien) {
+                    $studentInfo = DB::table('sinh_vien as sv')
+                        ->join('nguoi_dung as nd', 'nd.id', '=', 'sv.nguoi_dung_id')
+                        ->where('sv.id', $sinhVienId)
+                        ->select('nd.ho_ten', 'sv.ma_sinh_vien')
+                        ->first();
+                    $className = DB::table('lop_hoc')->where('id', $baiTap->lop_hoc_id)->value('ten_lop');
                     $tenLoai = [
                         'khong_co_khuon_mat' => 'Không phát hiện khuôn mặt',
                         'nhieu_khuon_mat' => 'Phát hiện nhiều khuôn mặt',
@@ -369,7 +375,7 @@ class SinhVienCanhBaoCameraController extends Controller
                             ? 'camera'
                             : ($tabCount >= self::MAX_TAB_WARNINGS ? 'roi_tab' : null));
 
-                    broadcast(new \App\Events\CanhBaoExamEvent(
+                    $alertEvent = new \App\Events\CanhBaoExamEvent(
                         phienId: $phien->id,
                         sinhVienId: $sinhVienId,
                         loaiCanhBao: $data['loaiCanhBao'],
@@ -379,8 +385,24 @@ class SinhVienCanhBaoCameraController extends Controller
                         soLanDienThoai: $phoneCount,
                         soLanViPham: $tabCount,
                         biKhoa: $isLocked,
-                        lyDoKhoa: $lockReason
-                    ))->toOthers();
+                        lyDoKhoa: $lockReason,
+                        eventId: $data['eventId'],
+                        hoTen: $studentInfo?->ho_ten,
+                        maSinhVien: $studentInfo?->ma_sinh_vien,
+                        tenLop: $className,
+                        tenBaiKiemTra: $baiTap->tieu_de,
+                        baiTapId: $baiTapId
+                    );
+                    DB::afterCommit(function () use ($alertEvent) {
+                        try {
+                            broadcast($alertEvent)->toOthers();
+                        } catch (\Throwable $exception) {
+                            \Illuminate\Support\Facades\Log::warning('Khong the broadcast canh bao camera sau commit.', [
+                                'event_id' => $alertEvent->eventId,
+                                'exception' => $exception->getMessage(),
+                            ]);
+                        }
+                    });
                 }
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::warning('Không thể broadcast cảnh báo camera: ' . $e->getMessage());

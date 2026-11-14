@@ -59,3 +59,15 @@ Broadcast::channel(
         return false;
     }
 );
+
+// Private feed for the teacher who owns this monitoring session's class.
+Broadcast::channel('exam-session.{phienId}', function ($user, $phienId) {
+    $phien = PhienGiamSat::query()
+        ->with('lopHoc')
+        ->find($phienId);
+
+    return $phien
+        && $phien->trang_thai === 'dang_dien_ra'
+        && $phien->lopHoc
+        && (int) $phien->lopHoc->giang_vien_id === (int) $user->id;
+});

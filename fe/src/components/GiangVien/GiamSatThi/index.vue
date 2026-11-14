@@ -296,9 +296,13 @@ const lockedCount = computed(() => {
 })
 
 const totalAlertCount = computed(() => {
-  return students.value.reduce((acc, s) => {
+  const monitoringCounts = students.value.reduce((acc, s) => {
     return acc + (s.soLanViPham || 0) + (s.soLanCamera || 0) + (s.soLanDienThoai || 0)
   }, 0)
+  const screenshotEvents = recentAlerts.value.filter(
+    alert => alert.loai === 'SCREENSHOT_SHORTCUT_DETECTED'
+  ).length
+  return monitoringCounts + screenshotEvents
 })
 
 // Bộ lọc sinh viên
@@ -428,6 +432,16 @@ function handleConnectionState({ sinhVienId, status }) {
 }
 
 function handleAlertReceived(alertData) {
+  const sessionId = Number(phienId.value)
+  const eventSessionId = Number(alertData.phienId)
+  const studentId = Number(alertData.sinhVienId)
+  const student = students.value.find(item => Number(item.sinhVienId) === studentId)
+  const isScreenshot = alertData.loaiSuKien === 'SCREENSHOT_SHORTCUT_DETECTED'
+
+  if (!student || (Number.isFinite(eventSessionId) && eventSessionId !== sessionId)) return
+  if (isScreenshot && eventSessionId !== sessionId) return
+  if (isScreenshot && !alertData.eventId) return
+
   const eventId = alertData.eventId || `live_${Date.now()}`
   if (recentAlerts.value.some(alert => alert.id === eventId || alert.eventId === eventId)) return
 
@@ -435,9 +449,9 @@ function handleAlertReceived(alertData) {
   recentAlerts.value.unshift({
     id: eventId,
     eventId,
-    sinhVienId: alertData.sinhVienId,
-    hoTen: alertData.hoTen,
-    maSinhVien: alertData.maSinhVien,
+    sinhVienId: student.sinhVienId,
+    hoTen: alertData.hoTen || student.hoTen,
+    maSinhVien: alertData.maSinhVien || student.maSinhVien,
     loai: alertData.loaiCanhBao || alertData.loaiSuKien,
     noiDung: alertData.noiDung,
     signal: alertData.signal ? { signal: alertData.signal, source: alertData.signalSource } : null,

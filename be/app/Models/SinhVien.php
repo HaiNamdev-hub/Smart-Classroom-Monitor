@@ -38,7 +38,8 @@ class SinhVien extends Model
     {
         return $this->hasMany(
             ThanhVienLop::class,
-            'sinh_vien_id'
+            'sinh_vien_id',
+            'nguoi_dung_id'
         );
     }
 
@@ -46,7 +47,8 @@ class SinhVien extends Model
     {
         return $this->hasMany(
             BaiNop::class,
-            'sinh_vien_id'
+            'sinh_vien_id',
+            'nguoi_dung_id'
         );
     }
 
@@ -54,7 +56,8 @@ class SinhVien extends Model
     {
         return $this->hasMany(
             HoatDong::class,
-            'sinh_vien_id'
+            'sinh_vien_id',
+            'nguoi_dung_id'
         );
     }
 
@@ -62,7 +65,8 @@ class SinhVien extends Model
     {
         return $this->hasMany(
             AnhManHinh::class,
-            'sinh_vien_id'
+            'sinh_vien_id',
+            'nguoi_dung_id'
         );
     }
 
@@ -70,7 +74,8 @@ class SinhVien extends Model
     {
         return $this->hasMany(
             CanhBao::class,
-            'sinh_vien_id'
+            'sinh_vien_id',
+            'nguoi_dung_id'
         );
     }
 }

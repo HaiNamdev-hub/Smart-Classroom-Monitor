@@ -107,6 +107,7 @@ class SinhVienBaoVeBaiKiemTraController extends Controller
 
             $session = DB::table('phien_giam_sat')
                 ->where('bai_tap_id', $baiTapId)
+                ->where('lop_hoc_id', $assignment->lop_hoc_id)
                 ->where('trang_thai', 'dang_dien_ra')
                 ->orderByDesc('id')
                 ->first();
@@ -187,6 +188,7 @@ class SinhVienBaoVeBaiKiemTraController extends Controller
                     thoiGian: $result['recordedAt']->toIso8601String(),
                     hoTen: $result['student']->ho_ten,
                     maSinhVien: $result['student']->ma_sinh_vien,
+                    tenLop: $result['assignment']->ten_lop,
                     tenBaiKiemTra: $result['assignment']->tieu_de,
                     signalInfo: $signalInfo,
                 ));

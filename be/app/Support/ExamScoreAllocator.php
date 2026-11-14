@@ -100,4 +100,43 @@ class ExamScoreAllocator
             ]);
         }
     }
+
+    /** Validate saved scores without recalculating or changing question points. */
+    public static function assertStoredTotalIsTen(int $baiTapId): void
+    {
+        $questions = DB::table('cau_hoi')
+            ->where('bai_tap_id', $baiTapId)
+            ->get(['loai_cau_hoi', 'diem']);
+
+        if ($questions->isEmpty()) {
+            throw ValidationException::withMessages([
+                'questions' => 'Đề thi chưa có câu hỏi nên không thể bắt đầu.',
+            ]);
+        }
+
+        $totalCents = 0;
+        foreach ($questions as $question) {
+            if (!in_array($question->loai_cau_hoi, ['trac_nghiem', 'tu_luan'], true)) {
+                throw ValidationException::withMessages([
+                    'questions' => 'Đề thi có loại câu hỏi không hợp lệ.',
+                ]);
+            }
+
+            $points = self::cents($question->diem);
+            if ($points <= 0 || !self::hasTwoDecimals($question->diem)) {
+                throw ValidationException::withMessages([
+                    'diem' => 'Điểm mỗi câu phải lớn hơn 0 và có tối đa 2 chữ số thập phân.',
+                ]);
+            }
+
+            $totalCents += $points;
+        }
+
+        if ($totalCents !== 1000) {
+            $currentTotal = number_format($totalCents / 100, 2, '.', '');
+            throw ValidationException::withMessages([
+                'diem' => "Tổng điểm đề hiện là {$currentTotal}/10. Vui lòng sửa phân bổ điểm trước khi bắt đầu phiên thi.",
+            ]);
+        }
+    }
 }

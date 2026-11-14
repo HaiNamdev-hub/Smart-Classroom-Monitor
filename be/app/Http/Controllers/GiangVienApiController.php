@@ -12,6 +12,7 @@ use App\Models\LopHoc;
 use App\Models\PhienGiamSat;
 use App\Models\SinhVien;
 use App\Models\ThanhVienLop;
+use App\Support\ExamScoreAllocator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -976,6 +977,10 @@ class GiangVienApiController extends Controller
             'Phiên chưa liên kết bài kiểm tra.'
         );
 
+        // Fail before opening the session if stored question scores are invalid.
+        // This validation deliberately does not rebalance or mutate question data.
+        ExamScoreAllocator::assertStoredTotalIsTen((int) $session->bai_tap_id);
+
         // Cập nhật có điều kiện để tránh bắt đầu hai lần.
         $updated = PhienGiamSat::whereKey($session->id)
             ->where('trang_thai', 'chua_bat_dau')
@@ -1104,7 +1109,7 @@ public function ketThucPhien(
                 ->where('bai_tap_id', $session->bai_tap_id)
                 ->whereIn('sinh_vien_id', $studentProfileIds)
                 ->orderByDesc('id')
-                ->get(['sinh_vien_id', 'loai_canh_bao', 'created_at']);
+                ->get(['sinh_vien_id', 'loai_canh_bao', 'event_id', 'created_at']);
         }
 
         $cameraGrouped = $cameraRecords->groupBy('sinh_vien_id');
@@ -1147,6 +1152,7 @@ public function ketThucPhien(
             if ($latestCam) {
                 $canhBaoGanNhat = [
                     'loai' => $latestCam->loai_canh_bao,
+                    'eventId' => $latestCam->event_id,
                     'noiDung' => $tenLoaiCanhBao[$latestCam->loai_canh_bao] ?? $latestCam->loai_canh_bao,
                     'thoiGian' => $latestCam->created_at,
                 ];
@@ -1198,7 +1204,7 @@ public function ketThucPhien(
                 ->where('bai_tap_id', $session->bai_tap_id)
                 ->orderByDesc('id')
                 ->limit(30)
-                ->get()
+                ->get(['id', 'event_id', 'sinh_vien_id', 'lan_thu', 'created_at'])
                 ->map(function ($row) use ($studentProfilesById) {
                     $profile = $studentProfilesById->get($row->sinh_vien_id);
                     return [
@@ -1209,6 +1215,7 @@ public function ketThucPhien(
                         'loai' => 'roi_tab',
                         'noiDung' => "Rời tab làm bài (lần {$row->lan_thu})",
                         'thoiGian' => $row->created_at,
+                        'eventId' => $row->event_id,
                     ];
                 });
 
@@ -1607,6 +1614,7 @@ public function ketThucPhien(
             )
             ->select([
                 'vp.id',
+                'vp.event_id',
                 'vp.bai_tap_id',
                 'vp.sinh_vien_id',
                 'vp.lan_thu',
@@ -1627,6 +1635,7 @@ public function ketThucPhien(
                 return [
                     'id' => 'KT-' . $item->id,
                     'viPhamId' => $item->id,
+                    'eventId' => $item->event_id,
                     'nguon' => 'kiem_tra',
 
                     'phienId' => null,
@@ -1706,6 +1715,7 @@ public function ketThucPhien(
 
                 return [
                     'id' => 'BV-' . $item->id,
+                    'eventId' => $item->event_id,
                     'baoVeEventId' => $item->event_id,
                     'nguon' => 'bao_ve_bai_thi',
                     'phienId' => $item->phien_id,

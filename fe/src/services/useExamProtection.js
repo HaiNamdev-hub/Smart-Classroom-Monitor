@@ -19,7 +19,6 @@ export function useExamProtection({ active, protectedElement, onEvent }) {
   const noticeError = ref('')
   const lastEventAt = new Map()
   const screenshotSignalsDown = new Set()
-  const screenshotSignalResetTimers = new Map()
   let blurTimer = null
   let noticeTimer = null
   let hiddenAt = 0
@@ -72,13 +71,10 @@ export function useExamProtection({ active, protectedElement, onEvent }) {
   }
 
   function onScreenshotKeydown(event, signal) {
-    if (event.repeat || screenshotSignalsDown.has(signal)) return
+    // Browser key repeat has repeat=true. Keep the signal marked until keyup,
+    // so a long key hold cannot become a second event after an arbitrary timer.
+    if (event.repeat) return
     screenshotSignalsDown.add(signal)
-    const resetTimer = window.setTimeout(() => {
-      screenshotSignalsDown.delete(signal)
-      screenshotSignalResetTimers.delete(signal)
-    }, 2500)
-    screenshotSignalResetTimers.set(signal, resetTimer)
 
     if (event.cancelable) event.preventDefault()
     report(
@@ -145,9 +141,6 @@ export function useExamProtection({ active, protectedElement, onEvent }) {
     if (!signal) return
 
     const wasDown = screenshotSignalsDown.delete(signal)
-    const resetTimer = screenshotSignalResetTimers.get(signal)
-    if (resetTimer !== undefined) window.clearTimeout(resetTimer)
-    screenshotSignalResetTimers.delete(signal)
 
     // Some browsers expose a PrintScreen keyup without exposing its keydown.
     // The event-type debounce in report() prevents a keydown/keyup duplicate.
@@ -274,8 +267,6 @@ export function useExamProtection({ active, protectedElement, onEvent }) {
     window.removeEventListener('focus', onWindowFocus)
     if (blurTimer !== null) window.clearTimeout(blurTimer)
     if (noticeTimer !== null) window.clearTimeout(noticeTimer)
-    for (const timer of screenshotSignalResetTimers.values()) window.clearTimeout(timer)
-    screenshotSignalResetTimers.clear()
     screenshotSignalsDown.clear()
     blurTimer = null
     noticeTimer = null

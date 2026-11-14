@@ -22,6 +22,7 @@ class ExamProtectionAlertEvent implements ShouldBroadcastNow
         public string $thoiGian,
         public string $hoTen,
         public ?string $maSinhVien,
+        public string $tenLop,
         public string $tenBaiKiemTra,
         public bool $canXemXet = true,
         public bool $daXacMinh = false,
@@ -30,7 +31,14 @@ class ExamProtectionAlertEvent implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [new PrivateChannel("exam-monitor.{$this->phienId}.student.{$this->sinhVienId}")];
+        return [
+            // Existing per-student channel keeps the live camera feed and its
+            // card-level alert in sync.
+            new PrivateChannel("exam-monitor.{$this->phienId}.student.{$this->sinhVienId}"),
+            // Session channel lets the teacher's alert center receive the same
+            // event without subscribing to every student channel.
+            new PrivateChannel("exam-session.{$this->phienId}"),
+        ];
     }
 
     public function broadcastAs(): string
@@ -50,6 +58,7 @@ class ExamProtectionAlertEvent implements ShouldBroadcastNow
             'thoiGian' => $this->thoiGian,
             'hoTen' => $this->hoTen,
             'maSinhVien' => $this->maSinhVien,
+            'tenLop' => $this->tenLop,
             'tenBaiKiemTra' => $this->tenBaiKiemTra,
             'signal' => $this->signalInfo['signal'] ?? null,
             'signalSource' => $this->signalInfo['source'] ?? null,

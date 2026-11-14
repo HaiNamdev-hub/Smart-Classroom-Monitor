@@ -434,6 +434,15 @@ class SinhVienKiemTraController extends Controller
                         true
                     )
                     : new \stdClass(),
+                'draftUpdatedAt' => $draft?->updated_at
+                    ? $this->dateVN($draft->updated_at)->toIso8601String()
+                    : null,
+                'draftRevision' => $draft
+                    ? hash('sha256', (string) $draft->cau_tra_loi)
+                    : null,
+                'attemptStartedAt' => $attempt
+                    ? $this->dateVN($attempt->bat_dau_luc)->toIso8601String()
+                    : null,
 
                 'phienGiamSat' => $activeSession ? [
                     'id' => $activeSession->id,
@@ -476,6 +485,7 @@ class SinhVienKiemTraController extends Controller
                 422,
                 'Bài kiểm tra chưa có câu hỏi.'
             );
+            ExamScoreAllocator::assertStoredTotalIsTen($baiTapId);
 
             $attempt = DB::table('bai_kiem_tra_luot_lam')
                 ->where('bai_tap_id', $baiTapId)
@@ -619,6 +629,7 @@ class SinhVienKiemTraController extends Controller
                 'present',
                 'array',
             ],
+            'baseDraftRevision' => ['present', 'nullable', 'string', 'size:64'],
         ]);
 
         $studentId = $this->studentId($request);
@@ -664,27 +675,67 @@ class SinhVienKiemTraController extends Controller
             $input['answers']
         );
 
-        $now = $this->nowVN();
+        return DB::transaction(function () use ($baiTapId, $studentId, $answers, $input) {
+            // Serialize draft writes with submit and other draft writers.
+            DB::table('bai_tap')->where('id', $baiTapId)->lockForUpdate()->first();
 
-        DB::table('bai_lam_nhap')->updateOrInsert(
-            [
-                'bai_tap_id' => $baiTapId,
-                'sinh_vien_id' => $studentId,
-            ],
-            [
-                'cau_tra_loi' => json_encode(
-                    $answers,
-                    JSON_UNESCAPED_UNICODE
-                ),
+            if ($this->alreadySubmitted($baiTapId, $studentId)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Bạn đã nộp bài kiểm tra.',
+                ], 409);
+            }
+
+            $query = DB::table('bai_lam_nhap')
+                ->where('bai_tap_id', $baiTapId)
+                ->where('sinh_vien_id', $studentId);
+            $existing = (clone $query)->lockForUpdate()->first();
+            $actualRevision = $existing
+                ? hash('sha256', (string) $existing->cau_tra_loi)
+                : null;
+
+            if ($input['baseDraftRevision'] !== $actualRevision) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Bản nháp trên máy chủ đã thay đổi ở nơi khác. Hãy tải lại đề để đối chiếu trước khi lưu tiếp.',
+                    'data' => ['draftRevision' => $actualRevision],
+                ], 409);
+            }
+
+            $now = $this->nowVN();
+            $storedAnswers = json_encode($answers, JSON_UNESCAPED_UNICODE);
+            $values = [
+                'cau_tra_loi' => $storedAnswers,
                 'updated_at' => $now,
-                'created_at' => $now,
-            ]
-        );
+            ];
 
-        return response()->json([
-            'status' => true,
-            'message' => 'Đã lưu bài nháp.',
-        ]);
+            if ($existing) {
+                $query->update($values);
+            } else {
+                $query->insert($values + [
+                    'bai_tap_id' => $baiTapId,
+                    'sinh_vien_id' => $studentId,
+                    'created_at' => $now,
+                ]);
+            }
+
+            // Hash the exact value read back from the database. This is an
+            // optimistic concurrency token and requires no schema migration.
+            $persistedAnswers = (string) $query->value('cau_tra_loi');
+            $persistedUpdatedAt = $query->value('updated_at');
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Đã lưu bài nháp.',
+                'data' => [
+                    'answers' => $answers,
+                    'draftUpdatedAt' => $persistedUpdatedAt
+                        ? $this->dateVN($persistedUpdatedAt)->toIso8601String()
+                        : $now->toIso8601String(),
+                    'draftRevision' => hash('sha256', $persistedAnswers),
+                ],
+            ]);
+        }, 3);
     }
 
     /*
@@ -1033,9 +1084,9 @@ class SinhVienKiemTraController extends Controller
         ]);
 
         $studentId = $this->studentId($request);
-        $this->assignment($baiTapId, $studentId);
+        $assignment = $this->assignment($baiTapId, $studentId);
 
-        return DB::transaction(function () use ($baiTapId, $studentId, $data) {
+        return DB::transaction(function () use ($baiTapId, $studentId, $data, $assignment) {
             // Dùng chung hàng khóa với API cảnh báo camera và API nộp bài.
             DB::table('bai_tap')
                 ->where('id', $baiTapId)
@@ -1077,7 +1128,13 @@ class SinhVienKiemTraController extends Controller
                         ->first();
 
                     if ($phien) {
-                        broadcast(new \App\Events\CanhBaoExamEvent(
+                        $studentInfo = DB::table('sinh_vien as sv')
+                            ->join('nguoi_dung as nd', 'nd.id', '=', 'sv.nguoi_dung_id')
+                            ->where('sv.id', $studentId)
+                            ->select('nd.ho_ten', 'sv.ma_sinh_vien')
+                            ->first();
+                        $className = DB::table('lop_hoc')->where('id', $assignment->lop_hoc_id)->value('ten_lop');
+                        $alertEvent = new \App\Events\CanhBaoExamEvent(
                             phienId: $phien->id,
                             sinhVienId: $studentId,
                             loaiCanhBao: 'roi_tab',
@@ -1087,8 +1144,24 @@ class SinhVienKiemTraController extends Controller
                             soLanDienThoai: $state['soLanDienThoai'] ?? 0,
                             soLanViPham: $state['soLanViPham'] ?? $newCount,
                             biKhoa: $state['biKhoa'] ?? false,
-                            lyDoKhoa: $state['lyDoKhoa'] ?? null
-                        ))->toOthers();
+                            lyDoKhoa: $state['lyDoKhoa'] ?? null,
+                            eventId: $data['eventId'],
+                            hoTen: $studentInfo?->ho_ten,
+                            maSinhVien: $studentInfo?->ma_sinh_vien,
+                            tenLop: $className,
+                            tenBaiKiemTra: $assignment->tieu_de,
+                            baiTapId: $baiTapId
+                        );
+                        DB::afterCommit(function () use ($alertEvent) {
+                            try {
+                                broadcast($alertEvent)->toOthers();
+                            } catch (\Throwable $exception) {
+                                \Illuminate\Support\Facades\Log::warning('Khong the broadcast canh bao roi tab sau commit.', [
+                                    'event_id' => $alertEvent->eventId,
+                                    'exception' => $exception->getMessage(),
+                                ]);
+                            }
+                        });
                     }
                 } catch (\Throwable $e) {
                     \Illuminate\Support\Facades\Log::warning('Không thể broadcast cảnh báo rời tab: ' . $e->getMessage());

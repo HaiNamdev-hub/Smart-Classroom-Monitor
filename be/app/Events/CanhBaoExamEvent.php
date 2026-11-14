@@ -23,6 +23,12 @@ class CanhBaoExamEvent implements ShouldBroadcastNow
     public int $soLanViPham;
     public bool $biKhoa;
     public ?string $lyDoKhoa;
+    public ?string $eventId;
+    public ?string $hoTen;
+    public ?string $maSinhVien;
+    public ?string $tenLop;
+    public ?string $tenBaiKiemTra;
+    public ?int $baiTapId;
 
     public function __construct(
         int $phienId,
@@ -34,7 +40,13 @@ class CanhBaoExamEvent implements ShouldBroadcastNow
         int $soLanDienThoai,
         int $soLanViPham,
         bool $biKhoa = false,
-        ?string $lyDoKhoa = null
+        ?string $lyDoKhoa = null,
+        ?string $eventId = null,
+        ?string $hoTen = null,
+        ?string $maSinhVien = null,
+        ?string $tenLop = null,
+        ?string $tenBaiKiemTra = null,
+        ?int $baiTapId = null
     ) {
         $this->phienId = $phienId;
         $this->sinhVienId = $sinhVienId;
@@ -46,6 +58,12 @@ class CanhBaoExamEvent implements ShouldBroadcastNow
         $this->soLanViPham = $soLanViPham;
         $this->biKhoa = $biKhoa;
         $this->lyDoKhoa = $lyDoKhoa;
+        $this->eventId = $eventId;
+        $this->hoTen = $hoTen;
+        $this->maSinhVien = $maSinhVien;
+        $this->tenLop = $tenLop;
+        $this->tenBaiKiemTra = $tenBaiKiemTra;
+        $this->baiTapId = $baiTapId;
     }
 
     /**
@@ -55,6 +73,7 @@ class CanhBaoExamEvent implements ShouldBroadcastNow
     {
         return [
             new PrivateChannel('exam-monitor.' . $this->phienId . '.student.' . $this->sinhVienId),
+            new PrivateChannel('exam-session.' . $this->phienId),
         ];
     }
 
@@ -67,7 +86,13 @@ class CanhBaoExamEvent implements ShouldBroadcastNow
     {
         return [
             'phienId' => $this->phienId,
+            'eventId' => $this->eventId,
+            'baiTapId' => $this->baiTapId,
             'sinhVienId' => $this->sinhVienId,
+            'hoTen' => $this->hoTen,
+            'maSinhVien' => $this->maSinhVien,
+            'tenLop' => $this->tenLop,
+            'tenBaiKiemTra' => $this->tenBaiKiemTra,
             'loaiCanhBao' => $this->loaiCanhBao,
             'noiDung' => $this->noiDung,
             'thoiGian' => $this->thoiGian,

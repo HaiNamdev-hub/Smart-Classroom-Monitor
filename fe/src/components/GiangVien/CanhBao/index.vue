@@ -128,7 +128,7 @@
           <option value="ALL">Tất cả trạng thái</option>
           <option value="CHUA_XU_LY">Chưa xử lý</option>
           <option value="DA_XU_LY">Đã xử lý</option>
-          <option value="CAN_XEM_XET">Camera · Cần xem xét</option>
+          <option value="CAN_XEM_XET">Cần xem xét / Chưa xem</option>
         </select>
 
         <button v-if="hasActiveFilters" type="button" class="clear-btn" @click="clearFilters">
@@ -273,6 +273,13 @@
                   <small v-else-if="item.loaiCanhBao === 'roi_tab'" class="evidence-status-label">
                     Không có ảnh: bài thi không yêu cầu chia sẻ màn hình.
                   </small>
+                  <button v-if="item.nguon === 'bao_ve_bai_thi' && !item.daXem" type="button" class="detail-btn"
+                    :disabled="reviewingEventIds.includes(item.eventId)" @click="markProtectionAlertViewed(item)">
+                    {{ reviewingEventIds.includes(item.eventId) ? 'Đang cập nhật...' : 'Đánh dấu đã xem' }}
+                  </button>
+                  <small v-if="item.nguon === 'bao_ve_bai_thi' && reviewErrors[item.eventId]" class="review-error" role="alert">
+                    {{ reviewErrors[item.eventId] }}
+                  </small>
                   <button type="button" class="detail-btn" @click="openDetail(item)">
                     Chi tiết
                   </button>
@@ -408,7 +415,11 @@
           <button type="button" class="btn-outline" @click="closeDetail">
             Đóng
           </button>
-          <button v-if="isPending(selectedAlert)" type="button" class="btn-primary" :disabled="isBusy"
+          <button v-if="selectedAlert.nguon === 'bao_ve_bai_thi' && !selectedAlert.daXem" type="button" class="btn-primary"
+            :disabled="reviewingEventIds.includes(selectedAlert.eventId)" @click="markProtectionAlertViewed(selectedAlert)">
+            {{ reviewingEventIds.includes(selectedAlert.eventId) ? 'Đang cập nhật...' : 'Đánh dấu đã xem' }}
+          </button>
+          <button v-else-if="isPending(selectedAlert)" type="button" class="btn-primary" :disabled="isBusy"
             @click="processFromDetail">
             ✓ Đánh dấu đã xử lý
           </button>
@@ -465,6 +476,7 @@ import {
   onBeforeUnmount,
 } from "vue"
 import api from "../../../services/api"
+import echo from "../../../services/reverb"
 
 const alerts = ref([])
 const loading = ref(false)
@@ -483,6 +495,8 @@ const evidenceLoading = ref(false)
 const evidenceError = ref("")
 let evidenceRequestId = 0
 const confirmAction = ref(null)
+const reviewingEventIds = ref([])
+const reviewErrors = ref({})
 
 const filters = ref({
   search: "",
@@ -492,6 +506,8 @@ const filters = ref({
 
 let requestId = 0
 let refreshTimer = null
+let realtimeDisposed = false
+const realtimeSessionIds = new Set()
 
 /* API */
 function extractList(response) {
@@ -575,6 +591,7 @@ function normalizeAlert(item, nguon = "phien") {
   // 5. Xác định loại cảnh báo
   const loaiCanhBao =
     item.loaiCanhBao ??
+    item.loaiSuKien ??
     item.loai_canh_bao ??
     ""
 
@@ -592,6 +609,8 @@ function normalizeAlert(item, nguon = "phien") {
   // 7. Trả dữ liệu chuẩn hóa
   return {
     id: displayId,
+    eventId: item.eventId ?? item.baoVeEventId ?? null,
+    baoVeEventId: item.baoVeEventId ?? item.eventId ?? null,
 
     // ID dùng để gọi API xử lý
     apiId,
@@ -676,6 +695,7 @@ function normalizeAlert(item, nguon = "phien") {
     // Nội dung cảnh báo
     chiTiet:
       item.chiTiet ??
+      item.noiDung ??
       item.noi_dung ??
       (
         laCamera
@@ -689,6 +709,12 @@ function normalizeAlert(item, nguon = "phien") {
       item.thoi_gian ??
       item.created_at ??
       null,
+
+    daXem: item.daXem === true || item.daXem === 1 || item.daXem === "1",
+    tinHieu: item.tinHieu ?? (item.signal ? {
+      signal: item.signal,
+      source: item.signalSource ?? null,
+    } : null),
 
     // Trạng thái xử lý
     trangThai,
@@ -777,6 +803,11 @@ function isPending(item) {
 }
 
 function statusInfo(item) {
+  if (item?.nguon === "bao_ve_bai_thi") {
+    return item.daXem
+      ? { text: "Đã xem", className: "status-complete" }
+      : { text: "Chưa xem", className: "status-review" }
+  }
   const status = statusCode(item)
 
   if (status === "CAN_XEM_XET") {
@@ -1032,6 +1063,16 @@ async function fetchData() {
       }
     }
 
+    // A request may have started before a broadcast was committed. Keep any
+    // newly received event if that response snapshot does not include it yet.
+    const mergedEventIds = new Set(merged.map(item => item.eventId).filter(Boolean))
+    for (const liveAlert of alerts.value) {
+      if (liveAlert.eventId && !mergedEventIds.has(liveAlert.eventId)) {
+        merged.push(liveAlert)
+        mergedEventIds.add(liveAlert.eventId)
+      }
+    }
+
     merged.sort((a, b) => {
       const da = Date.parse(String(a.thoiGian ?? "").replace(" ", "T")) || 0
       const db = Date.parse(String(b.thoiGian ?? "").replace(" ", "T")) || 0
@@ -1052,6 +1093,120 @@ async function fetchData() {
     if (!hasLoaded.value) alerts.value = []
   } finally {
     if (current === requestId) loading.value = false
+  }
+}
+
+function receiveProtectionAlert(phienId, event) {
+  if (
+    realtimeDisposed ||
+    event?.loaiSuKien !== "SCREENSHOT_SHORTCUT_DETECTED" ||
+    Number(event.phienId) !== Number(phienId) ||
+    !event.eventId
+  ) return
+
+  const eventId = String(event.eventId)
+  if (alerts.value.some(item => item.eventId === eventId || item.baoVeEventId === eventId)) return
+
+  const source = event.loaiCanhBao === 'roi_tab' ? 'kiem_tra' : 'camera'
+  const alert = normalizeAlert({
+    ...event,
+    id: eventId,
+    eventId,
+    baoVeEventId: eventId,
+    nguon: "bao_ve_bai_thi",
+    loaiCanhBao: event.loaiSuKien,
+    chiTiet: event.noiDung,
+    tinHieu: event.signal ? { signal: event.signal, source: event.signalSource } : null,
+    daXem: false,
+  })
+
+  alerts.value = [alert, ...alerts.value.filter(item => item.id !== alert.id)].slice(0, 500)
+  hasLoaded.value = true
+  lastUpdatedAt.value = new Date().toLocaleString("vi-VN")
+}
+
+function receiveViolationAlert(phienId, event) {
+  if (
+    realtimeDisposed ||
+    Number(event?.phienId) !== Number(phienId) ||
+    !event?.eventId ||
+    !event?.loaiCanhBao
+  ) return
+
+  const eventId = String(event.eventId)
+  if (alerts.value.some(item => item.eventId === eventId || item.baoVeEventId === eventId)) return
+
+  const alert = normalizeAlert({
+    ...event,
+    id: eventId,
+    eventId,
+    nguon: source,
+    chiTiet: event.noiDung,
+    trangThai: 'CHUA_XU_LY',
+  }, source)
+
+  alerts.value = [alert, ...alerts.value].slice(0, 500)
+  hasLoaded.value = true
+  lastUpdatedAt.value = new Date().toLocaleString('vi-VN')
+}
+
+let sessionSubscriptionRequest = null
+async function subscribeToActiveSessions() {
+  if (sessionSubscriptionRequest || realtimeDisposed) return sessionSubscriptionRequest
+
+  sessionSubscriptionRequest = (async () => {
+    try {
+      const response = await api.get("/giang-vien/phien-giam-sat")
+      if (realtimeDisposed) return
+      const sessions = extractList(response)
+      const activeIds = new Set(sessions
+        .filter(session => String(session.trangThai || "").toLowerCase() === "dang_dien_ra")
+        .map(session => Number(session.id))
+        .filter(id => Number.isSafeInteger(id) && id > 0))
+
+      for (const id of activeIds) {
+        if (realtimeSessionIds.has(id)) continue
+        realtimeSessionIds.add(id)
+        echo.private(`exam-session.${id}`)
+          .listen(".exam.protection-alert", event => receiveProtectionAlert(id, event))
+          .listen(".exam.violation", event => receiveViolationAlert(id, event))
+      }
+
+      for (const id of [...realtimeSessionIds]) {
+        if (activeIds.has(id)) continue
+        echo.leave(`exam-session.${id}`)
+        realtimeSessionIds.delete(id)
+      }
+    } catch (err) {
+      // Realtime is best effort; the persisted alert list is still refreshed by the API.
+      if (import.meta.env.DEV) console.warn("Could not subscribe to exam alert feeds:", err)
+    }
+  })().finally(() => {
+    sessionSubscriptionRequest = null
+  })
+
+  return sessionSubscriptionRequest
+}
+
+async function markProtectionAlertViewed(item) {
+  const eventId = item?.eventId || item?.baoVeEventId
+  if (!eventId || item.daXem || reviewingEventIds.value.includes(eventId)) return
+
+  reviewingEventIds.value = [...reviewingEventIds.value, eventId]
+  delete reviewErrors.value[eventId]
+  try {
+    const response = await api.put(`/giang-vien/su-kien-bao-ve/${encodeURIComponent(eventId)}/da-xem`)
+    const updated = {
+      ...item,
+      daXem: response.data?.data?.daXem === true,
+      trangThai: "DA_XEM",
+    }
+    alerts.value = alerts.value.map(alert => alert.eventId === eventId ? { ...alert, ...updated } : alert)
+    if (selectedAlert.value?.eventId === eventId) selectedAlert.value = { ...selectedAlert.value, ...updated }
+  } catch (err) {
+    reviewErrors.value[eventId] = err.response?.data?.message || err.message || "Không thể cập nhật trạng thái đã xem."
+  } finally {
+    reviewingEventIds.value = reviewingEventIds.value.filter(id => id !== eventId)
   }
 }
 
@@ -1256,16 +1411,22 @@ async function confirmProcess() {
 }
 
 onMounted(() => {
+  realtimeDisposed = false
   fetchData()
+  void subscribeToActiveSessions()
   refreshTimer = setInterval(() => {
     if (!confirmAction.value && !selectedAlert.value) fetchData()
+    void subscribeToActiveSessions()
   }, 10000)
 })
 
 onBeforeUnmount(() => {
+  realtimeDisposed = true
   requestId++
   clearEvidence()
   if (refreshTimer) clearInterval(refreshTimer)
+  for (const id of realtimeSessionIds) echo.leave(`exam-session.${id}`)
+  realtimeSessionIds.clear()
 })
 </script>
 

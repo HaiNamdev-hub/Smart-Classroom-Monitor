@@ -16,6 +16,10 @@
 
       <div class="header-actions">
         <span class="save-pill">{{ saveStatus }}</span>
+        <button v-if="saveStatus.startsWith('Chưa đồng bộ') || saveStatus.startsWith('Lưu nháp thất bại')"
+          type="button" class="save-retry-btn" @click="saveDraft(true)">
+          Thử lưu lại
+        </button>
 
         <strong class="timer" :class="{ danger: remainingSeconds <= 300 }">
           ⏱ {{ formattedTime }}
@@ -29,6 +33,16 @@
 
       <button v-if="!locked" type="button" @click="reloadExam">
         Thử lại
+      </button>
+    </div>
+
+    <div v-if="localDraftNotice" class="local-draft-notice" role="status">
+      <span>{{ localDraftNotice }}</span>
+      <button v-if="localDraftCandidate" type="button" @click="restoreLocalDraft">
+        {{ localDraftConflict ? 'Dùng bản cục bộ (thay thế bản máy chủ)' : 'Khôi phục bản cục bộ' }}
+      </button>
+      <button v-if="localDraftCandidate" type="button" class="local-draft-dismiss" @click="dismissLocalDraft">
+        Dùng bản trên máy chủ
       </button>
     </div>
 
@@ -336,11 +350,14 @@ import {
   useRoute,
   useRouter,
 } from "vue-router"
+import { onBeforeRouteLeave } from "vue-router"
 
 import api from "../../../services/api"
 import GiamSatCamera from "./GiamSatCamera.vue"
 import studentSender from "../../../services/webrtc/studentSender"
 import { useExamProtection } from "../../../services/useExamProtection"
+import { examDraftBackup, fingerprintAnswers } from "../../../services/examDraftBackup"
+import { createDraftSaveQueue } from "../../../services/draftSaveQueue"
 
 import { shallowRef } from "vue"
 
@@ -373,7 +390,7 @@ function handleCameraStreamStopped() {
   examCameraStream.value = null
   webrtcConnected.value = false
   console.log("Webcam đã dừng")
-  studentSender.notifyCameraStopped()
+  if (!examPageLeaving && !submitted) studentSender.notifyCameraStopped()
 }
 
 const route = useRoute()
@@ -401,6 +418,9 @@ const submitting = ref(false)
 const submitError = ref("")
 const error = ref("")
 const saveStatus = ref("Chưa có thay đổi")
+const localDraftNotice = ref("")
+const localDraftCandidate = ref(null)
+const localDraftConflict = ref(false)
 
 const remainingSeconds = ref(0)
 const serverOffset = ref(0)
@@ -462,6 +482,14 @@ const VISIBILITY_REARM_DELAY_MS = 1500
 let requestGeneration = 0
 let saveVersion = 0
 let disposed = false
+let suppressAnswerWatch = false
+let studentProfileId = null
+let attemptStartedAt = null
+let serverDraftUpdatedAt = null
+let serverAnswersFingerprint = "{}"
+let serverDraftRevision = null
+let localBackupWrite = Promise.resolve()
+let examPageLeaving = false
 
 /* ==================================
    QUESTION
@@ -728,6 +756,7 @@ async function beginExamWhenReady() {
       if (response.data?.status === false || response.data?.success === false) {
         throw new Error(response.data?.message || 'Máy chủ chưa xác nhận bắt đầu bài thi.')
       }
+      attemptStartedAt = response.data?.data?.batDauLuc || attemptStartedAt
       hiddenEventRecorded = false
       if (visibilityRearmTimer !== null) {
         clearTimeout(visibilityRearmTimer)
@@ -835,6 +864,166 @@ function cloneAnswers() {
     JSON.stringify(answers.value)
   )
 }
+
+function currentDraftIdentity() {
+  if (!studentProfileId || !attemptStartedAt || !baiTapId.value) return null
+  return {
+    studentId: studentProfileId,
+    examId: baiTapId.value,
+    attemptStartedAt,
+  }
+}
+
+function queueLocalDraftBackup(snapshot = cloneAnswers()) {
+  const identity = currentDraftIdentity()
+  if (!identity) return Promise.resolve(false)
+
+  const task = localBackupWrite
+    .catch(() => {})
+    .then(() => examDraftBackup.save({
+      ...identity,
+      answers: snapshot,
+      baseServerUpdatedAt: serverDraftUpdatedAt,
+      baseServerAnswersFingerprint: serverAnswersFingerprint,
+      baseServerRevision: serverDraftRevision,
+    }))
+  localBackupWrite = task
+  return task
+}
+
+function removeLocalDraftBackup() {
+  const identity = currentDraftIdentity()
+  if (!identity) return Promise.resolve()
+  const task = localBackupWrite
+    .catch(() => {})
+    .then(() => examDraftBackup.remove(identity))
+  localBackupWrite = task
+  return task
+}
+
+function isBackupCompatible(record, examData) {
+  if (!record || !examData || !Array.isArray(examData.questions)) return false
+  const questionIds = new Set(examData.questions.map(question => String(question.id)))
+  return Object.entries(record.answers).every(([questionId, value]) =>
+    questionIds.has(questionId) &&
+    (value === null || typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value)))
+  )
+}
+
+async function inspectLocalDraft(examData, serverAnswers) {
+  localDraftCandidate.value = null
+  localDraftConflict.value = false
+  localDraftNotice.value = ''
+
+  const identity = currentDraftIdentity()
+  if (examData?.trangThaiLamBai !== 'IN_PROGRESS' || !identity) return
+
+  try {
+    const record = await examDraftBackup.load(identity)
+    if (!record || !isBackupCompatible(record, examData)) return
+
+    const serverFingerprint = fingerprintAnswers(serverAnswers)
+    const localFingerprint = fingerprintAnswers(record.answers)
+    if (localFingerprint === serverFingerprint) {
+      await removeLocalDraftBackup()
+      return
+    }
+
+    const sameServerBase =
+      record.baseServerRevision === (serverDraftRevision || null) &&
+      (record.baseServerUpdatedAt || null) === (serverDraftUpdatedAt || null) &&
+      record.baseServerAnswersFingerprint === serverFingerprint
+
+    localDraftCandidate.value = record
+    localDraftConflict.value = !sameServerBase
+    localDraftNotice.value = sameServerBase
+      ? 'Có đáp án chưa đồng bộ được lưu trên thiết bị này. Bạn có thể khôi phục sau khi kiểm tra.'
+      : 'Bản nháp trên máy chủ đã thay đổi kể từ lần lưu cục bộ. Hệ thống sẽ không tự ghi đè đáp án mới hơn.'
+  } catch {
+    localDraftNotice.value = 'Không thể đọc bản lưu dự phòng trên thiết bị này.'
+  }
+}
+
+async function restoreLocalDraft() {
+  const candidate = localDraftCandidate.value
+  if (!candidate || !canEdit.value) {
+    localDraftNotice.value = 'Hãy quay lại toàn màn hình và bật camera để khôi phục đáp án.'
+    return
+  }
+
+  if (localDraftConflict.value && !window.confirm(
+    'Bản nháp trên máy chủ đã thay đổi. Dùng bản cục bộ sẽ thay thế bản máy chủ ở lần lưu kế tiếp. Bạn có chắc chắn muốn tiếp tục?'
+  )) return
+
+  answers.value = JSON.parse(JSON.stringify(candidate.answers))
+  localDraftCandidate.value = null
+  localDraftConflict.value = false
+  localDraftNotice.value = ''
+  saveStatus.value = 'Chưa lưu'
+  await nextTick()
+  void saveDraft(true)
+}
+
+async function dismissLocalDraft() {
+  localDraftCandidate.value = null
+  localDraftConflict.value = false
+  localDraftNotice.value = ''
+  try {
+    await removeLocalDraftBackup()
+  } catch {
+    // The server copy remains authoritative; an expired local record is harmless.
+  }
+}
+
+const draftSaver = createDraftSaveQueue({
+  getVersion: () => saveVersion,
+  getSnapshot: cloneAnswers,
+  canSave: force => loaded && !submitted && !locked.value && !submitting.value &&
+    remainingSeconds.value > 0 && (force || (monitorReady.value && cameraReady.value)),
+  send: async snapshot => {
+    const response = await api.put(endpoint('/nhap'), {
+      answers: snapshot,
+      baseDraftRevision: serverDraftRevision,
+    })
+    if (response.data?.status === false || response.data?.success === false) {
+      throw new Error(response.data?.message || 'Backend từ chối lưu bài nháp.')
+    }
+    return response
+  },
+  onSaving: () => {
+    saveStatus.value = 'Đang lưu'
+  },
+  onSaved: async (snapshot, version, response) => {
+    const data = response.data?.data || {}
+    lastSavedVersion = version
+    serverDraftUpdatedAt = data.draftUpdatedAt || serverDraftUpdatedAt
+    serverAnswersFingerprint = fingerprintAnswers(data.answers ?? snapshot)
+    serverDraftRevision = data.draftRevision || serverDraftRevision
+    error.value = ''
+
+    if (saveVersion === version) {
+      saveStatus.value = 'Đã lưu'
+      await removeLocalDraftBackup()
+    } else {
+      saveStatus.value = 'Đang lưu thay đổi mới'
+      await queueLocalDraftBackup(cloneAnswers())
+    }
+  },
+  onFailure: async (_snapshot, version, err) => {
+    try {
+      await queueLocalDraftBackup(cloneAnswers())
+      saveStatus.value = 'Chưa đồng bộ · có bản dự phòng trên thiết bị'
+      localDraftNotice.value = 'Mạng hoặc máy chủ đang lỗi. Đáp án đang được lưu dự phòng trên thiết bị này tối đa 24 giờ. Người có quyền dùng hồ sơ trình duyệt này có thể truy cập dữ liệu; không dùng thiết bị chung và hãy đăng xuất/xóa dữ liệu trình duyệt sau khi thi.'
+    } catch {
+      saveStatus.value = 'Lưu nháp thất bại'
+      localDraftNotice.value = 'Không lưu được lên máy chủ hoặc thiết bị. Hãy giữ trang này mở để không mất đáp án.'
+    }
+    error.value = err.response?.status === 409
+      ? 'Bản nháp trên máy chủ đã thay đổi. Hãy tải lại đề để tránh ghi đè dữ liệu mới hơn.'
+      : 'Lưu nháp thất bại: ' + handleApiError(err)
+    if (saveVersion !== version) saveStatus.value = 'Đang lưu thay đổi mới'
+  },
+})
 
 /* ==================================
    LOCK
@@ -1157,6 +1346,9 @@ async function loadExam() {
 
   loading.value = true
   error.value = ""
+  localDraftNotice.value = ''
+  localDraftCandidate.value = null
+  localDraftConflict.value = false
   examPhase.value = 'PRE_EXAM'
   monitorReady.value = false
   loaded = false
@@ -1219,12 +1411,22 @@ async function loadExam() {
     }
     initWebRtcIfReady()
 
-    answers.value =
+    const serverAnswers =
       data.answers &&
         typeof data.answers === "object" &&
         !Array.isArray(data.answers)
         ? data.answers
         : {}
+    studentProfileId = data.sinhVienId || null
+    attemptStartedAt = data.attemptStartedAt || null
+    serverDraftUpdatedAt = data.draftUpdatedAt || null
+    serverDraftRevision = data.draftRevision || null
+    serverAnswersFingerprint = fingerprintAnswers(serverAnswers)
+    suppressAnswerWatch = true
+    answers.value = serverAnswers
+    await nextTick()
+    suppressAnswerWatch = false
+    lastSavedVersion = saveVersion
 
     currentIndex.value = 0
 
@@ -1237,6 +1439,9 @@ async function loadExam() {
     examPhase.value = data.trangThaiLamBai === 'IN_PROGRESS' ? 'PREPARING' : 'PRE_EXAM'
     submittingAtDeadline = false
     loaded = true
+
+    await inspectLocalDraft(data, serverAnswers)
+    if (generation !== requestGeneration) return
 
     await resumeMonitoring()
     cameraEnabled.value = !locked.value && !submitted
@@ -1276,46 +1481,17 @@ async function saveDraft(force = false) {
     submitting.value ||
     remainingSeconds.value <= 0
   ) {
-    return
+    return { saved: false, skipped: true }
   }
 
-  // Không cho hai request ghi nháp chạy song song.
-  if (saveInFlight) {
-    await saveInFlight
-
-    if (lastSavedVersion === saveVersion || (!force && !canEdit.value)) return
-  }
-
-  const version = saveVersion
-  if (version === lastSavedVersion) return
-  const payload = cloneAnswers()
-
-  saveStatus.value = "Đang lưu..."
-
-  const request = api.put(
-    endpoint("/nhap"),
-    { answers: payload }
-  )
-
+  const request = draftSaver.flush(force)
   saveInFlight = request
-
   try {
-    await request
-    lastSavedVersion = version
-
-    saveStatus.value =
-      saveVersion === version
-        ? "✓ Đã lưu bài nháp"
-        : "Có thay đổi chưa lưu"
-
-    if (saveVersion !== version && (canEdit.value || force)) {
-      clearTimeout(saveTimer)
-      saveTimer = setTimeout(() => saveDraft(force), 700)
-    }
+    return await request
   } catch (err) {
-    saveStatus.value = "Lưu nháp thất bại"
-    error.value =
-      "Không thể lưu nháp: " + handleApiError(err)
+    saveStatus.value = 'LÆ°u nhĂ¡p tháº¥t báº¡i'
+    error.value = 'LÆ°u nhĂ¡p tháº¥t báº¡i: ' + handleApiError(err)
+    return { saved: false, error: err }
   } finally {
     if (saveInFlight === request) {
       saveInFlight = null
@@ -1326,10 +1502,14 @@ async function saveDraft(force = false) {
 watch(
   answers,
   () => {
-    if (!loaded || submitted || locked.value) return
+    if (suppressAnswerWatch || !loaded || submitted || locked.value) return
 
     saveVersion++
     saveStatus.value = "Chưa lưu"
+
+    void queueLocalDraftBackup().catch(() => {
+      localDraftNotice.value = 'Chưa lưu được bản dự phòng trên thiết bị này.'
+    })
 
     clearTimeout(saveTimer)
 
@@ -1339,6 +1519,13 @@ watch(
   },
   { deep: true }
 )
+
+function handleNetworkOnline() {
+  if (loaded && officialExamActive.value && saveVersion !== lastSavedVersion) {
+    clearTimeout(saveTimer)
+    void saveDraft(true)
+  }
+}
 
 /* ==================================
    SUBMIT
@@ -1388,6 +1575,7 @@ async function submitExam(auto = false) {
     }
 
     submitted = true
+    await removeLocalDraftBackup().catch(() => {})
     submitReturnFocusRef.value = null
     showConfirm.value = false
     examPhase.value = 'SUBMITTED'
@@ -1421,6 +1609,52 @@ async function submitExam(auto = false) {
 /* ==================================
    NAVIGATION
 ================================== */
+function shouldWarnBeforeLeaving() {
+  return loaded && examPhase.value === 'IN_PROGRESS' && !submitted
+}
+
+function handleBeforeUnload(event) {
+  if (!shouldWarnBeforeLeaving()) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+onBeforeRouteLeave(async () => {
+  if (!shouldWarnBeforeLeaving()) return true
+  if (submitting.value) {
+    window.alert('Đang gửi bài nộp. Hãy đợi Backend xác nhận trước khi rời trang.')
+    return false
+  }
+  if (!window.confirm('Bài thi đang diễn ra. Bạn có chắc chắn muốn rời trang? Hệ thống sẽ lưu đáp án lên máy chủ hoặc tạo bản dự phòng trên thiết bị.')) {
+    return false
+  }
+
+  try {
+    await queueLocalDraftBackup()
+    const saveResult = await saveDraft(true)
+    if (saveResult?.saved) {
+      examPageLeaving = true
+      return true
+    }
+
+    const identity = currentDraftIdentity()
+    const backup = identity ? await examDraftBackup.load(identity) : null
+    if (!backup) {
+      window.alert('Không thể rời trang vì chưa xác nhận lưu được bài làm trên máy chủ hoặc thiết bị. Hãy thử lại khi có kết nối.')
+      return false
+    }
+
+    if (!window.confirm('Máy chủ chưa lưu được bài. Đáp án hiện có trong bản dự phòng cục bộ 24 giờ. Bạn vẫn muốn rời trang?')) {
+      return false
+    }
+    examPageLeaving = true
+    return true
+  } catch {
+    window.alert('Không thể tạo bản dự phòng cục bộ. Hãy giữ trang thi mở để bảo toàn đáp án.')
+    return false
+  }
+})
+
 function goBack() {
   router.push("/sinh-vien/bai-tap")
 }
@@ -1437,6 +1671,8 @@ onMounted(() => {
     handleVisibilityChange
   )
   window.addEventListener('focus', handleExamWindowFocus)
+  window.addEventListener('online', handleNetworkOnline)
+  window.addEventListener('beforeunload', handleBeforeUnload)
 
   loadExam()
 })
@@ -1459,6 +1695,8 @@ onBeforeUnmount(() => {
     handleVisibilityChange
   )
   window.removeEventListener('focus', handleExamWindowFocus)
+  window.removeEventListener('online', handleNetworkOnline)
+  window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 </script>
 
@@ -1743,6 +1981,36 @@ onBeforeUnmount(() => {
   color: #64748b;
   font-size: 12px;
   white-space: nowrap;
+}
+
+.save-retry-btn,
+.local-draft-notice button {
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  padding: 5px 8px;
+  background: #fff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.local-draft-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 11px 13px;
+  border: 1px solid #fbbf24;
+  border-radius: 10px;
+  background: #fffbeb;
+  color: #854d0e;
+  font-size: 13px;
+}
+
+.local-draft-notice .local-draft-dismiss {
+  color: #475569;
 }
 
 .timer {

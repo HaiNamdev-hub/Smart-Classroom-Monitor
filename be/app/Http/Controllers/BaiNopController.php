@@ -29,7 +29,7 @@ class BaiNopController extends CrudController
             'sinh_vien_id' => [
                 'required',
                 'integer',
-                'exists:sinh_vien,id',
+                'exists:nguoi_dung,id',
             ],
 
             'ten_file' => [
@@ -38,7 +38,7 @@ class BaiNopController extends CrudController
                 'max:255',
             ],
 
-            'duong_dan_file' => [
+            'duong_dan' => [
                 'required',
                 'string',
                 'max:255',
@@ -70,7 +70,7 @@ class BaiNopController extends CrudController
     | LẤY ID SINH VIÊN ĐANG ĐĂNG NHẬP
     |--------------------------------------------------------------------------
     */
-    private function getSinhVienId(Request $request): int
+    private function getSinhVienUserId(Request $request): int
     {
         $nguoiDung = $request->user();
 
@@ -80,20 +80,22 @@ class BaiNopController extends CrudController
             'Bạn chưa đăng nhập.'
         );
 
-        $sinhVienId = DB::table('sinh_vien')
+        $hasStudentProfile = DB::table('sinh_vien')
             ->where(
                 'nguoi_dung_id',
                 $nguoiDung->id
             )
-            ->value('id');
+            ->exists();
 
         abort_unless(
-            $sinhVienId,
+            $hasStudentProfile,
             403,
             'Không tìm thấy hồ sơ Sinh viên.'
         );
 
-        return (int) $sinhVienId;
+        // bai_nop.sinh_vien_id and thanh_vien_lop.sinh_vien_id both
+        // reference nguoi_dung.id (the authenticated Sanctum user ID).
+        return (int) $nguoiDung->id;
     }
 
     /*
@@ -104,7 +106,7 @@ class BaiNopController extends CrudController
     public function getBaiNopSinhVien(
         Request $request
     ): JsonResponse {
-        $sinhVienId = $this->getSinhVienId($request);
+        $sinhVienId = $this->getSinhVienUserId($request);
 
         // Chỉ lấy các bài do Sinh viên này nộp.
         $baiNops = BaiNop::query()
@@ -157,7 +159,7 @@ class BaiNopController extends CrudController
         Request $request,
         int $baiTapId
     ): JsonResponse {
-        $sinhVienId = $this->getSinhVienId($request);
+        $sinhVienId = $this->getSinhVienUserId($request);
 
         // 1. Kiểm tra bài tập tồn tại.
         $baiTap = BaiTap::findOrFail($baiTapId);
@@ -338,7 +340,7 @@ class BaiNopController extends CrudController
                         'ten_file' =>
                             $originalName,
 
-                        'duong_dan_file' =>
+                        'duong_dan' =>
                             $path,
 
                         'loai_file' =>

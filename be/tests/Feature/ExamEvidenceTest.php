@@ -14,6 +14,41 @@ class ExamEvidenceTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_private_evidence_endpoint_returns_a_fixed_length_binary_response(): void
+    {
+        Storage::fake('local');
+        [$teacherId, , $studentId, $assignmentId, , $eventId] = $this->fixture('nhieu_khuon_mat');
+        $now = now();
+        $path = "exam-evidence/{$eventId}.jpg";
+        $bytes = "\xFF\xD8\xFFbinary-evidence\xFF\xD9";
+        Storage::disk('local')->put($path, $bytes);
+        $imageId = DB::table('anh_man_hinh')->insertGetId([
+            'sinh_vien_id' => $studentId,
+            'bai_tap_id' => $assignmentId,
+            'event_id' => $eventId,
+            'nguon' => 'webcam_ai',
+            'loai_canh_bao' => 'nhieu_khuon_mat',
+            'duong_dan' => $path,
+            'storage_disk' => 'local',
+            'mime_type' => 'image/jpeg',
+            'kich_thuoc_bytes' => strlen($bytes),
+            'thoi_gian_chup' => $now,
+            'expires_at' => $now->copy()->addDays(90),
+            'created_at' => $now,
+        ]);
+
+        Sanctum::actingAs(NguoiDung::query()->findOrFail($teacherId));
+        $response = $this->get("/api/giang-vien/anh-man-hinh/{$imageId}/file");
+        $response->assertOk()
+            ->assertHeader('Content-Type', 'image/jpeg')
+            ->assertHeader('Content-Length', (string) strlen($bytes))
+            ->assertContent($bytes);
+        $cacheControl = (string) $response->headers->get('Cache-Control');
+        $this->assertStringContainsString('private', $cacheControl);
+        $this->assertStringContainsString('no-store', $cacheControl);
+        $this->assertStringContainsString('max-age=0', $cacheControl);
+    }
+
     public function test_accepted_alert_evidence_upload_is_private_and_idempotent(): void
     {
         Storage::fake('local');

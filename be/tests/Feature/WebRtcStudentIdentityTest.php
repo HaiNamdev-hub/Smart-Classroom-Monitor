@@ -107,6 +107,10 @@ class WebRtcStudentIdentityTest extends TestCase
         Sanctum::actingAs(NguoiDung::query()->findOrFail($teacherId));
         $callback = Broadcast::connection('reverb')->getChannels()->get('exam-monitor.{phienId}.student.{sinhVienId}');
         $this->assertTrue($callback(NguoiDung::query()->findOrFail($teacherId), $sessionId, $studentId));
+        $sessionCallback = Broadcast::connection('reverb')->getChannels()->get('exam-session.{phienId}');
+        $this->assertTrue($sessionCallback(NguoiDung::query()->findOrFail($teacherId), $sessionId));
+        $unassignedUserId = $this->createUser($roleId, 'unassigned-session-user@example.test', $now);
+        $this->assertFalse($sessionCallback(NguoiDung::query()->findOrFail($unassignedUserId), $sessionId));
         $this->postJson('/api/broadcasting/auth', [
             'socket_id' => '123.456',
             'channel_name' => "private-exam-monitor.{$sessionId}.student.{$studentId}",

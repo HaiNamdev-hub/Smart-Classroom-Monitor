@@ -1,5 +1,8 @@
 # Dependencies
 node_modules/
+/performance-tests/data/
+/performance-tests/results/
+/performance-tests/tools/k6/
 vendor/
 
 # Environment files

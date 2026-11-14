@@ -17,7 +17,8 @@ class ThanhVienLop extends Model
 {
     return $this->belongsTo(
         SinhVien::class,
-        'sinh_vien_id'
+        'sinh_vien_id',
+        'nguoi_dung_id'
     );
 }
 }

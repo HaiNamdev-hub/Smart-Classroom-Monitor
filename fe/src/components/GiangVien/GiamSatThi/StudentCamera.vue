@@ -377,9 +377,9 @@ function startWatching() {
 
       emit('alert-received', {
         ...alertEvent,
-        sinhVienId: props.student.sinhVienId,
-        hoTen: props.student.hoTen,
-        maSinhVien: props.student.maSinhVien,
+        sinhVienId: alertEvent.sinhVienId ?? props.student.sinhVienId,
+        hoTen: alertEvent.hoTen || props.student.hoTen,
+        maSinhVien: alertEvent.maSinhVien || props.student.maSinhVien,
       })
     },
   })
