@@ -448,14 +448,15 @@ class GiangVienApiController extends Controller
 
         // Lấy bài nộp kèm điểm và thông tin Sinh viên
         $submissions = DB::table('bai_nop as bn')
-            ->leftJoin(
-                'sinh_vien as sv',
-                'bn.sinh_vien_id',
-                '=',
-                'sv.id'
-            )
+            // bai_nop.sinh_vien_id references nguoi_dung.id, not sinh_vien.id.
             ->leftJoin(
                 'nguoi_dung as nd',
+                'bn.sinh_vien_id',
+                '=',
+                'nd.id'
+            )
+            ->leftJoin(
+                'sinh_vien as sv',
                 'sv.nguoi_dung_id',
                 '=',
                 'nd.id'
@@ -478,6 +479,8 @@ class GiangVienApiController extends Controller
                 'bn.loai_file',
 
                 'sv.ma_sinh_vien',
+                'sv.id as sinh_vien_profile_id',
+                'nd.id as nguoi_dung_id',
 
                 'nd.ho_ten',
                 'nd.email',
@@ -497,6 +500,12 @@ class GiangVienApiController extends Controller
 
                     'sinhVienId' =>
                     $item->sinh_vien_id,
+
+                    'nguoiDungId' =>
+                    $item->nguoi_dung_id,
+
+                    'sinhVienProfileId' =>
+                    $item->sinh_vien_profile_id,
 
                     'maSinhVien' =>
                     $item->ma_sinh_vien,
@@ -812,14 +821,15 @@ class GiangVienApiController extends Controller
                 '=',
                 'bt.id'
             )
-            ->join(
-                'sinh_vien as sv',
-                'bn.sinh_vien_id',
-                '=',
-                'sv.id'
-            )
+            // bai_nop.sinh_vien_id references nguoi_dung.id, not sinh_vien.id.
             ->join(
                 'nguoi_dung as nd',
+                'bn.sinh_vien_id',
+                '=',
+                'nd.id'
+            )
+            ->join(
+                'sinh_vien as sv',
                 'sv.nguoi_dung_id',
                 '=',
                 'nd.id'
@@ -838,6 +848,8 @@ class GiangVienApiController extends Controller
 
                 'bn.sinh_vien_id',
                 'bn.thoi_gian_nop',
+                'sv.id as sinh_vien_profile_id',
+                'nd.id as nguoi_dung_id',
 
                 'bt.id as bai_tap_id',
                 'bt.tieu_de',
@@ -860,6 +872,10 @@ class GiangVienApiController extends Controller
                 'baiTapId' => $score->bai_tap_id,
 
                 'sinhVienId' => $score->sinh_vien_id,
+
+                'nguoiDungId' => $score->nguoi_dung_id,
+
+                'sinhVienProfileId' => $score->sinh_vien_profile_id,
 
                 'maSinhVien' => $score->ma_sinh_vien,
 

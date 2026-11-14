@@ -81,14 +81,14 @@ class DiemController extends CrudController
             }
 
             // 2. Lấy đúng ID trong bảng sinh_vien
-            $sinhVienId = DB::table('sinh_vien')
+            $sinhVienProfileId = DB::table('sinh_vien')
                 ->where(
                     'nguoi_dung_id',
                     $nguoiDung->id
                 )
                 ->value('id');
 
-            if (!$sinhVienId) {
+            if (!$sinhVienProfileId) {
                 return response()->json([
                     'status' => false,
                     'message' =>
@@ -100,10 +100,10 @@ class DiemController extends CrudController
             $diems = Diem::query()
                 ->whereHas(
                     'baiNop',
-                    function ($query) use ($sinhVienId) {
+                    function ($query) use ($nguoiDung) {
                         $query->where(
                             'sinh_vien_id',
-                            $sinhVienId
+                            $nguoiDung->id
                         );
                     }
                 )
