@@ -184,6 +184,13 @@ const menuItems = [
     badgeColor: 'orange'
   },
   {
+    path: '/giang-vien/ngan-hang-cau-hoi',
+    title: 'Ngân hàng câu hỏi',
+    subtitle: 'Quản lý câu hỏi tái sử dụng',
+    icon: 'bi-collection',
+    badgeColor: 'blue'
+  },
+  {
     path: '/giang-vien/bai-nop',
     title: 'Bài nộp & Chấm điểm',
     subtitle: 'Theo dõi và chấm điểm',

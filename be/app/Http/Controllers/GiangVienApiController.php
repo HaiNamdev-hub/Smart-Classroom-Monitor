@@ -234,14 +234,20 @@ class GiangVienApiController extends Controller
             );
         }
 
-        $query = BaiTap::whereIn(
-            'lop_hoc_id',
-            $this->classIds($request)
-        )->withCount('baiNops');
+        $query = BaiTap::whereIn('bai_tap.lop_hoc_id', $this->classIds($request));
+        if (Schema::hasTable('ngan_hang_de_tao')) {
+            // Optional read-only compatibility for legacy bank-generated exams.
+            $query->leftJoin('ngan_hang_de_tao as ndt', 'ndt.bai_tap_id', '=', 'bai_tap.id')
+                ->select('bai_tap.*', 'ndt.trang_thai as trang_thai_ngan_hang_de', 'ndt.thoi_luong_phut as thoi_luong_phut');
+        } else {
+            $query->select('bai_tap.*')
+                ->selectRaw('NULL as trang_thai_ngan_hang_de, NULL as thoi_luong_phut');
+        }
+        $query->withCount('baiNops');
 
         if (!empty($filters['lopId'])) {
             $query->where(
-                'lop_hoc_id',
+                'bai_tap.lop_hoc_id',
                 $filters['lopId']
             );
         }
@@ -259,16 +265,18 @@ class GiangVienApiController extends Controller
 
                     'moTa' => $a->mo_ta,
 
-                    'hanNop' => $this->dateValue(
-                        $a->han_nop
-                    ),
+                    'trangThaiCongBo' => $a->trang_thai_ngan_hang_de ?? 'da_cong_bo',
 
-                    'thoiGianBatDau' =>
+                    'thoiLuongPhut' => $a->thoi_luong_phut,
+
+                    'hanNop' => $a->trang_thai_ngan_hang_de === 'nhap' ? null : $this->dateValue($a->han_nop),
+
+                    'thoiGianBatDau' => $a->trang_thai_ngan_hang_de === 'nhap' ? null :
                     $this->dateValue(
                         $a->thoi_gian_bat_dau
                     ),
 
-                    'thoiGianKetThuc' =>
+                    'thoiGianKetThuc' => $a->trang_thai_ngan_hang_de === 'nhap' ? null :
                     $this->dateValue(
                         $a->thoi_gian_ket_thuc
                     ),
@@ -600,6 +608,21 @@ class GiangVienApiController extends Controller
         $laBaiTrucTuyen =
             $baiNop->loai_file === 'online_exam';
 
+        // bai_nop.sinh_vien_id points to nguoi_dung.id; attempts point to sinh_vien.id.
+        // Resolve through the profile relationship before loading this student's order.
+        $attempt = null;
+        if ($laBaiTrucTuyen) {
+            $studentProfileId = DB::table('sinh_vien')
+                ->where('nguoi_dung_id', $baiNop->sinh_vien_id)
+                ->value('id');
+            if ($studentProfileId) {
+                $attempt = DB::table('bai_kiem_tra_luot_lam')
+                    ->where('bai_tap_id', $baiNop->bai_tap_id)
+                    ->where('sinh_vien_id', $studentProfileId)
+                    ->first(['id']);
+            }
+        }
+
         // Lấy câu hỏi của bài kiểm tra
         $questions = DB::table('cau_hoi')
             ->where(
@@ -609,6 +632,18 @@ class GiangVienApiController extends Controller
             ->orderBy('thu_tu')
             ->orderBy('id')
             ->get();
+
+        if ($attempt) {
+            $savedQuestionOrder = DB::table('bai_kiem_tra_luot_lam_cau_hoi')
+                ->where('luot_lam_id', $attempt->id)
+                ->orderBy('thu_tu_hien_thi')->pluck('cau_hoi_id')->all();
+            if ($savedQuestionOrder) {
+                $questionById = $questions->keyBy('id');
+                $questions = collect($savedQuestionOrder)
+                    ->map(fn ($id) => $questionById->get($id))
+                    ->filter()->values();
+            }
+        }
 
         // Lấy đáp án của từng câu
         $answerOptions = DB::table('dap_an')
@@ -620,6 +655,13 @@ class GiangVienApiController extends Controller
             ->orderBy('id')
             ->get()
             ->groupBy('cau_hoi_id');
+
+        $savedAnswerOrder = $attempt
+            ? DB::table('bai_kiem_tra_luot_lam_dap_an')
+                ->where('luot_lam_id', $attempt->id)
+                ->orderBy('cau_hoi_id')->orderBy('thu_tu_hien_thi')
+                ->get(['cau_hoi_id', 'dap_an_id'])->groupBy('cau_hoi_id')
+            : collect();
 
         // Lấy câu trả lời của Sinh viên
         $studentAnswers = DB::table('cau_tra_loi')
@@ -639,6 +681,7 @@ class GiangVienApiController extends Controller
         $result = $questions->map(
             function ($question) use (
                 $answerOptions,
+                $savedAnswerOrder,
                 $studentAnswers,
                 &$earnedPoints,
                 &$coTuLuan,
@@ -656,6 +699,11 @@ class GiangVienApiController extends Controller
                     $question->id,
                     collect()
                 );
+                $answerIds = $savedAnswerOrder->get($question->id, collect())->pluck('dap_an_id')->all();
+                if ($answerIds) {
+                    $optionsById = $options->keyBy('id');
+                    $options = collect($answerIds)->map(fn ($id) => $optionsById->get($id))->filter()->values();
+                }
 
                 $isMultipleChoice =
                     $question->loai_cau_hoi === 'trac_nghiem';

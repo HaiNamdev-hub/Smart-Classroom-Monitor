@@ -249,15 +249,18 @@
             <router-link :to="{
               name: 'GiangVienQuanLyCauHoi',
               params: { baiTapId: bt.id }
-            }" class="card-action questions-action">
+            }" v-if="bt.trangThaiCongBo !== 'nhap'" class="card-action questions-action">
               <span>📝 Quản lý câu hỏi</span>
               <span>→</span>
             </router-link>
 
-            <button type="button" class="card-action schedule-action" @click="openSchedule(bt)">
+            <button v-if="bt.trangThaiCongBo !== 'nhap'" type="button" class="card-action schedule-action" @click="openSchedule(bt)">
               <span>🕒 Đặt lịch kiểm tra</span>
               <span>→</span>
             </button>
+            <p v-if="bt.trangThaiCongBo === 'nhap'" class="legacy-draft-note">
+              Bản nháp cũ chưa công bố. Bộ tạo đề cũ đã được gỡ; đề này chưa hiển thị cho Sinh viên.
+            </p>
 
             <router-link :to="{
               path: '/giang-vien/bai-nop',
@@ -596,6 +599,10 @@ function normalizeCount(value) {
 function normalizeBaiTap(item) {
   return {
     id: item.id,
+
+    // Read-only status for legacy Phase 3 draft records; there is no longer a
+    // create, edit or publish workflow for these records.
+    trangThaiCongBo: item.trangThaiCongBo ?? item.trang_thai_ngan_hang_de ?? 'da_cong_bo',
 
     lopId:
       item.lopId ??
@@ -1606,6 +1613,16 @@ onBeforeUnmount(() => {
   background: #dcfce7;
 }
 
+.legacy-draft-note {
+  margin: 0;
+  padding: 11px 12px;
+  border-radius: 9px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
 /* FOOTER */
 .panel-footer {
   display: flex;
@@ -1898,6 +1915,11 @@ onBeforeUnmount(() => {
   background: #1e293b;
   border-color: #334155;
   color: #bfdbfe;
+}
+
+:global(html.dark-theme) .legacy-draft-note {
+  background: #422006;
+  color: #fde68a;
 }
 
 :global(html.dark-theme) .exam-unscheduled {

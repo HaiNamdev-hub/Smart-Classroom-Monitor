@@ -40,6 +40,11 @@ class GiangVienCauHoiController extends Controller
      */
     private function checkCanEdit(int $baiTapId): void
     {
+        abort_if(
+            DB::table('bai_kiem_tra_luot_lam')->where('bai_tap_id', $baiTapId)->exists(),
+            409,
+            'Bài kiểm tra đã có lượt làm. Không thể thay đổi câu hỏi hoặc đáp án đã giao.'
+        );
         $assignment = DB::table('bai_tap')->where('id', $baiTapId)->first();
         if ($assignment && !empty($assignment->thoi_gian_bat_dau)) {
             abort_if(

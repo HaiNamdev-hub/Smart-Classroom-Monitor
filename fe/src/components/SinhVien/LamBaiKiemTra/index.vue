@@ -757,6 +757,12 @@ async function beginExamWhenReady() {
         throw new Error(response.data?.message || 'Máy chủ chưa xác nhận bắt đầu bài thi.')
       }
       attemptStartedAt = response.data?.data?.batDauLuc || attemptStartedAt
+      const assignedQuestions = response.data?.data?.questions
+      if (Array.isArray(assignedQuestions) && assignedQuestions.length) {
+        // Use the immutable order persisted by the backend; answers stay keyed by stable IDs.
+        exam.value = { ...exam.value, questions: assignedQuestions }
+        currentIndex.value = 0
+      }
       hiddenEventRecorded = false
       if (visibilityRearmTimer !== null) {
         clearTimeout(visibilityRearmTimer)

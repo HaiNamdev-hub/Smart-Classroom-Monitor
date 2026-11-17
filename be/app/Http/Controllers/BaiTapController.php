@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class BaiTapController extends CrudController
 {
@@ -130,12 +131,24 @@ class BaiTapController extends CrudController
             // Sinh viên cần thấy lịch kiểm tra
             // trước khi bài thi được mở.
 
-            $baiTaps = BaiTap::query()
+            $baiTapQuery = BaiTap::query()
                 ->whereIn(
                     'lop_hoc_id',
                     $lopHocIds
-                )
-                ->with([
+                );
+
+            // Keep legacy Phase 3 drafts hidden from students when the optional
+            // metadata table exists, without making the exam API depend on it.
+            if (Schema::hasTable('ngan_hang_de_tao')) {
+                $baiTapQuery->whereNotExists(function ($query) {
+                    $query->selectRaw('1')
+                        ->from('ngan_hang_de_tao as ndt')
+                        ->whereColumn('ndt.bai_tap_id', 'bai_tap.id')
+                        ->where('ndt.trang_thai', 'nhap');
+                });
+            }
+
+            $baiTaps = $baiTapQuery->with([
                     'lopHoc:id,ma_lop,ten_lop',
 
                     'nguoiTao:id,ho_ten,email',

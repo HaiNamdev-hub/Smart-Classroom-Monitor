@@ -221,6 +221,12 @@ const routes = [
         component: () =>
           import("../components/GiangVien/BaiNop/index.vue"),
       },
+      {
+        path: "ngan-hang-cau-hoi",
+        name: "GiangVienNganHangCauHoi",
+        component: () =>
+          import("../components/GiangVien/NganHangCauHoi/index.vue"),
+      },
 
 
       // ---------------------------

@@ -19,9 +19,11 @@ use App\Http\Controllers\SinhVienController;
 use App\Http\Controllers\GiangVienApiController;
 use App\Http\Controllers\GiangVienCanhBaoCameraController;
 use App\Http\Controllers\GiangVienCauHoiController;
+use App\Http\Controllers\GiangVienCauHinhTronDeController;
 use App\Http\Controllers\GiangVienChamDiemController;
 use App\Http\Controllers\GiangVienLichKiemTraController;
 use App\Http\Controllers\GiangVienNhapCauHoiController;
+use App\Http\Controllers\GiangVienNganHangCauHoiController;
 use App\Http\Controllers\GiangVienViPhamKiemTraController;
 use App\Http\Controllers\SinhVienCanhBaoCameraController;
 use App\Http\Controllers\SinhVienBaoVeBaiKiemTraController;
@@ -282,6 +284,16 @@ Route::middleware([
     GiangVien::class
 ])->prefix('giang-vien')->group(function () {
 
+    Route::get('/ngan-hang-cau-hoi', [GiangVienNganHangCauHoiController::class, 'index']);
+    Route::post('/ngan-hang-cau-hoi', [GiangVienNganHangCauHoiController::class, 'store']);
+    Route::post('/ngan-hang-cau-hoi/import-preview', [GiangVienNhapCauHoiController::class, 'previewQuestionBank']);
+    Route::post('/ngan-hang-cau-hoi/import-save', [GiangVienNganHangCauHoiController::class, 'importSave']);
+    Route::get('/ngan-hang-cau-hoi/{id}', [GiangVienNganHangCauHoiController::class, 'show'])->whereNumber('id');
+    Route::put('/ngan-hang-cau-hoi/{id}', [GiangVienNganHangCauHoiController::class, 'update'])->whereNumber('id');
+    Route::post('/ngan-hang-cau-hoi/{id}/duplicate', [GiangVienNganHangCauHoiController::class, 'duplicate'])->whereNumber('id');
+    Route::patch('/ngan-hang-cau-hoi/{id}/deactivate', [GiangVienNganHangCauHoiController::class, 'deactivate'])->whereNumber('id');
+    Route::get('/bai-tap/{baiTapId}/cau-hinh-tron', [GiangVienCauHinhTronDeController::class, 'show'])->whereNumber('baiTapId');
+    Route::put('/bai-tap/{baiTapId}/cau-hinh-tron', [GiangVienCauHinhTronDeController::class, 'update'])->whereNumber('baiTapId');
     $controller = GiangVienApiController::class;
 
     // DASHBOARD

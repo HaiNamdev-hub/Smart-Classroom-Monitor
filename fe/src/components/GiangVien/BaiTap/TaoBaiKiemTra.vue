@@ -29,6 +29,7 @@
       {{ success }}
     </div>
     <LichKiemTra :bai-tap-id="baiTapId" />
+    <CauHinhTronDe :bai-tap-id="baiTapId" />
     <section class="stats">
       <div>
         <span>Tổng số câu</span>
@@ -543,6 +544,7 @@ import {
 
 import api from "../../../services/api"
 import LichKiemTra from "./LichKiemTra.vue"
+import CauHinhTronDe from "./CauHinhTronDe.vue"
 
 const route = useRoute()
 const router = useRouter()

@@ -6,6 +6,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use App\Support\ExamScoreAllocator;
 
@@ -91,9 +92,21 @@ class SinhVienKiemTraController extends Controller
     ): object {
         $userId = $this->studentUserId($studentId);
 
-        $assignment = DB::table('bai_tap as bt')
-            ->where('bt.id', $baiTapId)
-            ->whereExists(function ($query) use ($userId) {
+        $assignmentQuery = DB::table('bai_tap as bt')
+            ->where('bt.id', $baiTapId);
+
+        // Legacy bank-generated drafts remain inaccessible to students when
+        // their metadata exists. Normal exams do not depend on Phase 3 tables.
+        if (Schema::hasTable('ngan_hang_de_tao')) {
+            $assignmentQuery->whereNotExists(function ($query) {
+                $query->selectRaw('1')
+                    ->from('ngan_hang_de_tao as ndt')
+                    ->whereColumn('ndt.bai_tap_id', 'bt.id')
+                    ->where('ndt.trang_thai', 'nhap');
+            });
+        }
+
+        $assignment = $assignmentQuery->whereExists(function ($query) use ($userId) {
                 $query->selectRaw('1')
                     ->from('thanh_vien_lop as tv')
                     ->whereColumn(
@@ -286,21 +299,28 @@ class SinhVienKiemTraController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    private function questions(int $baiTapId): array
+    private function questions(int $baiTapId, ?int $attemptId = null): array
     {
-        $questions = DB::table('cau_hoi')
-            ->where('bai_tap_id', $baiTapId)
-            ->orderBy('thu_tu')
-            ->orderBy('id')
-            ->get();
+        $questionOrder = $attemptId
+            ? DB::table('bai_kiem_tra_luot_lam_cau_hoi')
+                ->where('luot_lam_id', $attemptId)
+                ->orderBy('thu_tu_hien_thi')->pluck('cau_hoi_id')->map(fn ($id) => (int) $id)->all()
+            : [];
+        $questionsQuery = DB::table('cau_hoi')->where('bai_tap_id', $baiTapId);
+        if ($questionOrder) {
+            $questions = $questionsQuery->whereIn('id', $questionOrder)->get()
+                ->keyBy('id');
+            $questions = collect($questionOrder)->map(fn ($id) => $questions->get($id))->filter()->values();
+        } else {
+            // Historical attempts without a persisted order retain the original exam order.
+            $questions = $questionsQuery->orderBy('thu_tu')->orderBy('id')->get();
+        }
 
         $answerRows = DB::table('dap_an')
             ->whereIn(
                 'cau_hoi_id',
                 $questions->pluck('id')
             )
-            ->orderBy('thu_tu')
-            ->orderBy('id')
             ->get([
                 'id',
                 'cau_hoi_id',
@@ -309,9 +329,26 @@ class SinhVienKiemTraController extends Controller
             ])
             ->groupBy('cau_hoi_id');
 
+        $answerOrder = $attemptId
+            ? DB::table('bai_kiem_tra_luot_lam_dap_an')
+                ->where('luot_lam_id', $attemptId)
+                ->orderBy('cau_hoi_id')->orderBy('thu_tu_hien_thi')
+                ->get(['cau_hoi_id', 'dap_an_id'])
+                ->groupBy('cau_hoi_id')
+            : collect();
+
         return $questions->map(function ($question) use (
-            $answerRows
+            $answerRows,
+            $answerOrder
         ) {
+            $answers = $answerRows[$question->id] ?? collect();
+            $savedOrder = $answerOrder->get($question->id, collect())->pluck('dap_an_id')->map(fn ($id) => (int) $id)->all();
+            if ($savedOrder) {
+                $answers = $answers->keyBy('id');
+                $answers = collect($savedOrder)->map(fn ($id) => $answers->get($id))->filter()->values();
+            } else {
+                $answers = $answers->sortBy([['thu_tu', 'asc'], ['id', 'asc']])->values();
+            }
             return [
                 'id' => $question->id,
                 'noi_dung' => $question->noi_dung,
@@ -319,9 +356,7 @@ class SinhVienKiemTraController extends Controller
                 'diem' => $question->diem,
 
                 // Không trả đáp án đúng cho Sinh viên.
-                'dap_an' => (
-                    $answerRows[$question->id] ?? collect()
-                )->map(function ($answer) {
+                'dap_an' => $answers->map(function ($answer) {
                     return [
                         'id' => $answer->id,
                         'noi_dung' => $answer->noi_dung,
@@ -381,7 +416,11 @@ class SinhVienKiemTraController extends Controller
             ], 409);
         }
 
-        $questions = $this->questions($baiTapId);
+        $attempt = DB::table('bai_kiem_tra_luot_lam')
+            ->where('bai_tap_id', $baiTapId)
+            ->where('sinh_vien_id', $studentId)
+            ->first(['id', 'bat_dau_luc']);
+        $questions = $this->questions($baiTapId, $attempt ? (int) $attempt->id : null);
 
         if (empty($questions)) {
             return response()->json([
@@ -404,11 +443,6 @@ class SinhVienKiemTraController extends Controller
             })
             ->orderByDesc('id')
             ->first(['id', 'ten_phien', 'trang_thai']);
-
-        $attempt = DB::table('bai_kiem_tra_luot_lam')
-            ->where('bai_tap_id', $baiTapId)
-            ->where('sinh_vien_id', $studentId)
-            ->first(['bat_dau_luc']);
 
         return response()->json([
             'status' => true,
@@ -494,15 +528,29 @@ class SinhVienKiemTraController extends Controller
 
             if (!$attempt) {
                 $startedAt = $this->nowVN();
-                DB::table('bai_kiem_tra_luot_lam')->insert([
+                $attemptId = DB::table('bai_kiem_tra_luot_lam')->insertGetId([
                     'bai_tap_id' => $baiTapId,
                     'sinh_vien_id' => $studentId,
                     'bat_dau_luc' => $startedAt,
                     'created_at' => $startedAt,
                     'updated_at' => $startedAt,
                 ]);
+                $shuffleConfig = Schema::hasTable('bai_tap_cau_hinh_tron')
+                    ? DB::table('bai_tap_cau_hinh_tron')
+                        ->where('bai_tap_id', $baiTapId)
+                        ->first(['tron_cau_hoi', 'tron_dap_an'])
+                    : null;
+                app(\App\Support\ExamAttemptOrder::class)->persist(
+                    (int) $attemptId,
+                    $baiTapId,
+                    (bool) ($shuffleConfig->tron_cau_hoi ?? false),
+                    (bool) ($shuffleConfig->tron_dap_an ?? false)
+                );
+                $duplicate = false;
             } else {
+                $attemptId = (int) $attempt->id;
                 $startedAt = $this->dateVN($attempt->bat_dau_luc);
+                $duplicate = true;
             }
 
             return response()->json([
@@ -510,9 +558,12 @@ class SinhVienKiemTraController extends Controller
                 'data' => [
                     'trangThaiLamBai' => 'IN_PROGRESS',
                     'batDauLuc' => $startedAt->toIso8601String(),
-                    'duplicate' => (bool) $attempt,
+                    'duplicate' => $duplicate,
+                    // The client adopts this server-persisted order without reloading
+                    // the exam or restarting camera/monitoring state.
+                    'questions' => $this->questions($baiTapId, $attemptId),
                 ],
-            ], $attempt ? 200 : 201);
+            ], $duplicate ? 200 : 201);
         }, 3);
     }
 
