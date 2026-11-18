@@ -242,6 +242,12 @@ const routes = [
           import("../components/GiangVien/Diem/index.vue"),
       },
 
+      {
+        path: "bao-cao-ky-thi",
+        name: "GiangVienBaoCaoKyThi",
+        component: () => import("../components/GiangVien/BaoCaoKyThi/index.vue"),
+      },
+
 
       // ---------------------------
       // Phiên giám sát

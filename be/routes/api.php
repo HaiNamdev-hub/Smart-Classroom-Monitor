@@ -294,6 +294,8 @@ Route::middleware([
     Route::patch('/ngan-hang-cau-hoi/{id}/deactivate', [GiangVienNganHangCauHoiController::class, 'deactivate'])->whereNumber('id');
     Route::get('/bai-tap/{baiTapId}/cau-hinh-tron', [GiangVienCauHinhTronDeController::class, 'show'])->whereNumber('baiTapId');
     Route::put('/bai-tap/{baiTapId}/cau-hinh-tron', [GiangVienCauHinhTronDeController::class, 'update'])->whereNumber('baiTapId');
+    Route::get('/bao-cao-ky-thi', [\App\Http\Controllers\GiangVienExamReportController::class, 'preview']);
+    Route::post('/bao-cao-ky-thi/xuat-excel', [\App\Http\Controllers\GiangVienExamReportController::class, 'export']);
     $controller = GiangVienApiController::class;
 
     // DASHBOARD

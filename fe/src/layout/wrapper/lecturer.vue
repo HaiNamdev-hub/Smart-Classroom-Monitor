@@ -205,6 +205,13 @@ const menuItems = [
     badgeColor: 'purple'
   },
   {
+    path: '/giang-vien/bao-cao-ky-thi',
+    title: 'Báo cáo kỳ thi',
+    subtitle: 'Xuất kết quả và cảnh báo',
+    icon: 'bi-file-earmark-spreadsheet',
+    badgeColor: 'blue'
+  },
+  {
     path: '/giang-vien/phien-giam-sat',
     title: 'Phiên giám sát',
     subtitle: 'Giám sát thi & thực hành',
