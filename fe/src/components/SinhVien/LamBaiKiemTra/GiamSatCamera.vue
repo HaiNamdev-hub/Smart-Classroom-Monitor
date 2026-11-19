@@ -85,6 +85,7 @@ const PHONE_RESET_MS = 2000
 let faceDetector = null
 let objectDetector = null
 let stream = null
+let streamAnnounced = false
 let timer = null
 let generation = 0
 let destroyed = false
@@ -332,6 +333,11 @@ async function startCamera() {
 
         if (current !== generation || destroyed) return
 
+        // Start video transport once the browser stream is usable. MediaPipe
+        // setup and alerts remain independent; cameraReady is emitted later.
+        streamAnnounced = true
+        emit('stream-ready', media)
+
         // 3. Tải MediaPipe
         const vision = await FilesetResolver.forVisionTasks(WASM_URL)
 
@@ -383,11 +389,7 @@ async function startCamera() {
 
         emit('camera-state', true)
 
-        // 7. Gửi luồng webcam sang LamBaiKiemTra/index.vue
-        // Luồng này sẽ được dùng để truyền video qua WebRTC.
-        emit('stream-ready', media)
-
-        // 8. Theo dõi khi camera bị ngắt
+        // 7. Theo dõi khi camera bị ngắt
         for (const track of media.getVideoTracks()) {
             track.addEventListener(
                 'ended',
@@ -480,7 +482,8 @@ function stopCamera(keepMessage = false) {
 
     // 4. Thông báo cho component cha trước khi tắt webcam
     if (stream) {
-        emit('stream-stopped')
+        if (streamAnnounced) emit('stream-stopped')
+        streamAnnounced = false
 
         // Dừng tất cả track webcam
         stream.getTracks().forEach(track => {

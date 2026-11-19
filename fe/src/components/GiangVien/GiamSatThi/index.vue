@@ -277,6 +277,7 @@ const students = ref([])
 const recentAlerts = ref([])
 const reviewingEventIds = ref([])
 const reviewErrors = ref({})
+let sessionRefreshTimer = null
 
 const keyword = ref('')
 const filterStatus = ref('all')
@@ -407,14 +408,17 @@ function goBack() {
   router.push('/giang-vien/phien-giam-sat')
 }
 
-async function fetchSessionDetail() {
+async function fetchSessionDetail({ silent = false } = {}) {
   if (!phienId.value) {
     error.value = 'Thiếu ID phiên giám sát trên URL.'
     return
   }
+  if (loading.value) return
 
-  loading.value = true
-  error.value = ''
+  if (!silent) {
+    loading.value = true
+    error.value = ''
+  }
 
   try {
     const res = await api.get(`/giang-vien/phien-giam-sat/${phienId.value}/chi-tiet`)
@@ -424,6 +428,7 @@ async function fetchSessionDetail() {
     }
 
     const data = res.data?.data || res.data
+    error.value = ''
     phienInfo.value = data.phien
     const previousStatuses = new Map(
       students.value.map((student) => [Number(student.sinhVienId), student.webcamStatus])
@@ -439,10 +444,14 @@ async function fetchSessionDetail() {
     // Khởi tạo receiver với phienId
     teacherReceiver.setPhienId(phienId.value)
   } catch (err) {
-    console.error('Lỗi lấy chi tiết phiên:', err)
-    error.value = err.response?.data?.message || err.message || 'Không thể tải phiên giám sát.'
+    if (silent) {
+      if (import.meta.env.DEV) console.warn('[Giám sát thi] Làm mới trạng thái phiên thất bại:', err.message)
+    } else {
+      console.error('Lỗi lấy chi tiết phiên:', err)
+      error.value = err.response?.data?.message || err.message || 'Không thể tải phiên giám sát.'
+    }
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
   }
 }
 
@@ -522,9 +531,15 @@ async function confirmEndSession() {
 
 onMounted(() => {
   fetchSessionDetail()
+  // StudentCamera tiles subscribe for every class member; this refresh also
+  // updates attempt/submission state for students who join after the page opens.
+  sessionRefreshTimer = window.setInterval(() => {
+    void fetchSessionDetail({ silent: true })
+  }, 15000)
 })
 
 onBeforeUnmount(() => {
+  if (sessionRefreshTimer !== null) window.clearInterval(sessionRefreshTimer)
   teacherReceiver.stopAll()
 })
 </script>

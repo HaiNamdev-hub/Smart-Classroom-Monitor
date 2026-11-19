@@ -356,6 +356,7 @@ import { onBeforeRouteLeave } from "vue-router"
 import api from "../../../services/api"
 import GiamSatCamera from "./GiamSatCamera.vue"
 import studentSender from "../../../services/webrtc/studentSender"
+import { createWebRtcSessionBootstrap } from "../../../services/webrtc/sessionBootstrap"
 import { useExamProtection } from "../../../services/useExamProtection"
 import { examDraftBackup, fingerprintAnswers } from "../../../services/examDraftBackup"
 import { createDraftSaveQueue } from "../../../services/draftSaveQueue"
@@ -367,28 +368,73 @@ const examCameraStream = shallowRef(null)
 const phienGiamSatId = ref(null)
 const sinhVienId = ref(null)
 const webrtcConnected = ref(false)
+let webrtcSessionBootstrap = null
+let lastWebRtcContextErrorAt = 0
+
+function stopWebRtcSessionBootstrap() {
+  webrtcSessionBootstrap?.stop()
+  webrtcSessionBootstrap = null
+}
 
 function initWebRtcIfReady() {
-  if (phienGiamSatId.value && sinhVienId.value && examCameraStream.value) {
-    console.log("[SinhVien WebRTC] Khởi tạo kết nối tới phiên:", phienGiamSatId.value)
-    studentSender.init(phienGiamSatId.value, sinhVienId.value, examCameraStream.value, (state) => {
-      webrtcConnected.value = state === 'connected'
-    })
-  }
+  if (!officialExamActive.value || !requiresCamera.value || !phienGiamSatId.value || !sinhVienId.value || !examCameraStream.value) return false
+
+  stopWebRtcSessionBootstrap()
+  if (import.meta.env.DEV) console.debug('[SinhVien WebRTC] Có đủ phiên, hồ sơ và webcam; khởi tạo signaling.')
+  void studentSender.init(phienGiamSatId.value, sinhVienId.value, examCameraStream.value, (state) => {
+    webrtcConnected.value = state === 'connected'
+  })
+  return true
+}
+
+function startWebRtcSessionBootstrap() {
+  if (webrtcSessionBootstrap || !officialExamActive.value || !requiresCamera.value || !examCameraStream.value || submitted || disposed) return
+
+  webrtcSessionBootstrap = createWebRtcSessionBootstrap({
+    intervalMs: 5000,
+    shouldRun: () => officialExamActive.value && requiresCamera.value && !!examCameraStream.value && !submitted && !disposed,
+    readContext: async () => {
+      const response = await api.get(endpoint('/trang-thai'))
+      const data = response.data?.data ?? response.data
+      return {
+        phienId: data?.phienGiamSat?.id,
+        sinhVienId: data?.sinhVienId,
+        requiresCamera: data?.yeuCauCamera,
+      }
+    },
+    onReady: (context) => {
+      if (context.requiresCamera === false || !requiresCamera.value) return
+      phienGiamSatId.value = context.phienId
+      sinhVienId.value = context.sinhVienId
+      if (import.meta.env.DEV) console.debug('[SinhVien WebRTC] Đã đồng bộ phiên giám sát đang hoạt động.')
+      initWebRtcIfReady()
+    },
+    onError: (err) => {
+      const now = Date.now()
+      if (import.meta.env.DEV && now - lastWebRtcContextErrorAt >= 30000) {
+        lastWebRtcContextErrorAt = now
+        console.warn('[SinhVien WebRTC] Chưa đồng bộ được phiên giám sát; sẽ thử lại có giới hạn tần suất.', err.message)
+      }
+    },
+  })
+  webrtcSessionBootstrap.start()
 }
 
 function handleCameraStreamReady(stream) {
   examCameraStream.value = stream
-  console.log("Đã nhận webcam để truyền sang Giảng viên:", stream.id)
+  if (import.meta.env.DEV) console.debug('[SinhVien WebRTC] Webcam ready; đang kiểm tra ngữ cảnh signaling.')
 
-  if (studentSender.phienId && studentSender.connected) {
+  const sameSession = Number(studentSender.phienId) === Number(phienGiamSatId.value)
+    && Number(studentSender.sinhVienId) === Number(sinhVienId.value)
+  if (sameSession && studentSender.connected) {
     studentSender.updateStream(stream)
-  } else {
-    initWebRtcIfReady()
+    return
   }
+  if (officialExamActive.value && !initWebRtcIfReady()) startWebRtcSessionBootstrap()
 }
 
 function handleCameraStreamStopped() {
+  stopWebRtcSessionBootstrap()
   examCameraStream.value = null
   webrtcConnected.value = false
   console.log("Webcam đã dừng")
@@ -775,6 +821,9 @@ async function beginExamWhenReady() {
         visibilityRearmTimer = null
       }
       examPhase.value = 'IN_PROGRESS'
+      if (requiresCamera.value && examCameraStream.value && !initWebRtcIfReady()) {
+        startWebRtcSessionBootstrap()
+      }
       error.value = ''
     })
     .catch((err) => {
@@ -1694,6 +1743,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   disposed = true
+  stopWebRtcSessionBootstrap()
   studentSender.disconnect()
   cameraEnabled.value = false
   cameraReady.value = false
