@@ -68,7 +68,8 @@ api.interceptors.request.use(
   (config) => {
     const token =
       sessionStorage.getItem("auth_token") ||
-      localStorage.getItem("auth_token");
+      localStorage.getItem("auth_token") ||
+      localStorage.getItem("access_token");
 
     if (token) {
       config.headers.Authorization =
