@@ -1,6 +1,6 @@
 # Kịch bản hiệu năng cô lập
 
-`exam-flow.k6.js` chạy một luồng API cho mỗi Sinh viên fixture: đăng nhập, đọc đề 3 lần, xác nhận lượt đang làm, lưu 3 snapshot tuần tự (hai thay đổi và snapshot cuối đúng với câu trả lời nộp), rồi nộp bài. `PERF_DRAFT_WRITES` và `PERF_READ_REPEATS` có thể đặt 1–10. Đây là tải Backend/API; các cờ `fullscreen` và `cameraReady` chỉ thỏa hợp đồng API, **không** mô phỏng webcam, MediaPipe, WebRTC hoặc Reverb. Kịch bản có custom counter cho số lần lưu nháp và nộp bài được Backend xác nhận.
+`exam-flow.k6.js` chạy một luồng API cho mỗi Sinh viên fixture: đăng nhập, xác nhận bài thi xuất hiện trong danh sách được giao, đọc đề, bắt đầu, lưu các snapshot tuần tự và nộp bài. Nó dừng trước khi ghi nháp/nộp nếu bài thi fixture không hiện trong danh sách của chính Sinh viên. Có think time và khoảng autosave giả lập; `PERF_DRAFT_WRITES` và `PERF_READ_REPEATS` có thể đặt 1–10. Đây là tải Backend/API; các cờ `fullscreen` và `cameraReady` chỉ thỏa hợp đồng API, **không** mô phỏng webcam, MediaPipe, WebRTC hoặc Reverb. Kịch bản có custom counter cho số lần lưu nháp và nộp bài được Backend xác nhận.
 
 ## Rào chắn
 
@@ -26,7 +26,7 @@ Mỗi bản ghi phải thuộc fixture test riêng, bài chưa nộp, còn hạn
 
 `k6 version` hiện chưa nhận diện được trên máy. Ưu tiên bản portable để không đổi PATH toàn máy:
 
-1. Tải Windows AMD64 ZIP từ [trang phát hành chính thức Grafana k6](https://github.com/grafana/k6/releases), cùng file checksum của đúng phiên bản.
+1. Xem [hướng dẫn cài k6 chính thức](https://grafana.com/docs/k6/latest/set-up/install-k6/) và tải Windows ZIP từ [trang phát hành Grafana k6](https://github.com/grafana/k6/releases), cùng checksum của đúng phiên bản.
 2. Giải nén `k6.exe` tới `F:\Smart Classroom Monitor\performance-tests\tools\k6\k6.exe`.
 3. So sánh SHA-256 của ZIP hoặc binary với checksum công bố trước khi chạy:
 
@@ -51,6 +51,14 @@ Việc tạo file SQLite test, chạy migrations trên file test đó và seed f
 ```powershell
 .\performance-tests\Prepare-PerformanceDb.ps1 -InitializeIsolatedDatabase -ConfirmDisposableDatabaseCreation
 ```
+
+Sau khi fixture đã có, chạy preflight HTTP trên **clone mới** (không sửa template) để xác minh login → lớp/bài được giao → chi tiết → start → draft/restore → submit:
+
+```powershell
+.\performance-tests\Invoke-PerformancePreflight.ps1
+```
+
+Script bind Laravel chỉ vào `127.0.0.1:8001`, từ chối cổng đang bận và Laravel config cache, dùng env process-only trỏ SQLite, không in token và kiểm tra clone sau submit. Đây là functional smoke test, không phải benchmark.
 
 ## Chạy theo bậc (mỗi bậc nộp bài trên clone riêng)
 

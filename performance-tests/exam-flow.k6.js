@@ -1,6 +1,7 @@
 import http from 'k6/http'
 import { check, fail } from 'k6'
 import { Counter } from 'k6/metrics'
+import { sleep } from 'k6'
 
 /*
  * Backend-only exam flow. This script writes drafts and submits attempts.
@@ -78,6 +79,24 @@ export default function () {
     fail('login: access_token missing; fixture or API contract mismatch')
 
   const auth = { ...common, headers: { ...common.headers, Authorization: `Bearer ${token}` } }
+  // Correctness gate: never start/save/submit an exam unless this authenticated
+  // student can see the exact assigned exam in the normal assignment list.
+  const assignments = requireOk(http.get(`${baseUrl}/api/sinh-vien/bai-tap`, {
+    ...auth,
+    tags: { step: 'assignment_list' },
+  }), 'assignment_list')
+  const assignedExamIds = Array.isArray(assignments.data)
+    ? assignments.data.map(item => Number(item.id))
+    : []
+  check(assignments, {
+    'assignment list contains only expected fixture exam': data =>
+      Array.isArray(data.data) && data.data.every(item => Number(item.id) === Number(profile.baiTapId)),
+    'assigned exam is visible to authenticated student': () => assignedExamIds.includes(Number(profile.baiTapId)),
+  }) || fail('assignment_list: fixture exam is absent or unexpected; refusing to mutate attempt data')
+
+  // Stagger logins and emulate human reading/answering intervals so a stage
+  // does not become an unrealistic instantaneous burst.
+  sleep(Math.random() * 10)
   const examUrl = `${baseUrl}/api/sinh-vien/bai-kiem-tra/${encodeURIComponent(profile.baiTapId)}`
   let exam
   for (let read = 0; read < examReadCount; read++) {
@@ -85,6 +104,7 @@ export default function () {
   }
   check(exam, { 'exam read returns question list': data => Array.isArray(data.data?.questions) && data.data.questions.length > 0 }) ||
     fail('exam_read: isolated assignment has no questions')
+  sleep(2 + Math.random() * 5)
   if (!profile.answers || typeof profile.answers !== 'object' || Array.isArray(profile.answers)) {
     fail('fixture answers must be an object keyed by question ID')
   }
@@ -107,9 +127,11 @@ export default function () {
       fail('draft_save: backend did not confirm persisted revision')
     draftRevision = draftData.data.draftRevision
     draftSaves.add(1)
+    if (write < draftWriteCount - 1) sleep(20 + Math.random() * 20)
   }
 
   // One unique isolated account/attempt per VU; this intentionally consumes it.
+  sleep(5 + Math.random() * 15)
   const submit = http.post(`${examUrl}/nop`, JSON.stringify({ answers: profile.answers }), { ...auth, tags: { step: 'submit' } })
   const submitData = requireOk(submit, 'submit', [200, 201])
   check(submitData, { 'submit confirms persisted submission': data => data.status === true && data.data?.daNop === true }) ||
