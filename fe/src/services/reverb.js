@@ -1,9 +1,7 @@
-
 import Echo from 'laravel-echo'
 import Pusher from 'pusher-js'
 
-// Sửa đường dẫn import cho đúng vị trí file
-// checkToken.js thực tế của dự án.
+// Import helper lấy token từ checkToken.js
 import { getToken } from '../router/checkToken'
 
 window.Pusher = Pusher
@@ -19,18 +17,20 @@ const apiBaseUrl = (
 const echo = new Echo({
     broadcaster: 'reverb',
 
-    key: import.meta.env.VITE_REVERB_APP_KEY,
+    // Thêm fallback key mặc định lấy từ BE .env để không bao giờ bị undefined
+    key: import.meta.env.VITE_REVERB_APP_KEY || import.meta.env.VITE_PUSHER_APP_KEY || 'wb5jfofeqpobmdzyoz0i',
 
     wsHost:
         import.meta.env.VITE_REVERB_HOST ||
+        import.meta.env.VITE_PUSHER_HOST ||
         '127.0.0.1',
 
     wsPort: Number(
-        import.meta.env.VITE_REVERB_PORT || 8080
+        import.meta.env.VITE_REVERB_PORT || import.meta.env.VITE_PUSHER_PORT || 8080
     ),
 
     wssPort: Number(
-        import.meta.env.VITE_REVERB_PORT || 8080
+        import.meta.env.VITE_REVERB_PORT || import.meta.env.VITE_PUSHER_PORT || 8080
     ),
 
     forceTLS: scheme === 'https',
