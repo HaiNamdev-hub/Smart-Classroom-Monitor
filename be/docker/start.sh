@@ -4,6 +4,15 @@ set -e
 echo "==> Tạo .env từ biến môi trường Render..."
 cp -n .env.example .env 2>/dev/null || true
 
+# Mặc định bật Reverb cho WebSockets
+export BROADCAST_CONNECTION=${BROADCAST_CONNECTION:-reverb}
+export REVERB_APP_ID=${REVERB_APP_ID:-813952}
+export REVERB_APP_KEY=${REVERB_APP_KEY:-wb5jfofeqpobmdzyoz0i}
+export REVERB_APP_SECRET=${REVERB_APP_SECRET:-swmxg7bsv8t5vglm2rju}
+export REVERB_HOST=${REVERB_HOST:-smart-classroom-monitor.onrender.com}
+export REVERB_PORT=${REVERB_PORT:-443}
+export REVERB_SCHEME=${REVERB_SCHEME:-https}
+
 echo "==> Tạo APP_KEY nếu chưa có..."
 php artisan key:generate --force
 

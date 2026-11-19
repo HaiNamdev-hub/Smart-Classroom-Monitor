@@ -6,32 +6,58 @@ import { getToken } from '../router/checkToken'
 
 window.Pusher = Pusher
 
-const scheme =
-    import.meta.env.VITE_REVERB_SCHEME || 'http'
+const isProduction =
+    typeof window !== 'undefined' &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1'
 
-const apiBaseUrl = (
+const scheme =
+    import.meta.env.VITE_REVERB_SCHEME || (isProduction ? 'https' : 'http')
+
+const rawApiBase =
+    import.meta.env.VITE_API_BASE_URL ||
     import.meta.env.VITE_API_URL ||
-    'http://127.0.0.1:8000'
-).replace(/\/$/, '')
+    (isProduction ? 'https://smart-classroom-monitor.onrender.com' : 'http://127.0.0.1:8000')
+
+const apiBaseUrl = rawApiBase.replace(/\/+$/, '')
+
+const defaultWsHost = isProduction
+    ? 'smart-classroom-monitor.onrender.com'
+    : '127.0.0.1'
+
+const rawWsHost =
+    import.meta.env.VITE_REVERB_HOST ||
+    import.meta.env.VITE_PUSHER_HOST
+
+// Khi chạy trên web Vercel, tự động trỏ về Render domain nếu bị set nhầm localhost
+const wsHost =
+    isProduction && (!rawWsHost || rawWsHost === 'localhost' || rawWsHost === '127.0.0.1')
+        ? defaultWsHost
+        : (rawWsHost || defaultWsHost)
+
+const wsPort = Number(
+    import.meta.env.VITE_REVERB_PORT ||
+    import.meta.env.VITE_PUSHER_PORT ||
+    (isProduction ? 443 : 8080)
+)
+
+const wssPort = Number(
+    import.meta.env.VITE_REVERB_PORT ||
+    import.meta.env.VITE_PUSHER_PORT ||
+    443
+)
 
 const echo = new Echo({
     broadcaster: 'reverb',
 
-    // Thêm fallback key mặc định lấy từ BE .env để không bao giờ bị undefined
-    key: import.meta.env.VITE_REVERB_APP_KEY || import.meta.env.VITE_PUSHER_APP_KEY || 'wb5jfofeqpobmdzyoz0i',
+    key:
+        import.meta.env.VITE_REVERB_APP_KEY ||
+        import.meta.env.VITE_PUSHER_APP_KEY ||
+        'wb5jfofeqpobmdzyoz0i',
 
-    wsHost:
-        import.meta.env.VITE_REVERB_HOST ||
-        import.meta.env.VITE_PUSHER_HOST ||
-        '127.0.0.1',
-
-    wsPort: Number(
-        import.meta.env.VITE_REVERB_PORT || import.meta.env.VITE_PUSHER_PORT || 8080
-    ),
-
-    wssPort: Number(
-        import.meta.env.VITE_REVERB_PORT || import.meta.env.VITE_PUSHER_PORT || 8080
-    ),
+    wsHost,
+    wsPort,
+    wssPort,
 
     forceTLS: scheme === 'https',
 
