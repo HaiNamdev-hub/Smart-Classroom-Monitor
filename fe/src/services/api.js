@@ -39,9 +39,14 @@ export function clearAuth() {
 */
 
 const api = axios.create({
-  baseURL: "/api",
+  // Dùng biến môi trường khi deploy lên Vercel (trỏ sang Render)
+  // Khi dev local, Vite proxy sẽ tự điều hướng /api về localhost:8000
+  baseURL: import.meta.env.VITE_API_BASE_URL
+    ? import.meta.env.VITE_API_BASE_URL + "/api"
+    : "/api",
 
-  timeout: 15000,
+  // Tăng timeout lên 65s để tránh lỗi khi Render Free "thức dậy" (cần ~40-50s)
+  timeout: 65000,
 
   headers: {
     Accept: "application/json",

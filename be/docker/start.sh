@@ -1,0 +1,23 @@
+#!/bin/sh
+set -e
+
+echo "==> Tạo .env từ biến môi trường Render..."
+cp -n .env.example .env 2>/dev/null || true
+
+echo "==> Tạo APP_KEY nếu chưa có..."
+php artisan key:generate --force
+
+echo "==> Chạy database migration..."
+php artisan migrate --force
+
+echo "==> Xóa cache cũ..."
+php artisan config:clear
+php artisan cache:clear
+php artisan route:clear
+php artisan view:clear
+
+echo "==> Tạo storage link..."
+php artisan storage:link || true
+
+echo "==> Khởi động PHP-FPM và Nginx qua Supervisord..."
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf

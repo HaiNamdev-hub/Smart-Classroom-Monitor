@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BaiNop;
 use App\Models\BaiTap;
 use App\Models\ThanhVienLop;
+use App\Services\CloudinaryService;
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\Rule;
@@ -228,11 +229,13 @@ class BaiNopController extends CrudController
             $originalName =
                 $file->getClientOriginalName();
 
-            $path =
-                $file->store(
-                    'bai-nop',
-                    'public'
-                );
+            // Upload lên Cloudinary (lưu vĩnh viễn, không mất khi Render restart)
+            $cloudinary = new CloudinaryService();
+            $uploaded   = $cloudinary->uploadRaw(
+                $file,
+                'bai-nop',
+            );
+            $path = $uploaded['url']; // URL công khai trên Cloudinary
 
             /*
         |--------------------------------------------------------------------------
