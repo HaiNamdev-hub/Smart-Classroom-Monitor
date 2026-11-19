@@ -43,8 +43,9 @@ class NguoiDungController extends CrudController
             'password.max' => 'Mật khẩu không được vượt quá 255 ký tự.',
         ]);
 
+        $canonicalEmail = mb_strtolower(trim($credentials['email']));
         $nguoiDung = NguoiDung::query()
-            ->where('email', $credentials['email'])
+            ->whereRaw('LOWER(email) = ?', [$canonicalEmail])
             ->first();
 
         if (
@@ -61,8 +62,8 @@ class NguoiDungController extends CrudController
 
         if ($nguoiDung->trang_thai !== 'hoat_dong') {
             return response()->json([
-                'message' => 'Tài khoản bị khóa hoặc chưa được kích hoạt.',
-            ], 403);
+                'message' => 'Email hoặc mật khẩu không chính xác.',
+            ], 401);
         }
 
         $expiresAt = now()->addDay();

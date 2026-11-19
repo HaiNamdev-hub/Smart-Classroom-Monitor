@@ -65,6 +65,7 @@ const routes = [
         component: () =>
           import("../components/Admin/TrangChu/index.vue"),
       },
+      
 
 
       // ---------------------------
@@ -119,8 +120,8 @@ const routes = [
   {
     path: "/giang-vien",
 
-    component: () =>
-      import("../layout/wrapper/lecturer.vue"),
+   component: () =>
+  import("../layout/wrapper/lecturer.vue"),
 
     beforeEnter: checkToken,
 
@@ -198,6 +199,14 @@ const routes = [
         component: () =>
           import("../components/GiangVien/BaiTap/index.vue"),
       },
+      {
+  path: "bai-tap/:baiTapId/cau-hoi",
+  name: "GiangVienQuanLyCauHoi",
+  component: () =>
+    import(
+      "../components/GiangVien/BaiTap/TaoBaiKiemTra.vue"
+    ),
+},
 
 
       // ---------------------------
@@ -227,6 +236,12 @@ const routes = [
           import("../components/GiangVien/Diem/index.vue"),
       },
 
+      {
+        path: "bao-cao-ky-thi",
+        name: "GiangVienBaoCaoKyThi",
+        component: () => import("../components/GiangVien/BaoCaoKyThi/index.vue"),
+      },
+
 
       // ---------------------------
       // Phiên giám sát
@@ -239,6 +254,12 @@ const routes = [
 
         component: () =>
           import("../components/GiangVien/PhienGiamSat/index.vue"),
+      },
+      {
+        path: "giam-sat-thi",
+        name: "GiangVienGiamSatThi",
+        component: () =>
+          import("../components/GiangVien/GiamSatThi/index.vue"),
       },
 
 
@@ -259,7 +280,6 @@ const routes = [
       // ---------------------------
       // Ảnh màn hình
       // ---------------------------
-
       {
         path: "anh-man-hinh",
 
@@ -268,6 +288,7 @@ const routes = [
         component: () =>
           import("../components/GiangVien/AnhManHinh/index.vue"),
       },
+      
 
 
       // ---------------------------
@@ -333,6 +354,14 @@ const routes = [
     import("../components/SinhVien/LamBai/index.vue"),
 },
 
+{
+  path: "lam-bai-kiem-tra",
+  name: "SinhVienLamBaiKiemTra",
+  component: () =>
+    import("../components/SinhVien/LamBaiKiemTra/index.vue"),
+},
+
+
     {
       path: "bai-nop",
       name: "SinhVienBaiNop",
@@ -393,4 +422,27 @@ const router = createRouter({
 });
 
 
-export default router;
+const protectedPrefixes = [
+  "/admin",
+  "/giang-vien",
+  "/sinh-vien",
+]
+
+router.beforeEach(async (to) => {
+  const requiresAuth = protectedPrefixes.some(
+    (prefix) =>
+      to.path === prefix ||
+      to.path.startsWith(prefix + "/")
+  )
+
+  if (!requiresAuth) {
+    return true
+  }
+
+  return await checkToken(to)
+})
+
+export default router
+
+
+

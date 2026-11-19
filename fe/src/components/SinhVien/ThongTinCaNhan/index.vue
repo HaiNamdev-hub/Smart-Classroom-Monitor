@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 <template>
     <div class="profile-page">
         <!-- ================= HEADER ================= -->
@@ -2095,3 +2096,5 @@ onMounted(getThongTinCaNhan)
     }
 }
 </style>
+=======
+>>>>>>> Stashed changes

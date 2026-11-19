@@ -1,9 +1,8 @@
+
 <template>
   <router-view />
 </template>
 
-<script>
-export default {
-  name: "App",
-}
+<script setup>
+// Các trang và layout được quản lý bởi Vue Router.
 </script>

@@ -18,11 +18,11 @@ class DatabaseSeederTest extends TestCase
 
         $counts = ['vai_tro' => 3, 'nguoi_dung' => 27, 'lop_hoc' => 6, 'thanh_vien_lop' => 67,
             'bai_tap' => 16, 'file_bai_tap' => 16, 'bai_nop' => 51, 'diem' => 41,
-            'phien_giam_sat' => 16, 'hoat_dong' => 361, 'anh_man_hinh' => 121, 'canh_bao' => 51];
+            'phien_giam_sat' => 16, 'hoat_dong' => 361, 'anh_man_hinh' => 121, 'canh_bao' => 31];
         foreach ($counts as $table => $count) {
             $this->assertDatabaseCount($table, $count);
         }
-        $this->assertTrue(Hash::check('password', NguoiDung::where('email', 'sv01@example.com')->firstOrFail()->password));
+        $this->assertTrue(Hash::check('1234567', NguoiDung::where('email', 'sv.an@example.com')->firstOrFail()->password));
 
         $invalidSubmissions = DB::table('bai_nop as n')->join('bai_tap as b', 'b.id', '=', 'n.bai_tap_id')
             ->leftJoin('thanh_vien_lop as t', function ($join) {

@@ -30,7 +30,8 @@ class BaiNopSeeder extends Seeder
         BaiNop::updateOrCreate(
             [
                 'bai_tap_id' => $assignment->id,
-                'sinh_vien_id' => $student->id,
+                // bai_nop.sinh_vien_id references nguoi_dung.id.
+                'sinh_vien_id' => $student->nguoi_dung_id,
             ],
             [
                 'ten_file' =>

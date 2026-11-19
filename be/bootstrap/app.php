@@ -12,6 +12,16 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+
+    // Xác thực Private Channel qua Laravel Sanctum
+    ->withBroadcasting(
+        __DIR__.'/../routes/channels.php',
+        [
+            'prefix' => 'api',
+            'middleware' => ['api', 'auth:sanctum'],
+        ]
+    )
+
     ->withMiddleware(function (Middleware $middleware): void {
         // Cho phép CORS từ Frontend (Vercel) sang Backend (Render)
         $middleware->validateCsrfTokens(except: ['api/*']);
@@ -19,6 +29,9 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\HandleCors::class,
         ]);
     })
+
     ->withExceptions(function (Exceptions $exceptions): void {
         //
-    })->create();
+    })
+
+    ->create();
