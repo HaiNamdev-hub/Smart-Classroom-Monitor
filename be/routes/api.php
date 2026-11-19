@@ -128,3 +128,27 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/vai-tro/sua-vai-tro/{id}', [VaiTroController::class, 'suaVaiTro']);
     });
 });
+
+// Route khởi tạo migrate & seed dữ liệu miễn phí qua trình duyệt (không cần mở Render Shell)
+Route::get('/init-database', function () {
+    try {
+        \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+        $migrateOutput = \Illuminate\Support\Facades\Artisan::output();
+
+        \Illuminate\Support\Facades\Artisan::call('db:seed', ['--force' => true]);
+        $seedOutput = \Illuminate\Support\Facades\Artisan::output();
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Khởi tạo Database và Seed dữ liệu mẫu thành công!',
+            'migrate_output' => $migrateOutput,
+            'seed_output' => $seedOutput,
+        ]);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'status' => false,
+            'message' => 'Lỗi khi khởi tạo database',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+});
