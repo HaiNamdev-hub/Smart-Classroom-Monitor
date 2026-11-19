@@ -22,5 +22,10 @@ php artisan view:clear
 echo "==> Tạo storage link..."
 php artisan storage:link || true
 
+echo "==> Đảm bảo quyền thư mục tạm cho Nginx upload..."
+mkdir -p /tmp/nginx_client_body /var/lib/nginx/tmp/client_body 2>/dev/null || true
+chown -R www-data:www-data /tmp/nginx_client_body /var/lib/nginx 2>/dev/null || true
+chmod -R 777 /tmp/nginx_client_body /var/lib/nginx 2>/dev/null || true
+
 echo "==> Khởi động PHP-FPM và Nginx qua Supervisord..."
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf

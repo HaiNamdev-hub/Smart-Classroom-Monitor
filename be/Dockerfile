@@ -34,6 +34,20 @@ RUN apk add --no-cache \
 # Cài Composer
 COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
 
+# Cấu hình PHP upload limits
+RUN echo "upload_max_filesize = 20M" > /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "post_max_size = 25M" >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "memory_limit = 256M" >> /usr/local/etc/php/conf.d/uploads.ini
+
+# Cấp quyền thư mục tạm và log cho Nginx khi chạy dưới user www-data
+RUN mkdir -p /var/lib/nginx/tmp/client_body \
+             /var/lib/nginx/tmp/proxy \
+             /var/lib/nginx/tmp/fastcgi \
+             /tmp/nginx_client_body \
+             /var/log/nginx \
+    && chown -R www-data:www-data /var/lib/nginx /tmp/nginx_client_body /var/log/nginx \
+    && chmod -R 775 /var/lib/nginx /tmp/nginx_client_body /var/log/nginx
+
 # ============================================================
 # Cấu hình Nginx
 # ============================================================
