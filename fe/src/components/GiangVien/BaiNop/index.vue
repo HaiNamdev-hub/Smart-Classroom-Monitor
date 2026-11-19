@@ -219,9 +219,9 @@
               </td>
 
               <td>
-                <a v-if="item.fileUrl" :href="item.fileUrl" target="_blank" rel="noopener noreferrer" class="file-link">
-                  Xem tệp ↗
-                </a>
+                <button v-if="item.fileUrl" type="button" class="file-link" @click="downloadSubmission(item)">
+                  Tải tệp ↗
+                </button>
                 <button v-else-if="item.loaiFile === 'online_exam'" type="button" class="file-link online-link"
                   @click="openGrade(item)">Xem bài trực tuyến →</button>
                 <span v-else class="muted">Chưa có liên kết</span>
@@ -804,6 +804,24 @@ async function loadExamDetail(item) {
     if (current === detailRequestId) detailLoading.value = false
   }
 }
+async function downloadSubmission(item) {
+  try {
+    const response = await api.get(`/bai-nop/${item.id}/file`, { responseType: "blob" })
+    const objectUrl = URL.createObjectURL(response.data)
+    const anchor = document.createElement("a")
+    anchor.href = objectUrl
+    anchor.download = item.tenFile || `bai-nop-${item.id}`
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+  } catch (error) {
+    window.alert(error.response?.status === 403 || error.response?.status === 404
+      ? "Không có quyền tải tệp này hoặc tệp không còn khả dụng."
+      : "Không thể tải tệp bài nộp. Vui lòng thử lại.")
+  }
+}
+
 function openGrade(item) {
   gradingItem.value = item
   gradeForm.value = {

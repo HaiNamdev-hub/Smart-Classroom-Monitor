@@ -33,7 +33,8 @@ class ThanhVienLopSeeder extends Seeder
             ThanhVienLop::updateOrCreate(
                 [
                     'lop_hoc_id' => $lopSE01->id,
-                    'sinh_vien_id' => $student->id,
+                // thanh_vien_lop.sinh_vien_id references nguoi_dung.id.
+                'sinh_vien_id' => $student->nguoi_dung_id,
                 ],
                 [
                     'trang_thai' => 'dang_hoc',
@@ -80,7 +81,8 @@ class ThanhVienLopSeeder extends Seeder
                 ThanhVienLop::updateOrCreate(
                     [
                         'lop_hoc_id' => $class->id,
-                        'sinh_vien_id' => $student->id,
+                        // Membership foreign keys store the account ID.
+                        'sinh_vien_id' => $student->nguoi_dung_id,
                     ],
                     [
                         'trang_thai' => 'dang_hoc',
@@ -92,7 +94,7 @@ class ThanhVienLopSeeder extends Seeder
             ThanhVienLop::updateOrCreate(
                 [
                     'lop_hoc_id' => $class->id,
-                    'sinh_vien_id' => $students[19]->id,
+                    'sinh_vien_id' => $students[19]->nguoi_dung_id,
                 ],
                 [
                     'trang_thai' => 'da_roi_lop',

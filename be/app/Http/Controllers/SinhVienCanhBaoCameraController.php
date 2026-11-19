@@ -110,10 +110,12 @@ class SinhVienCanhBaoCameraController extends Controller
 
             // Khóa hàng bài tập để tuần tự hóa
             // các yêu cầu cảnh báo đồng thời.
-            DB::table('bai_tap')
-                ->where('id', $baiTapId)
+            $attempt = DB::table('bai_kiem_tra_luot_lam')
+                ->where('bai_tap_id', $baiTapId)
+                ->where('sinh_vien_id', $sinhVienId)
                 ->lockForUpdate()
                 ->first();
+            abort_unless($attempt, 409, 'Sinh viên chưa bắt đầu lượt làm bài.');
 
             // ======================================
             // 5. ĐẾM CÁC LOẠI VI PHẠM

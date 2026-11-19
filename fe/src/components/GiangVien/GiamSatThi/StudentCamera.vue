@@ -393,6 +393,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   clearConnectingTimeout()
   clearTimeout(alertClearTimer)
+  emit('connection-state', { sinhVienId: props.student.sinhVienId, status: 'not_viewed' })
   teacherReceiver.stopWatching(props.student.sinhVienId)
   clearRemoteStream()
 })

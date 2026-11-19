@@ -42,7 +42,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/dang-nhap', [
     NguoiDungController::class,
     'dangNhap'
-]);
+])->middleware('throttle:login');
 
 /*
 |--------------------------------------------------------------------------
@@ -78,6 +78,7 @@ Route::middleware('auth:sanctum')->group(function () {
         '/sinh-vien/bai-tap/{baiTapId}/nop-bai',
         [BaiNopController::class, 'nopBai']
     );
+    Route::get('/bai-nop/{baiNopId}/file', [BaiNopController::class, 'download'])->whereNumber('baiNopId');
     Route::get(
         '/sinh-vien/diem',
         [DiemController::class, 'getDiemSinhVien']
@@ -101,7 +102,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post(
         '/sinh-vien/bai-kiem-tra/{baiTapId}/bat-dau',
         [SinhVienKiemTraController::class, 'startExam']
-    )->middleware('throttle:10,1');
+    )->middleware('throttle:exam-start');
 
 
     Route::get(
@@ -112,11 +113,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post(
         '/sinh-vien/bai-kiem-tra/{baiTapId}/roi-tab',
         [SinhVienKiemTraController::class, 'reportTabLeave']
-    );
+    )->middleware('throttle:exam-event');
     Route::post(
         '/sinh-vien/bai-kiem-tra/{baiTapId}/bao-ve',
         [SinhVienBaoVeBaiKiemTraController::class, 'store']
-    )->middleware('throttle:60,1');
+    )->middleware('throttle:exam-event');
 
     // Chỉ tài khoản quản trị viên đang hoạt động được dùng các API này.
     Route::get('/check-token', [
@@ -137,21 +138,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post(
         '/sinh-vien/bai-kiem-tra/{baiTapId}/canh-bao-camera',
         [SinhVienCanhBaoCameraController::class, 'store']
-    )->middleware('throttle:30,1');
+    )->middleware('throttle:exam-alert');
     Route::post(
         '/sinh-vien/bai-kiem-tra/{baiTapId}/canh-bao-camera/{eventId}/anh',
         [SinhVienCanhBaoCameraController::class, 'storeEvidence']
-    )->middleware('throttle:20,1');
+    )->middleware('throttle:exam-evidence');
     Route::post(
         '/sinh-vien/bai-kiem-tra/{baiTapId}/canh-bao-camera/{eventId}/anh-that-bai',
         [SinhVienCanhBaoCameraController::class, 'markEvidenceFailed']
-    )->middleware('throttle:30,1');
+    )->middleware('throttle:exam-evidence');
 
     // WEBRTC SIGNALING CHO GIÁM SÁT THI (SANCTUM PROTECTED)
     Route::post(
         '/webrtc/signal',
         [WebRtcSignalController::class, 'signal']
     );
+    Route::get('/webrtc/ice-config', \App\Http\Controllers\WebRtcIceConfigController::class)
+        ->middleware('throttle:ice-config');
 
     /*
     |--------------------------------------------------------------------------

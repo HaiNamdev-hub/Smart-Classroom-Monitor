@@ -66,7 +66,7 @@
         <div v-if="cameraRequired" class="stat-card">
           <div class="stat-icon green">🎥</div>
           <div class="stat-info">
-            <span>Đang truyền webcam</span>
+            <span>Đang truyền webcam (trang hiện tại)</span>
             <strong>{{ liveCameraCount }}</strong>
             <small>Kết nối P2P và track video đang hoạt động</small>
           </div>
@@ -112,6 +112,9 @@
       <div class="exam-mode-banner" :class="{ lab: !cameraRequired }">
         <strong>{{ cameraRequired ? 'Thi trực tuyến — Camera AI bắt buộc' : 'Thi tại phòng máy — Không yêu cầu camera' }}</strong>
         <span>{{ cameraRequired ? 'Kết nối webcam được báo cáo theo trạng thái WebRTC và video track.' : 'Không khởi tạo WebRTC video và không tính thiếu camera là mất kết nối. Trạng thái lượt làm và cảnh báo bảo vệ vẫn được cập nhật.' }}</span>
+        <small v-if="cameraRequired" class="turn-status" :class="{ ready: turnConfigured }">
+          {{ turnStatusLoading ? 'Đang kiểm tra cấu hình TURN…' : (turnConfigured ? 'TURN relay đã được cấu hình.' : 'TURN chưa được cấu hình; kết nối hiện chỉ có STUN.') }}
+        </small>
       </div>
 
       <!-- MAIN LAYOUT: LƯỚI CAMERA VÀ SIDEBAR CẢNH BÁO -->
@@ -151,9 +154,8 @@
           <!-- LƯỚI CAMERA SINH VIÊN -->
           <div v-if="cameraRequired" class="camera-grid">
             <StudentCamera
-              v-for="st in students"
+              v-for="st in visibleCameraStudents"
               :key="st.sinhVienId"
-              v-show="filteredStudents.includes(st)"
               :student="st"
               :phien-id="phienId"
               @zoom="openZoomModal"
@@ -161,6 +163,12 @@
               @connection-state="handleConnectionState"
             />
           </div>
+
+          <nav v-if="cameraRequired && totalCameraPages > 1" class="camera-pagination" aria-label="Phân trang camera">
+            <button type="button" :disabled="cameraPage <= 1" @click="cameraPage--">Trang trước</button>
+            <span>Trang {{ cameraPage }} / {{ totalCameraPages }} · {{ filteredStudents.length }} Sinh viên</span>
+            <button type="button" :disabled="cameraPage >= totalCameraPages" @click="cameraPage++">Trang sau</button>
+          </nav>
 
           <div v-else class="lab-student-grid">
             <article v-for="st in filteredStudents" :key="st.sinhVienId" class="lab-student-card">
@@ -258,10 +266,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../../../services/api'
 import teacherReceiver from '../../../services/webrtc/teacherReceiver'
+import { getRtcConfiguration } from '../../../services/webrtc/iceConfig'
 import StudentCamera from './StudentCamera.vue'
 
 const route = useRoute()
@@ -273,6 +282,8 @@ const loading = ref(false)
 const error = ref('')
 const phienInfo = ref(null)
 const cameraRequired = computed(() => phienInfo.value?.yeuCauCamera !== false)
+const turnConfigured = ref(false)
+const turnStatusLoading = ref(true)
 const students = ref([])
 const recentAlerts = ref([])
 const reviewingEventIds = ref([])
@@ -282,6 +293,8 @@ let sessionRefreshTimer = null
 const keyword = ref('')
 const filterStatus = ref('all')
 const filterViolation = ref('all')
+const cameraPage = ref(1)
+const cameraPageSize = 9
 
 const zoomedStudent = ref(null)
 const modalVideoRef = ref(null)
@@ -328,7 +341,7 @@ const totalAlertCount = computed(() => {
 const filteredStudents = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
 
-  return students.value.filter((s) => {
+  const filtered = students.value.filter((s) => {
     // 1. Lọc theo từ khóa
     if (kw) {
       const matchName = (s.hoTen || '').toLowerCase().includes(kw)
@@ -353,7 +366,31 @@ const filteredStudents = computed(() => {
 
     return true
   })
+
+  const screenshotStudentIds = new Set(recentAlerts.value
+    .filter((alert) => alert.loai === 'SCREENSHOT_SHORTCUT_DETECTED')
+    .map((alert) => Number(alert.sinhVienId)))
+  const priority = (student) => {
+    if (student.biKhoa) return 0
+    if (screenshotStudentIds.has(Number(student.sinhVienId)) || (student.soLanDienThoai || 0) > 0) return 1
+    if ((student.soLanCamera || 0) > 0) return 2
+    if ((student.soLanViPham || 0) > 0) return 3
+    return 4
+  }
+
+  return filtered.map((student, index) => ({ student, index }))
+    .sort((a, b) => priority(a.student) - priority(b.student) || a.index - b.index)
+    .map(({ student }) => student)
 })
+
+const totalCameraPages = computed(() => Math.max(1, Math.ceil(filteredStudents.value.length / cameraPageSize)))
+const visibleCameraStudents = computed(() => {
+  const page = Math.min(cameraPage.value, totalCameraPages.value)
+  const start = (page - 1) * cameraPageSize
+  return filteredStudents.value.slice(start, start + cameraPageSize)
+})
+
+watch([keyword, filterStatus, filterViolation], () => { cameraPage.value = 1 })
 
 function formatTime(isoString) {
   if (!isoString) return ''
@@ -440,9 +477,11 @@ async function fetchSessionDetail({ silent = false } = {}) {
         : (previousStatuses.get(Number(student.sinhVienId)) || 'waiting'),
     }))
     recentAlerts.value = data.recentAlerts || []
+    cameraPage.value = Math.min(cameraPage.value, totalCameraPages.value)
 
     // Khởi tạo receiver với phienId
     teacherReceiver.setPhienId(phienId.value)
+    teacherReceiver.watchSessionAlerts(students.value.map((student) => student.sinhVienId), handleAlertReceived)
   } catch (err) {
     if (silent) {
       if (import.meta.env.DEV) console.warn('[Giám sát thi] Làm mới trạng thái phiên thất bại:', err.message)
@@ -530,6 +569,11 @@ async function confirmEndSession() {
 }
 
 onMounted(() => {
+  void getRtcConfiguration().then((configuration) => {
+    turnConfigured.value = configuration.turnConfigured
+  }).finally(() => {
+    turnStatusLoading.value = false
+  })
   fetchSessionDetail()
   // StudentCamera tiles subscribe for every class member; this refresh also
   // updates attempt/submission state for students who join after the page opens.
@@ -800,7 +844,9 @@ onBeforeUnmount(() => {
   gap: 16px;
 }
 
-.exam-mode-banner{display:grid;gap:4px;margin:0 0 18px;padding:14px 18px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#1e3a8a}.exam-mode-banner span{font-size:13px}.exam-mode-banner.lab{border-color:#a7f3d0;background:#ecfdf5;color:#065f46}.lab-student-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}.lab-student-card{display:grid;gap:12px;padding:16px;border:1px solid var(--border-color,#cbd5e1);border-radius:12px;background:var(--bg-card,#fff)}.lab-student-card>div:first-child{display:grid;gap:3px}.lab-student-card>div:first-child span{font-size:12px;color:#64748b}.lab-mode-status{width:max-content;padding:5px 9px;border-radius:999px;background:#ecfdf5;color:#047857;font-size:12px;font-weight:700}.lab-student-state{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:#475569}.lab-student-state .locked-state{color:#b91c1c}.lab-student-state .violation-state{color:#b45309}
+.camera-pagination{display:flex;align-items:center;justify-content:center;gap:14px;padding:6px;color:#475569;font-size:13px}.camera-pagination button{border:1px solid #cbd5e1;border-radius:8px;padding:7px 12px;background:#fff;color:#1e293b;cursor:pointer}.camera-pagination button:disabled{opacity:.45;cursor:not-allowed}
+
+.exam-mode-banner{display:grid;gap:4px;margin:0 0 18px;padding:14px 18px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#1e3a8a}.exam-mode-banner span,.exam-mode-banner small{font-size:13px}.exam-mode-banner .turn-status{color:#b45309}.exam-mode-banner .turn-status.ready{color:#047857}.exam-mode-banner.lab{border-color:#a7f3d0;background:#ecfdf5;color:#065f46}.lab-student-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}.lab-student-card{display:grid;gap:12px;padding:16px;border:1px solid var(--border-color,#cbd5e1);border-radius:12px;background:var(--bg-card,#fff)}.lab-student-card>div:first-child{display:grid;gap:3px}.lab-student-card>div:first-child span{font-size:12px;color:#64748b}.lab-mode-status{width:max-content;padding:5px 9px;border-radius:999px;background:#ecfdf5;color:#047857;font-size:12px;font-weight:700}.lab-student-state{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:#475569}.lab-student-state .locked-state{color:#b91c1c}.lab-student-state .violation-state{color:#b45309}
 
 .empty-state {
   padding: 48px 24px;

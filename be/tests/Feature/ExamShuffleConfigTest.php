@@ -167,6 +167,33 @@ class ExamShuffleConfigTest extends TestCase
         }
     }
 
+    public function test_attempt_order_persistence_batches_mapping_inserts(): void
+    {
+        [$teacherId, $classId] = $this->teacherAndClass();
+        $examId = $this->assignment($teacherId, $classId, now()->addHour());
+        $this->multipleChoiceQuestions($examId, 30);
+        $student = $this->student($classId, 'batch-order');
+        $attemptId = DB::table('bai_kiem_tra_luot_lam')->insertGetId([
+            'bai_tap_id' => $examId, 'sinh_vien_id' => $student['profileId'],
+            'bat_dau_luc' => now(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $insertStatements = [];
+        DB::listen(function ($query) use (&$insertStatements) {
+            if (str_starts_with(strtolower(ltrim($query->sql)), 'insert into "bai_')) {
+                $insertStatements[] = $query->sql;
+            }
+        });
+
+        app(ExamAttemptOrder::class)->persist($attemptId, $examId, true, true);
+
+        $this->assertSame(30, DB::table('bai_kiem_tra_luot_lam_cau_hoi')->where('luot_lam_id', $attemptId)->count());
+        $this->assertSame(60, DB::table('bai_kiem_tra_luot_lam_dap_an')->where('luot_lam_id', $attemptId)->count());
+        $mappingInserts = array_values(array_filter($insertStatements, fn ($sql) =>
+            str_contains($sql, 'bai_kiem_tra_luot_lam_cau_hoi') || str_contains($sql, 'bai_kiem_tra_luot_lam_dap_an')
+        ));
+        $this->assertCount(2, $mappingInserts);
+    }
+
     private function asStudent(int $userId, callable $callback): mixed
     {
         Sanctum::actingAs(NguoiDung::findOrFail($userId));

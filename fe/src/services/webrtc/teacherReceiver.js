@@ -1,14 +1,7 @@
 import echo from '../reverb'
 import api from '../api'
 import { inspectSdp, logSdpDiagnostics, prepareRemoteDescription } from './sdpDiagnostics'
-
-const RTC_CONFIG = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-  ],
-}
+import { getRtcConfiguration } from './iceConfig'
 
 // Log debug an toàn (không ghi token, không ghi full SDP)
 function debugLog(...args) {
@@ -25,10 +18,61 @@ export class TeacherReceiver {
   constructor() {
     this.phienId = null
     this.connections = new Map()
+    this.channelRefs = new Map()
+    this.sessionAlertSubscriptions = new Map()
+    this.sessionAlertHandler = null
   }
 
   setPhienId(phienId) {
-    this.phienId = Number(phienId)
+    const nextId = Number(phienId)
+    if (this.phienId && this.phienId !== nextId) this.stopAll()
+    this.phienId = nextId
+  }
+
+  retainChannel(channelName) {
+    const entry = this.channelRefs.get(channelName)
+    if (entry) {
+      entry.references++
+      return entry.channel
+    }
+    const channel = echo.private(channelName)
+    this.channelRefs.set(channelName, { channel, references: 1 })
+    return channel
+  }
+
+  releaseChannel(channelName) {
+    const entry = this.channelRefs.get(channelName)
+    if (!entry) return
+    entry.references--
+    if (entry.references <= 0) {
+      echo.leave(channelName)
+      this.channelRefs.delete(channelName)
+    }
+  }
+
+  watchSessionAlerts(studentIds, onAlert) {
+    if (!this.phienId) return
+    this.sessionAlertHandler = onAlert
+    const wanted = new Set(studentIds.map(Number))
+
+    for (const [studentId, subscription] of this.sessionAlertSubscriptions) {
+      if (wanted.has(studentId)) continue
+      subscription.channel.stopListening('.exam.violation', subscription.violationHandler)
+      subscription.channel.stopListening('.exam.protection-alert', subscription.protectionHandler)
+      this.releaseChannel(subscription.channelName)
+      this.sessionAlertSubscriptions.delete(studentId)
+    }
+
+    for (const studentId of wanted) {
+      if (this.sessionAlertSubscriptions.has(studentId)) continue
+      const channelName = `exam-monitor.${this.phienId}.student.${studentId}`
+      const channel = this.retainChannel(channelName)
+      const violationHandler = (event) => this.sessionAlertHandler?.(event)
+      const protectionHandler = (event) => this.sessionAlertHandler?.({ ...event, canXemXet: true, daXacMinh: false })
+      channel.listen('.exam.violation', violationHandler)
+      channel.listen('.exam.protection-alert', protectionHandler)
+      this.sessionAlertSubscriptions.set(studentId, { channelName, channel, violationHandler, protectionHandler })
+    }
   }
 
   /**
@@ -50,6 +94,7 @@ export class TeacherReceiver {
       sinhVienId: sId,
       pc: null,
       channel: null,
+      channelName: null,
       pendingCandidates: [],
       offerQueue: Promise.resolve(),
       lastOfferChecksum: null,
@@ -59,6 +104,7 @@ export class TeacherReceiver {
       onAlert,
       connectionState: 'idle',
       retryTimer: null,
+      recoveryTimer: null,
       retryCount: 0,
       subscribed: false,
     }
@@ -68,27 +114,14 @@ export class TeacherReceiver {
     const channelName = `exam-monitor.${this.phienId}.student.${sId}`
 
     try {
-      conn.channel = echo.private(channelName)
+      conn.channelName = channelName
+      conn.channel = this.retainChannel(channelName)
 
       // Lắng nghe tín hiệu WebRTC từ Sinh viên
       conn.channel.listen('.webrtc.signal', (event) => {
         if (event.senderRole !== 'student') return
         debugLog(`Nhận signal '${event.type}' từ SV #${sId}`)
         this.handleStudentSignal(sId, event)
-      })
-
-      // Lắng nghe cảnh báo thi theo thời gian thực
-      conn.channel.listen('.exam.violation', (event) => {
-        debugLog(`Nhận cảnh báo thi từ SV #${sId}: ${event.loaiCanhBao}`)
-        if (typeof conn.onAlert === 'function') {
-          conn.onAlert(event)
-        }
-      })
-
-      conn.channel.listen('.exam.protection-alert', (event) => {
-        if (typeof conn.onAlert === 'function') {
-          conn.onAlert({ ...event, canXemXet: true, daXacMinh: false })
-        }
       })
 
       // Khi kênh đã xác thực và đăng ký thành công trên Reverb
@@ -191,13 +224,14 @@ export class TeacherReceiver {
    * Khởi tạo RTCPeerConnection cho Receiver
    * QUAN TRỌNG: Không gọi addTransceiver trước setRemoteDescription(offer)
    */
-  setupPeerConnection(sinhVienId) {
+  async setupPeerConnection(sinhVienId) {
     const conn = this.connections.get(sinhVienId)
     if (!conn) return null
 
     this.closePeerConnection(sinhVienId)
-
-    const pc = new RTCPeerConnection(RTC_CONFIG)
+    const rtcConfig = await getRtcConfiguration()
+    if (this.connections.get(sinhVienId) !== conn) return null
+    const pc = new RTCPeerConnection({ iceServers: rtcConfig.iceServers })
     conn.pc = pc
     conn.pendingCandidates = []
 
@@ -225,6 +259,11 @@ export class TeacherReceiver {
 
       if (state === 'connected') {
         clearTimeout(conn.retryTimer)
+        clearTimeout(conn.recoveryTimer)
+        conn.recoveryTimer = null
+        conn.retryCount = 0
+      } else if (state === 'disconnected' || state === 'failed') {
+        this.scheduleConnectionRecovery(sinhVienId, pc, conn)
       }
 
       if (typeof conn.onStateChange === 'function') {
@@ -267,7 +306,7 @@ export class TeacherReceiver {
       return
     }
 
-    const pc = this.setupPeerConnection(sinhVienId)
+    const pc = await this.setupPeerConnection(sinhVienId)
     if (!pc) return
 
     try {
@@ -322,6 +361,21 @@ export class TeacherReceiver {
         conn.onStateChange('failed')
       }
     }
+  }
+
+  scheduleConnectionRecovery(sinhVienId, pc, conn) {
+    if (conn.recoveryTimer || conn.retryCount >= 3) return
+    conn.recoveryTimer = setTimeout(() => {
+      conn.recoveryTimer = null
+      if (conn.pc !== pc || !['disconnected', 'failed'].includes(pc.connectionState)) return
+      if (conn.retryCount >= 3) {
+        conn.onStateChange?.('disconnected')
+        return
+      }
+      conn.retryCount++
+      this.closePeerConnection(sinhVienId)
+      this.sendRequestOfferWithRetry(sinhVienId, true)
+    }, pc.connectionState === 'failed' ? 1000 : 6000)
   }
 
   /**
@@ -392,6 +446,8 @@ export class TeacherReceiver {
       conn.pc = null
     }
     if (conn) {
+      clearTimeout(conn.recoveryTimer)
+      conn.recoveryTimer = null
       conn.pendingCandidates = []
       conn.connectionState = 'disconnected'
     }
@@ -409,8 +465,7 @@ export class TeacherReceiver {
     this.closePeerConnection(sId)
 
     if (conn.channel) {
-      const channelName = `exam-monitor.${this.phienId}.student.${sId}`
-      echo.leave(channelName)
+      this.releaseChannel(conn.channelName)
       conn.channel = null
     }
 
@@ -421,6 +476,13 @@ export class TeacherReceiver {
    * Dừng toàn bộ các kết nối khi Giảng viên thoát trang giám sát
    */
   stopAll() {
+    for (const [studentId, subscription] of this.sessionAlertSubscriptions) {
+      subscription.channel.stopListening('.exam.violation', subscription.violationHandler)
+      subscription.channel.stopListening('.exam.protection-alert', subscription.protectionHandler)
+      this.releaseChannel(subscription.channelName)
+      this.sessionAlertSubscriptions.delete(studentId)
+    }
+    this.sessionAlertHandler = null
     for (const sId of this.connections.keys()) {
       this.stopWatching(sId)
     }

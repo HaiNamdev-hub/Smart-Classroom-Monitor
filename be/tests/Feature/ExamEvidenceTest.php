@@ -56,7 +56,7 @@ class ExamEvidenceTest extends TestCase
 
         Sanctum::actingAs(NguoiDung::query()->findOrFail($studentUserId));
         $path = "/api/sinh-vien/bai-kiem-tra/{$assignmentId}/canh-bao-camera/{$eventId}/anh";
-        $payload = ['eventId' => $eventId, 'image' => UploadedFile::fake()->image('evidence.jpg', 640, 480)];
+        $payload = ['eventId' => $eventId, 'image' => $this->onePixelJpeg('evidence.jpg')];
 
         $this->postJson("/api/sinh-vien/bai-kiem-tra/{$assignmentId}/canh-bao-camera", [
             'eventId' => $eventId,
@@ -98,7 +98,7 @@ class ExamEvidenceTest extends TestCase
 
         $this->postJson("/api/sinh-vien/bai-kiem-tra/{$assignmentId}/canh-bao-camera/{$eventId}/anh", [
             'eventId' => $eventId,
-            'image' => UploadedFile::fake()->image('stale.jpg'),
+            'image' => $this->onePixelJpeg('stale.jpg'),
         ])->assertStatus(422);
         $this->assertSame(0, DB::table('anh_man_hinh')->where('event_id', $eventId)->count());
     }
@@ -180,6 +180,13 @@ class ExamEvidenceTest extends TestCase
         $classId = DB::table('lop_hoc')->insertGetId(['ma_lop' => uniqid('C'), 'ten_lop' => 'Class', 'giang_vien_id' => $teacherId, 'created_at' => $now, 'updated_at' => $now]);
         DB::table('thanh_vien_lop')->insert(['lop_hoc_id' => $classId, 'sinh_vien_id' => $studentUserId, 'trang_thai' => 'dang_hoc', 'created_at' => $now, 'updated_at' => $now]);
         $assignmentId = DB::table('bai_tap')->insertGetId(['lop_hoc_id' => $classId, 'nguoi_tao_id' => $teacherId, 'tieu_de' => 'Exam', 'thoi_gian_bat_dau' => $now->copy()->subHour(), 'thoi_gian_ket_thuc' => $now->copy()->addHour(), 'han_nop' => $now->copy()->addHour(), 'created_at' => $now, 'updated_at' => $now]);
+        DB::table('bai_kiem_tra_luot_lam')->insert([
+            'bai_tap_id' => $assignmentId,
+            'sinh_vien_id' => $studentId,
+            'bat_dau_luc' => $now->copy()->subMinutes(5),
+            'created_at' => $now->copy()->subMinutes(5),
+            'updated_at' => $now->copy()->subMinutes(5),
+        ]);
         $eventId = (string) \Illuminate\Support\Str::uuid();
         $alertId = DB::table('canh_bao_camera')->insertGetId(['bai_tap_id' => $assignmentId, 'sinh_vien_id' => $studentId, 'event_id' => $eventId, 'loai_canh_bao' => $alertType, 'evidence_status' => $alertType === 'camera_ngat' ? 'not_applicable' : 'pending', 'created_at' => $now, 'updated_at' => $now]);
 
@@ -189,5 +196,13 @@ class ExamEvidenceTest extends TestCase
     private function createUser(int $roleId, string $email): int
     {
         return DB::table('nguoi_dung')->insertGetId(['ho_ten' => 'Evidence User', 'email' => $email, 'password' => bcrypt('password'), 'vai_tro_id' => $roleId, 'trang_thai' => 'hoat_dong', 'created_at' => now(), 'updated_at' => now()]);
+    }
+
+    /** A valid 1x1 JPEG fixture without requiring GD in the PHP test runtime. */
+    private function onePixelJpeg(string $name): UploadedFile
+    {
+        $bytes = base64_decode('/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/AIH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/AIH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/AIH/2Q==', true);
+
+        return UploadedFile::fake()->createWithContent($name, $bytes);
     }
 }

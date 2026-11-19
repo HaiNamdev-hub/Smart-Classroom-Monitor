@@ -1,14 +1,7 @@
 import echo from '../reverb'
 import api from '../api'
 import { inspectSdp, logSdpDiagnostics, prepareRemoteDescription } from './sdpDiagnostics'
-
-const RTC_CONFIG = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-  ],
-}
+import { getRtcConfiguration } from './iceConfig'
 
 function debugLog(...args) {
   if (import.meta.env.DEV) {
@@ -32,6 +25,8 @@ export class StudentSender {
     this.onStateChange = null
     this.subscribed = false
     this.offerInProgress = false
+    this.recoveryTimer = null
+    this.recoveryCount = 0
   }
 
   /**
@@ -57,6 +52,7 @@ export class StudentSender {
 
     this.closePeerConnection()
     this.unsubscribeChannel()
+    this.recoveryCount = 0
     this.phienId = nextPhienId
     this.sinhVienId = nextSinhVienId
     this.stream = stream
@@ -144,10 +140,13 @@ export class StudentSender {
   /**
    * Khởi tạo hoặc làm mới RTCPeerConnection
    */
-  setupPeerConnection() {
+  async setupPeerConnection() {
     this.closePeerConnection()
+    const stream = this.stream
+    const rtcConfig = await getRtcConfiguration()
+    if (this.stream !== stream || !stream) return null
 
-    this.peerConnection = new RTCPeerConnection(RTC_CONFIG)
+    this.peerConnection = new RTCPeerConnection({ iceServers: rtcConfig.iceServers })
     this.pendingCandidates = []
 
     // Đưa video tracks vào PeerConnection (chỉ video, không gửi audio)
@@ -173,6 +172,13 @@ export class StudentSender {
       const state = this.peerConnection?.connectionState || 'closed'
       debugLog(`P2P ConnectionState: ${state}`)
       this.connected = state === 'connected'
+      if (state === 'connected') {
+        clearTimeout(this.recoveryTimer)
+        this.recoveryTimer = null
+        this.recoveryCount = 0
+      } else if (state === 'failed' || state === 'disconnected') {
+        this.scheduleRecovery()
+      }
 
       if (typeof this.onStateChange === 'function') {
         this.onStateChange(state)
@@ -182,6 +188,17 @@ export class StudentSender {
     this.peerConnection.oniceconnectionstatechange = () => {
       debugLog(`ICE ConnectionState: ${this.peerConnection?.iceConnectionState}`)
     }
+    return this.peerConnection
+  }
+
+  scheduleRecovery() {
+    if (this.recoveryTimer || this.recoveryCount >= 3 || !this.stream) return
+    this.recoveryTimer = setTimeout(async () => {
+      this.recoveryTimer = null
+      if (!this.stream || this.connected || this.recoveryCount >= 3) return
+      this.recoveryCount++
+      await this.createAndSendOffer(true)
+    }, 6000)
   }
 
   /**
@@ -211,8 +228,10 @@ export class StudentSender {
       }
 
       if (forceRestart || !currentPc || ['failed', 'closed', 'disconnected'].includes(currentPc.connectionState)) {
-        this.setupPeerConnection()
+        await this.setupPeerConnection()
       }
+
+      if (!this.peerConnection) return
 
       const offer = await this.peerConnection.createOffer({
         offerToReceiveAudio: false,
@@ -290,6 +309,7 @@ export class StudentSender {
    */
   async updateStream(newStream) {
     this.stream = newStream
+    this.recoveryCount = 0
 
     if (this.stream) {
       debugLog('Camera đã bật lại, gửi camera_ready.')
@@ -333,6 +353,8 @@ export class StudentSender {
    * Đóng PeerConnection (không dừng track vì stream thuộc GiamSatCamera)
    */
   closePeerConnection() {
+    clearTimeout(this.recoveryTimer)
+    this.recoveryTimer = null
     if (this.peerConnection) {
       this.peerConnection.onicecandidate = null
       this.peerConnection.onconnectionstatechange = null

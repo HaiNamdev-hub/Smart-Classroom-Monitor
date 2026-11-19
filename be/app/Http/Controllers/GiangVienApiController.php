@@ -485,6 +485,7 @@ class GiangVienApiController extends Controller
                 'bn.sinh_vien_id',
                 'bn.thoi_gian_nop',
                 'bn.trang_thai',
+                'bn.ten_file',
                 'bn.loai_file',
 
                 'sv.ma_sinh_vien',
@@ -538,6 +539,11 @@ class GiangVienApiController extends Controller
 
                     'loaiFile' =>
                     $item->loai_file,
+
+                    'tenFile' => $item->ten_file,
+                    'fileUrl' => $item->loai_file === 'online_exam'
+                        ? null
+                        : '/api/bai-nop/'.$item->id.'/file',
 
                     'diemId' =>
                     $item->diem_id,
@@ -1255,14 +1261,18 @@ public function ketThucPhien(
         // 5. Danh sách cảnh báo gần đây của toàn phiên
         $recentAlerts = collect();
         if ($session->bai_tap_id) {
-            $camAlerts = DB::table('canh_bao_camera')
+            $cameraAlertRows = DB::table('canh_bao_camera')
                 ->where('bai_tap_id', $session->bai_tap_id)
                 ->orderByDesc('id')
                 ->limit(30)
-                ->get()
-                ->map(function ($row) use ($studentProfilesById, $tenLoaiCanhBao) {
+                ->get();
+            $evidenceIdsByEvent = $cameraAlertRows->pluck('event_id')->filter()->isNotEmpty()
+                ? DB::table('anh_man_hinh')->whereIn('event_id', $cameraAlertRows->pluck('event_id')->filter()->unique())
+                    ->pluck('id', 'event_id')
+                : collect();
+            $camAlerts = $cameraAlertRows->map(function ($row) use ($studentProfilesById, $tenLoaiCanhBao, $evidenceIdsByEvent) {
                     $profile = $studentProfilesById->get($row->sinh_vien_id);
-                    $imageId = DB::table('anh_man_hinh')->where('event_id', $row->event_id)->value('id');
+                    $imageId = $evidenceIdsByEvent->get($row->event_id);
                     return [
                         'id' => 'cam_' . $row->id,
                         'sinhVienId' => $profile?->id,

@@ -18,13 +18,13 @@ class BaiNopStudentIdentityTest extends TestCase
 
     public function test_student_file_submission_uses_authenticated_user_id_for_membership_and_submission_foreign_keys(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         [$teacherId, $studentUserId, $studentProfileId, $classId, $assignmentId] = $this->fixture();
         $this->assertNotSame($studentUserId, $studentProfileId, 'Fixture must exercise distinct user and profile IDs.');
         Sanctum::actingAs(NguoiDung::query()->findOrFail($studentUserId));
 
-        $this->post("/api/sinh-vien/bai-tap/{$assignmentId}/nop-bai", [
-            'file' => UploadedFile::fake()->create('work.txt', 2, 'text/plain'),
+        $this->postJson("/api/sinh-vien/bai-tap/{$assignmentId}/nop-bai", [
+            'file' => UploadedFile::fake()->createWithContent('work.txt', 'Student submission body'),
         ])->assertCreated()
             ->assertJsonPath('data.sinh_vien_id', $studentUserId);
 
@@ -34,7 +34,7 @@ class BaiNopStudentIdentityTest extends TestCase
             'lop_hoc_id' => $classId,
             'sinh_vien_id' => $studentUserId,
         ]);
-        Storage::disk('public')->assertExists($submission->duong_dan);
+        Storage::disk('local')->assertExists($submission->duong_dan);
 
         $profile = SinhVien::query()->findOrFail($studentProfileId);
         $this->assertTrue($profile->thanhVienLops()->where('lop_hoc_id', $classId)->exists());
@@ -52,6 +52,52 @@ class BaiNopStudentIdentityTest extends TestCase
             ->assertJsonPath('data.0.tenSinhVien', 'Identity Owner')
             ->assertJsonPath('data.0.nguoiDungId', $studentUserId)
             ->assertJsonPath('data.0.sinhVienProfileId', $studentProfileId);
+    }
+
+    public function test_invalid_file_type_mime_mismatch_and_oversized_upload_are_rejected(): void
+    {
+        Storage::fake('local');
+        [, $studentUserId, , , $assignmentId] = $this->fixture();
+        Sanctum::actingAs(NguoiDung::query()->findOrFail($studentUserId));
+        $url = "/api/sinh-vien/bai-tap/{$assignmentId}/nop-bai";
+
+        $this->postJson($url, ['file' => UploadedFile::fake()->create('payload.php', 2, 'text/plain')])
+            ->assertUnprocessable()->assertJsonValidationErrors('file');
+        $this->postJson($url, ['file' => UploadedFile::fake()->createWithContent('fake.pdf', 'plain text payload')])
+            ->assertUnprocessable()->assertJsonValidationErrors('file');
+        $this->postJson($url, ['file' => UploadedFile::fake()->create('large.txt', 10241, 'text/plain')])
+            ->assertUnprocessable()->assertJsonValidationErrors('file');
+
+        $this->assertDatabaseCount('bai_nop', 0);
+        $this->assertSame([], Storage::disk('local')->allFiles('bai-nop'));
+    }
+
+    public function test_submission_file_download_is_private_and_authorized(): void
+    {
+        Storage::fake('local');
+        [$teacherId, $studentUserId, , , $assignmentId] = $this->fixture();
+        Sanctum::actingAs(NguoiDung::query()->findOrFail($studentUserId));
+        $this->postJson("/api/sinh-vien/bai-tap/{$assignmentId}/nop-bai", [
+            'file' => UploadedFile::fake()->createWithContent('work.txt', 'Student submission body'),
+        ])->assertCreated();
+        $submission = DB::table('bai_nop')->where('bai_tap_id', $assignmentId)->firstOrFail();
+        $fileUrl = "/api/bai-nop/{$submission->id}/file";
+
+        $this->get($fileUrl)->assertOk()->assertHeader('Content-Disposition');
+        Sanctum::actingAs(NguoiDung::query()->findOrFail($teacherId));
+        $this->get($fileUrl)->assertOk();
+        $otherStudent = NguoiDung::query()->create([
+            'ho_ten' => 'Other student', 'email' => 'other-download@example.test',
+            'password' => 'password', 'vai_tro_id' => DB::table('vai_tro')->where('ten_vai_tro', 'sinh_vien')->value('id'),
+            'trang_thai' => 'hoat_dong',
+        ]);
+        Sanctum::actingAs($otherStudent);
+        $this->get($fileUrl)->assertNotFound();
+        $this->get('/api/bai-nop/999999/file')->assertNotFound();
+
+        DB::table('bai_nop')->where('id', $submission->id)->update(['duong_dan' => '../outside.txt']);
+        Sanctum::actingAs(NguoiDung::query()->findOrFail($studentUserId));
+        $this->get($fileUrl)->assertNotFound();
     }
 
     public function test_online_exam_submission_and_grade_views_use_the_correct_student_id_type(): void

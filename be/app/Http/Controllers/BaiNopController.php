@@ -12,6 +12,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BaiNopController extends CrudController
 {
@@ -228,6 +229,31 @@ class BaiNopController extends CrudController
             'file' => [
                 'required',
                 'file',
+                'mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,zip,txt',
+                'extensions:pdf,doc,docx,xls,xlsx,ppt,pptx,zip,txt',
+                function ($attribute, $value, $fail) {
+                    if (!$value instanceof \Illuminate\Http\UploadedFile || !$value->isValid()) {
+                        return;
+                    }
+
+                    $extension = strtolower($value->getClientOriginalExtension());
+                    $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($value->getRealPath()) ?: '';
+                    $allowedMimes = [
+                        'pdf' => ['application/pdf'],
+                        'doc' => ['application/msword', 'application/x-ole-storage'],
+                        'docx' => ['application/zip', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+                        'xls' => ['application/vnd.ms-excel', 'application/x-ole-storage'],
+                        'xlsx' => ['application/zip', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+                        'ppt' => ['application/vnd.ms-powerpoint', 'application/x-ole-storage'],
+                        'pptx' => ['application/zip', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+                        'zip' => ['application/zip', 'application/x-zip'],
+                        'txt' => ['text/plain'],
+                    ];
+
+                    if (!in_array($mime, $allowedMimes[$extension] ?? [], true)) {
+                        $fail('Nội dung MIME thực tế không khớp với định dạng file được phép.');
+                    }
+                },
                 'max:10240',
             ],
         ], [
@@ -289,11 +315,9 @@ class BaiNopController extends CrudController
         $file = $request->file('file');
 
         $originalName = $file->getClientOriginalName();
+        $detectedMime = (new \finfo(FILEINFO_MIME_TYPE))->file($file->getRealPath()) ?: 'application/octet-stream';
 
-        $path = $file->store(
-            'bai-nop',
-            'public'
-        );
+        $path = $file->store('bai-nop', 'local');
 
         try {
             // 9. Tạo bản ghi bài nộp.
@@ -305,31 +329,8 @@ class BaiNopController extends CrudController
                     $path,
                     $now,
                     $trangThai,
-                    $file
+                    $detectedMime
                 ) {
-                    // Khóa theo bài tập để hạn chế nộp trùng.
-                    DB::table('bai_tap')
-                        ->where('id', $baiTapId)
-                        ->lockForUpdate()
-                        ->first();
-
-                    $exists = BaiNop::query()
-                        ->where(
-                            'bai_tap_id',
-                            $baiTapId
-                        )
-                        ->where(
-                            'sinh_vien_id',
-                            $sinhVienId
-                        )
-                        ->exists();
-
-                    abort_if(
-                        $exists,
-                        409,
-                        'Bạn đã nộp bài tập này.'
-                    );
-
                     return BaiNop::create([
                         'bai_tap_id' =>
                             $baiTapId,
@@ -344,7 +345,7 @@ class BaiNopController extends CrudController
                             $path,
 
                         'loai_file' =>
-                            $file->getClientMimeType(),
+                            $detectedMime,
 
                         'thoi_gian_nop' =>
                             $now,
@@ -357,7 +358,14 @@ class BaiNopController extends CrudController
 
         } catch (\Throwable $e) {
             // Không để file mồ côi khi ghi DB thất bại.
-            Storage::disk('public')->delete($path);
+            Storage::disk('local')->delete($path);
+
+            if (BaiNop::query()->where('bai_tap_id', $baiTapId)->where('sinh_vien_id', $sinhVienId)->exists()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Bạn đã nộp bài tập này.',
+                ], 409);
+            }
 
             throw $e;
         }
@@ -372,5 +380,48 @@ class BaiNopController extends CrudController
 
             'data' => $baiNop,
         ], 201);
+    }
+
+    /** Download an assignment file only for its owner or the assigned teacher. */
+    public function download(Request $request, int $baiNopId): StreamedResponse
+    {
+        $submission = DB::table('bai_nop as bn')
+            ->join('bai_tap as bt', 'bt.id', '=', 'bn.bai_tap_id')
+            ->join('lop_hoc as lh', 'lh.id', '=', 'bt.lop_hoc_id')
+            ->where('bn.id', $baiNopId)
+            ->select('bn.*', 'lh.giang_vien_id')
+            ->first();
+
+        abort_unless($submission, 404);
+        $userId = (int) $request->user()->id;
+        $isOwner = (int) $submission->sinh_vien_id === $userId;
+        $isAssignedTeacher = (int) $submission->giang_vien_id === $userId;
+        abort_unless($isOwner || $isAssignedTeacher, 404);
+        abort_if($submission->loai_file === 'online_exam', 404);
+
+        $path = str_replace('\\', '/', (string) $submission->duong_dan);
+        $segments = explode('/', $path);
+        abort_if(
+            $path === '' || str_starts_with($path, '/') || preg_match('/^[A-Za-z]:/', $path)
+                || in_array('..', $segments, true) || in_array('.', $segments, true),
+            404
+        );
+
+        // New files use private local storage. Existing public-disk files are
+        // served only through this authorization gate and are not moved/deleted.
+        $disk = Storage::disk('local')->exists($path)
+            ? Storage::disk('local')
+            : (Storage::disk('public')->exists($path) ? Storage::disk('public') : null);
+        abort_unless($disk, 404, 'Tệp bài nộp không còn khả dụng.');
+
+        $mime = $disk->mimeType($path) ?: 'application/octet-stream';
+        $safeName = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($submission->ten_file)) ?: 'submission';
+
+        return $disk->response($path, $safeName, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'attachment; filename="'.$safeName.'"',
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 }

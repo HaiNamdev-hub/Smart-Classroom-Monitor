@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    'stun' => [
+        'urls' => array_values(array_filter(array_map('trim', explode(',', env(
+            'WEBRTC_STUN_URLS',
+            'stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302,stun:stun2.l.google.com:19302'
+        ))))),
+    ],
+
+    'turn' => [
+        'urls' => array_values(array_filter(array_map('trim', explode(',', env('WEBRTC_TURN_URLS', ''))))),
+        'shared_secret' => env('WEBRTC_TURN_SHARED_SECRET'),
+        'ttl_minutes' => (int) env('WEBRTC_TURN_TTL_MINUTES', 10),
+    ],
+
 ];

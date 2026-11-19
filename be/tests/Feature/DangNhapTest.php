@@ -42,6 +42,13 @@ class DangNhapTest extends TestCase
         $this->withToken($plainText)->getJson('/api/test-auth')->assertOk()->assertJsonPath('id', $user->id);
     }
 
+    public function test_login_email_is_case_insensitive_for_lookup_and_throttle_key(): void
+    {
+        $user = $this->user();
+        $this->postJson('/api/dang-nhap', ['email' => 'AN@EXAMPLE.COM', 'password' => 'password'])
+            ->assertOk()->assertJsonPath('nguoi_dung.id', $user->id);
+    }
+
     public function test_expired_token_cannot_authenticate(): void
     {
         $user = $this->user();
@@ -71,7 +78,8 @@ class DangNhapTest extends TestCase
         $user = $this->user('bi_khoa');
         foreach (['bi_khoa', 'khong_hoat_dong'] as $status) {
             $user->update(['trang_thai' => $status]);
-            $this->postJson('/api/dang-nhap', ['email' => $user->email, 'password' => 'password'])->assertForbidden();
+            $this->postJson('/api/dang-nhap', ['email' => $user->email, 'password' => 'password'])
+                ->assertUnauthorized()->assertExactJson(['message' => 'Email hoặc mật khẩu không chính xác.']);
         }
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
@@ -127,5 +135,14 @@ class DangNhapTest extends TestCase
             $this->postJson('/api/dang-nhap', ['email' => 'missing@example.com', 'password' => 'wrong'])->assertUnauthorized();
         }
         $this->postJson('/api/dang-nhap', ['email' => 'missing@example.com', 'password' => 'wrong'])->assertStatus(429);
+    }
+
+    public function test_login_limit_is_per_canonical_account_with_a_high_shared_ip_ceiling(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/dang-nhap', ['email' => 'first@example.test', 'password' => 'wrong'])->assertUnauthorized();
+        }
+        $this->postJson('/api/dang-nhap', ['email' => 'FIRST@example.test', 'password' => 'wrong'])->assertStatus(429);
+        $this->postJson('/api/dang-nhap', ['email' => 'second@example.test', 'password' => 'wrong'])->assertUnauthorized();
     }
 }

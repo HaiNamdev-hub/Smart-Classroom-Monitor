@@ -508,6 +508,7 @@ class SinhVienKiemTraController extends Controller
         $cameraReady = $request->boolean('cameraReady');
 
         return DB::transaction(function () use ($baiTapId, $studentId, $cameraReady) {
+            // Keep this short, rare lock for the absent-attempt creation race.
             DB::table('bai_tap')->where('id', $baiTapId)->lockForUpdate()->first();
             $assignment = $this->assignment($baiTapId, $studentId);
             abort_unless(!ExamMode::requiresCamera($baiTapId) || $cameraReady, 422, 'Hình thức thi yêu cầu camera hoạt động trước khi bắt đầu.');
@@ -740,7 +741,12 @@ class SinhVienKiemTraController extends Controller
 
         return DB::transaction(function () use ($baiTapId, $studentId, $answers, $input) {
             // Serialize draft writes with submit and other draft writers.
-            DB::table('bai_tap')->where('id', $baiTapId)->lockForUpdate()->first();
+            $attempt = DB::table('bai_kiem_tra_luot_lam')
+                ->where('bai_tap_id', $baiTapId)
+                ->where('sinh_vien_id', $studentId)
+                ->lockForUpdate()
+                ->first();
+            abort_unless($attempt, 409, 'Chưa có lượt làm bài đang hoạt động.');
 
             if ($this->alreadySubmitted($baiTapId, $studentId)) {
                 return response()->json([
@@ -870,10 +876,12 @@ class SinhVienKiemTraController extends Controller
             $grace
         ) {
             // Khóa bài tập để hạn chế hai request nộp đồng thời
-            DB::table('bai_tap')
-                ->where('id', $baiTapId)
+            $attempt = DB::table('bai_kiem_tra_luot_lam')
+                ->where('bai_tap_id', $baiTapId)
+                ->where('sinh_vien_id', $studentId)
                 ->lockForUpdate()
                 ->first();
+            abort_unless($attempt, 409, 'Chưa có lượt làm bài đang hoạt động.');
 
             // Kiểm tra lại trạng thái sau khi lấy khóa
             if (
@@ -1151,17 +1159,15 @@ class SinhVienKiemTraController extends Controller
 
         return DB::transaction(function () use ($baiTapId, $studentId, $data, $assignment) {
             // Dùng chung hàng khóa với API cảnh báo camera và API nộp bài.
-            DB::table('bai_tap')
-                ->where('id', $baiTapId)
+            $attempt = DB::table('bai_kiem_tra_luot_lam')
+                ->where('bai_tap_id', $baiTapId)
+                ->where('sinh_vien_id', $studentId)
                 ->lockForUpdate()
                 ->first();
 
             $state = $this->violationStateData($baiTapId, $studentId);
             $daNop = $this->alreadySubmitted($baiTapId, $studentId);
-            $daBatDau = DB::table('bai_kiem_tra_luot_lam')
-                ->where('bai_tap_id', $baiTapId)
-                ->where('sinh_vien_id', $studentId)
-                ->exists();
+            $daBatDau = $attempt !== null;
 
             $query = DB::table('vi_pham_kiem_tra')
                 ->where('bai_tap_id', $baiTapId)

@@ -74,6 +74,13 @@ class ReportTabLeaveTest extends TestCase
             'created_at' => $now,
             'updated_at' => $now,
         ]);
+        DB::table('bai_kiem_tra_luot_lam')->insert([
+            'bai_tap_id' => $assignmentId,
+            'sinh_vien_id' => $studentId,
+            'bat_dau_luc' => $now->copy()->subMinutes(5),
+            'created_at' => $now->copy()->subMinutes(5),
+            'updated_at' => $now->copy()->subMinutes(5),
+        ]);
 
         $this->assertGreaterThan(0, $studentId);
         Sanctum::actingAs(NguoiDung::query()->findOrFail($userId));
