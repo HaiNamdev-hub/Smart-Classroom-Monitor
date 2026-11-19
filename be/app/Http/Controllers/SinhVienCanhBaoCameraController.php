@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use App\Support\ExamMode;
 
 class SinhVienCanhBaoCameraController extends Controller
 {
@@ -24,6 +25,8 @@ class SinhVienCanhBaoCameraController extends Controller
         Request $request,
         int $baiTapId
     ): JsonResponse {
+
+        abort_if(!ExamMode::requiresCamera($baiTapId), 409, 'Bài kiểm tra này không yêu cầu camera; không thể ghi nhận cảnh báo camera.');
 
         // ==========================================
         // 1. KIỂM TRA DỮ LIỆU ĐẦU VÀO
@@ -532,6 +535,7 @@ class SinhVienCanhBaoCameraController extends Controller
 
     public function storeEvidence(Request $request, int $baiTapId, string $eventId): JsonResponse
     {
+        abort_if(!ExamMode::requiresCamera($baiTapId), 409, 'Bài kiểm tra này không sử dụng bằng chứng camera.');
         $request->validate([
             'eventId' => ['required', 'uuid', 'in:' . $eventId],
             'image' => ['required', 'image', 'mimes:jpeg,jpg,webp', 'max:512'],
@@ -618,6 +622,7 @@ class SinhVienCanhBaoCameraController extends Controller
 
     public function markEvidenceFailed(Request $request, int $baiTapId, string $eventId): JsonResponse
     {
+        abort_if(!ExamMode::requiresCamera($baiTapId), 409, 'Bài kiểm tra này không sử dụng bằng chứng camera.');
         $request->validate(['eventId' => ['required', 'uuid', 'in:' . $eventId]]);
         $studentId = DB::table('sinh_vien')->where('nguoi_dung_id', $request->user()->id)->value('id');
         abort_unless($studentId, 403, 'Tài khoản không phải sinh viên.');

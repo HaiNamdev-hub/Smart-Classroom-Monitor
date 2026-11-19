@@ -10,6 +10,7 @@ use App\Models\Diem;
 use App\Models\HoatDong;
 use App\Models\LopHoc;
 use App\Models\PhienGiamSat;
+use App\Support\ExamMode;
 use App\Models\SinhVien;
 use App\Models\ThanhVienLop;
 use App\Support\ExamScoreAllocator;
@@ -1127,6 +1128,10 @@ public function ketThucPhien(
     {
         $session = $this->ownSession($request, $id);
         $session->load(['lopHoc', 'baiTap']);
+        $examMode = $session->bai_tap_id
+            ? ExamMode::forAssignment((int) $session->bai_tap_id)
+            : ExamMode::ONLINE_CAMERA_REQUIRED;
+        $cameraRequired = $examMode === ExamMode::ONLINE_CAMERA_REQUIRED;
 
         $members = ThanhVienLop::query()
             ->where('lop_hoc_id', $session->lop_hoc_id)
@@ -1143,6 +1148,11 @@ public function ketThucPhien(
             ->keyBy('nguoi_dung_id');
         $studentProfilesById = $studentProfilesByUserId->keyBy('id');
         $studentProfileIds = $studentProfilesByUserId->pluck('id')->filter()->unique()->values();
+
+        $attemptedProfileIds = $session->bai_tap_id && $studentProfileIds->isNotEmpty()
+            ? DB::table('bai_kiem_tra_luot_lam')->where('bai_tap_id', $session->bai_tap_id)
+                ->whereIn('sinh_vien_id', $studentProfileIds)->pluck('sinh_vien_id')->map(fn ($value) => (int) $value)->all()
+            : [];
 
         // 1. Bản đồ bài nộp
         $submittedMap = [];
@@ -1168,7 +1178,7 @@ public function ketThucPhien(
 
         // 3. Cảnh báo camera
         $cameraRecords = collect();
-        if ($session->bai_tap_id && $studentProfileIds->isNotEmpty()) {
+        if ($cameraRequired && $session->bai_tap_id && $studentProfileIds->isNotEmpty()) {
             $cameraRecords = DB::table('canh_bao_camera')
                 ->where('bai_tap_id', $session->bai_tap_id)
                 ->whereIn('sinh_vien_id', $studentProfileIds)
@@ -1192,7 +1202,9 @@ public function ketThucPhien(
             $tabViolations,
             $cameraGrouped,
             $tenLoaiCanhBao,
-            $studentProfilesByUserId
+            $studentProfilesByUserId,
+            $cameraRequired,
+            $attemptedProfileIds
         ) {
             $memberUserId = $m->sinh_vien_id;
             $profile = $studentProfilesByUserId->get($memberUserId);
@@ -1204,10 +1216,10 @@ public function ketThucPhien(
             $tabCount = (int) ($tabViolations[$profileId] ?? 0);
             $daNop = isset($submittedMap[$memberUserId]);
 
-            $isLocked = ($phoneCount >= 3) || ($otherCamCount >= 5) || ($tabCount >= 3);
-            $lockReason = $phoneCount >= 3
+            $isLocked = ($cameraRequired && (($phoneCount >= 3) || ($otherCamCount >= 5))) || ($tabCount >= 3);
+            $lockReason = $cameraRequired && $phoneCount >= 3
                 ? 'dien_thoai'
-                : ($otherCamCount >= 5
+                : ($cameraRequired && $otherCamCount >= 5
                     ? 'camera'
                     : ($tabCount >= 3 ? 'roi_tab' : null));
 
@@ -1229,6 +1241,8 @@ public function ketThucPhien(
                 'hoTen' => $profile?->nguoiDung?->ho_ten ?? 'Sinh viên',
                 'email' => $profile?->nguoiDung?->email ?? '',
                 'daNopBai' => $daNop,
+                'attemptStarted' => $profileId ? in_array((int) $profileId, $attemptedProfileIds, true) : false,
+                'trangThaiCamera' => $cameraRequired ? 'unknown' : 'not_required',
                 'soLanViPham' => $tabCount,
                 'soLanCamera' => $otherCamCount,
                 'soLanDienThoai' => $phoneCount,
@@ -1263,6 +1277,9 @@ public function ketThucPhien(
                         'evidenceUrl' => $imageId ? "/api/giang-vien/anh-man-hinh/{$imageId}/file" : null,
                     ];
                 });
+            if (!$cameraRequired) {
+                $camAlerts = collect();
+            }
 
             $tabAlerts = DB::table('vi_pham_kiem_tra')
                 ->where('bai_tap_id', $session->bai_tap_id)
@@ -1337,6 +1354,11 @@ public function ketThucPhien(
                     'tenLop' => $session->lopHoc?->ten_lop,
                     'baiTapId' => $session->bai_tap_id,
                     'tenBaiKiemTra' => $session->baiTap?->tieu_de,
+                    'hinhThucKiemTra' => $examMode,
+                    'tenHinhThucKiemTra' => $examMode === ExamMode::LAB_NO_CAMERA
+                        ? 'Thi tại phòng máy'
+                        : 'Thi trực tuyến',
+                    'yeuCauCamera' => $cameraRequired,
                     'thoigianBatDau' => $session->thoi_gian_bat_dau?->toISOString(),
                     'thoigianKetThuc' => $session->thoi_gian_ket_thuc?->toISOString(),
                 ],

@@ -117,9 +117,12 @@ class ExamReportExportService
         $this->overviewField($sheet, 'K6:L6', 'M6:N6', 'Kết thúc', $this->date($meta['exam']->thoi_gian_ket_thuc), true);
         $this->overviewField($sheet, 'A7:B7', 'C7:J7', 'Khoảng thời gian lọc', $this->reportPeriod($meta));
         $this->overviewField($sheet, 'K7:L7', 'M7:N7', 'Xuất báo cáo', $this->date($meta['generated_at'] ?? null), true);
+        $this->overviewField($sheet, 'A8:B8', 'C8:F8', 'Hình thức thi', $meta['exam_mode_label'] ?? 'Thi trực tuyến — Camera AI bắt buộc');
+        $this->overviewField($sheet, 'G8:H8', 'I8:N8', 'Giám sát camera', ($meta['camera_monitoring'] ?? true) ? 'Được yêu cầu' : 'Không yêu cầu');
         $sheet->getRowDimension(5)->setRowHeight(28);
         $sheet->getRowDimension(6)->setRowHeight(28);
         $sheet->getRowDimension(7)->setRowHeight(28);
+        $sheet->getRowDimension(8)->setRowHeight(28);
 
         $this->overviewSection($sheet, 9, 'CHỈ SỐ TỔNG QUAN');
         $cards = [

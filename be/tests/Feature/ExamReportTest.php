@@ -42,6 +42,8 @@ class ExamReportTest extends TestCase
 
         $response = $this->actingAs($teacher, 'sanctum')->getJson('/api/giang-vien/bao-cao-ky-thi?class_id='.$classId.'&exam_id='.$examId);
         $response->assertOk()->assertJsonPath('data.students.0.user_id', $studentUser->id)
+            ->assertJsonPath('data.meta.exam_mode', 'ONLINE_CAMERA_REQUIRED')
+            ->assertJsonPath('data.meta.camera_monitoring', true)
             ->assertJsonPath('data.students.0.student_profile_id', $profileId)
             ->assertJsonPath('data.students.0.attempt_id', $attemptId)
             ->assertJsonPath('data.students.0.submission_id', $submissionId)
@@ -89,6 +91,8 @@ class ExamReportTest extends TestCase
             $this->assertSame('dd/mm/yyyy hh:mm:ss', $overview->getStyle('M7')->getNumberFormat()->getFormatCode());
             $this->assertSame('dd/mm/yyyy hh:mm:ss', $overview->getStyle('I6')->getNumberFormat()->getFormatCode());
             $this->assertSame('General', $overview->getStyle('C5')->getNumberFormat()->getFormatCode());
+            $this->assertSame('Thi trực tuyến — Camera AI bắt buộc', $overview->getCell('C8')->getValue());
+            $this->assertSame('Được yêu cầu', $overview->getCell('I8')->getValue());
             $this->assertSame('Phát hiện điện thoại', $overview->getCell('P6')->getValue());
             $this->assertSame(1, (int) $overview->getCell('Q6')->getValue());
             $this->assertSame(1, (int) $overview->getCell('Q2')->getValue());

@@ -29,6 +29,7 @@
       {{ success }}
     </div>
     <LichKiemTra :bai-tap-id="baiTapId" />
+    <HinhThucKiemTra :bai-tap-id="baiTapId" />
     <CauHinhTronDe :bai-tap-id="baiTapId" />
     <section class="stats">
       <div>
@@ -545,6 +546,7 @@ import {
 import api from "../../../services/api"
 import LichKiemTra from "./LichKiemTra.vue"
 import CauHinhTronDe from "./CauHinhTronDe.vue"
+import HinhThucKiemTra from "./HinhThucKiemTra.vue"
 
 const route = useRoute()
 const router = useRouter()

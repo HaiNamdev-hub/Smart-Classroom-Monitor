@@ -15,37 +15,6 @@ use Smalot\PdfParser\Parser as PdfParser;
 
 class GiangVienNhapCauHoiController extends Controller
 {
-    /** Parse a bank import with the same readers as assignment import; no assignment is modified. */
-    public function previewQuestionBank(Request $request): JsonResponse
-    {
-        $request->validate([
-            'file' => ['required', 'file', 'max:10240', 'mimes:docx,xlsx,pdf'],
-        ]);
-
-        $file = $request->file('file');
-        $extension = strtolower($file->getClientOriginalExtension());
-        $path = $file->getRealPath();
-
-        try {
-            if ($extension === 'xlsx') {
-                $questions = $this->readExcel($path);
-            } elseif ($extension === 'docx') {
-                $questions = $this->parseText($this->readDocxText($path));
-            } else {
-                $questions = $this->parseText((new PdfParser())->parseFile($path)->getText());
-            }
-        } catch (\Throwable $exception) {
-            report($exception);
-            return response()->json(['status' => false, 'message' => 'Không đọc được tài liệu. Hãy kiểm tra định dạng và mẫu câu hỏi.'], 422);
-        }
-
-        if ($questions === []) {
-            return response()->json(['status' => false, 'message' => 'Không nhận diện được câu hỏi trong file.'], 422);
-        }
-
-        return response()->json(['status' => true, 'data' => array_slice($questions, 0, 200)]);
-    }
-
     /**
      * Kiểm tra giảng viên có quyền quản lý bài tập.
      */

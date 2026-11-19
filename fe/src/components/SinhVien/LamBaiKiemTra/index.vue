@@ -121,8 +121,9 @@
             <h2>{{ cameraReady ? 'Đang chuẩn bị bài thi' : 'Bật camera để tiếp tục' }}</h2>
             <p v-if="error">{{ error }}</p>
             <p v-else-if="cameraReady">Đang xác nhận trạng thái làm bài với máy chủ. Câu hỏi sẽ xuất hiện sau khi xác nhận thành công.</p>
-            <p v-else>Cho phép webcam để tiếp tục. Câu trả lời và thời gian làm bài được giữ nguyên khi camera kết nối lại.</p>
-            <p class="evidence-privacy-notice">AI có thể lưu ảnh webcam khi xác nhận cảnh báo; không ghi video và không yêu cầu chia sẻ màn hình.</p>
+            <p v-else-if="requiresCamera">Cho phép webcam để tiếp tục. Câu trả lời và thời gian làm bài được giữ nguyên khi camera kết nối lại.</p>
+            <p v-else>Đang đồng bộ trạng thái bài thi và chuẩn bị lượt làm. Hình thức này không sử dụng camera.</p>
+            <p v-if="requiresCamera" class="evidence-privacy-notice">AI có thể lưu ảnh webcam khi xác nhận cảnh báo; không ghi video và không yêu cầu chia sẻ màn hình.</p>
             <button v-if="error && cameraReady" type="button" class="btn primary" @click="beginExamWhenReady">Thử bắt đầu lại</button>
           </section>
 
@@ -140,7 +141,7 @@
               <span class="violation-badge" :class="{ 'warning-level': warningCount >= 2 }">{{ warningCount }}/3 lần rời tab</span>
             </div>
 
-            <div v-if="examPhase === 'CAMERA_BLOCKED'" class="camera-off-notice" role="alert">
+            <div v-if="requiresCamera && examPhase === 'CAMERA_BLOCKED'" class="camera-off-notice" role="alert">
               <strong>Camera đang tắt</strong>
               <span>Hãy bật lại camera ở bảng bên cạnh. Bài làm và thời gian còn lại được giữ nguyên.</span>
             </div>
@@ -192,7 +193,7 @@
         </section>
 
         <aside class="exam-sidebar">
-          <section v-if="exam && cameraEnabled && (fullscreenActive || cameraReady) && !locked && !loading"
+          <section v-if="requiresCamera && exam && cameraEnabled && (fullscreenActive || cameraReady) && !locked && !loading"
             class="camera-panel" :class="{ 'camera-panel-paused': officialExamActive && !fullscreenActive }">
             <GiamSatCamera :exam-in-progress="officialExamActive" @warning="handleCameraWarning" @normal="handleCameraNormal"
               @camera-starting="handleCameraStarting" @camera-state="handleCameraState"
@@ -358,6 +359,7 @@ import studentSender from "../../../services/webrtc/studentSender"
 import { useExamProtection } from "../../../services/useExamProtection"
 import { examDraftBackup, fingerprintAnswers } from "../../../services/examDraftBackup"
 import { createDraftSaveQueue } from "../../../services/draftSaveQueue"
+import { cameraRequiredForExam } from "../../../services/examMode"
 
 import { shallowRef } from "vue"
 
@@ -438,6 +440,10 @@ const monitorReady = ref(false)
 const cameraEnabled = ref(false)
 const cameraReady = ref(false)
 const examPhase = ref('PRE_EXAM')
+const cameraRequiredSetting = ref(true)
+const requiresCamera = computed(() => exam.value
+  ? (exam.value.yeuCauCamera ?? cameraRequiredForExam(exam.value.hinhThucKiemTra))
+  : cameraRequiredSetting.value)
 const officialExamActive = computed(() => ['IN_PROGRESS', 'CAMERA_BLOCKED'].includes(examPhase.value))
 
 const protectionActive = computed(() => Boolean(
@@ -701,7 +707,7 @@ const canEdit = computed(() =>
   loaded &&
   exam.value !== null &&
   monitorReady.value &&
-  cameraReady.value &&
+  (!requiresCamera.value || cameraReady.value) &&
   !locked.value &&
   !submitted &&
   !submitting.value &&
@@ -740,7 +746,7 @@ async function beginExamWhenReady() {
     return startExamRequest
   }
   if (examPhase.value === 'PRE_EXAM' && fullscreenActive.value) examPhase.value = 'PREPARING'
-  if (!loaded || !fullscreenActive.value || !cameraReady.value || !monitorReady.value || locked.value || submitted) {
+  if (!loaded || !fullscreenActive.value || (requiresCamera.value && !cameraReady.value) || !monitorReady.value || locked.value || submitted) {
     return
   }
   if (document.visibilityState !== 'visible' || (typeof document.hasFocus === 'function' && !document.hasFocus())) {
@@ -750,7 +756,7 @@ async function beginExamWhenReady() {
   examPhase.value = 'PREPARING'
   startExamRequest = api.post(endpoint('/bat-dau'), {
     fullscreen: fullscreenActive.value,
-    cameraReady: cameraReady.value,
+    ...(requiresCamera.value ? { cameraReady: cameraReady.value } : {}),
   })
     .then((response) => {
       if (response.data?.status === false || response.data?.success === false) {
@@ -781,7 +787,7 @@ async function beginExamWhenReady() {
   return startExamRequest
 }
 
-watch([fullscreenActive, cameraReady, monitorReady], () => {
+watch([fullscreenActive, cameraReady, monitorReady, requiresCamera], () => {
   if (examPhase.value !== 'SUBMITTED') void beginExamWhenReady()
 })
 
@@ -985,7 +991,7 @@ const draftSaver = createDraftSaveQueue({
   getVersion: () => saveVersion,
   getSnapshot: cloneAnswers,
   canSave: force => loaded && !submitted && !locked.value && !submitting.value &&
-    remainingSeconds.value > 0 && (force || (monitorReady.value && cameraReady.value)),
+    remainingSeconds.value > 0 && (force || (monitorReady.value && (!requiresCamera.value || cameraReady.value))),
   send: async snapshot => {
     const response = await api.put(endpoint('/nhap'), {
       answers: snapshot,
@@ -1089,8 +1095,7 @@ function applyViolationState(data) {
 
   if (
     data?.biKhoa === true ||
-    phoneWarningCount.value >= 3 ||
-    cameraWarningCount.value >= 5 ||
+    (requiresCamera.value && (phoneWarningCount.value >= 3 || cameraWarningCount.value >= 5)) ||
     warningCount.value >= 3
   ) {
     lockReason.value =
@@ -1139,6 +1144,7 @@ async function fetchViolationState() {
   )
 
   const data = response.data?.data ?? response.data
+  if (typeof data?.yeuCauCamera === 'boolean') cameraRequiredSetting.value = data.yeuCauCamera
   if (data?.phienGiamSat?.id) {
     phienGiamSatId.value = data.phienGiamSat.id
   }
@@ -1356,6 +1362,7 @@ async function loadExam() {
   localDraftCandidate.value = null
   localDraftConflict.value = false
   examPhase.value = 'PRE_EXAM'
+  cameraRequiredSetting.value = true
   monitorReady.value = false
   loaded = false
   exam.value = null
@@ -1409,6 +1416,7 @@ async function loadExam() {
     if (generation !== requestGeneration) return
 
     exam.value = data
+    cameraRequiredSetting.value = data.yeuCauCamera !== false
     if (data?.phienGiamSat?.id) {
       phienGiamSatId.value = data.phienGiamSat.id
     }
@@ -1450,7 +1458,8 @@ async function loadExam() {
     if (generation !== requestGeneration) return
 
     await resumeMonitoring()
-    cameraEnabled.value = !locked.value && !submitted
+    cameraReady.value = !requiresCamera.value
+    cameraEnabled.value = requiresCamera.value && !locked.value && !submitted
 
     if (
       !locked.value &&
@@ -1483,7 +1492,7 @@ async function saveDraft(force = false) {
     !loaded ||
     submitted ||
     locked.value ||
-    (!force && (!monitorReady.value || !cameraReady.value)) ||
+    (!force && (!monitorReady.value || (requiresCamera.value && !cameraReady.value))) ||
     submitting.value ||
     remainingSeconds.value <= 0
   ) {

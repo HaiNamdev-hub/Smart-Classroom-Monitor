@@ -38,6 +38,11 @@
       <section class="stats">
         <article v-for="item in cards" :key="item[0]"><span>{{ item[0] }}</span><strong>{{ item[1] }}</strong></article>
       </section>
+      <section class="exam-mode-summary">
+        <strong>Hình thức kiểm tra</strong>
+        <span>{{ report.meta?.exam_mode_label || 'Thi trực tuyến — Camera AI bắt buộc' }}</span>
+        <small>{{ report.meta?.camera_monitoring === false ? 'Không yêu cầu camera giám sát.' : 'Camera AI được yêu cầu cho hình thức này.' }}</small>
+      </section>
       <section class="sheet-picker"><strong>Các trang tính sẽ xuất</strong><label v-for="s in sheetOptions"
           :key="s.value"><input v-model="selectedSheets" type="checkbox" :value="s.value"> {{ s.label }}</label>
       </section>
@@ -273,6 +278,8 @@ th {
   padding: 12px;
   margin: 0
 }
+
+.exam-mode-summary{display:grid;gap:5px;margin:0 0 18px;padding:14px 16px;border-left:4px solid #2563eb;border-radius:8px;background:#eff6ff;color:#1e3a8a}.exam-mode-summary small{color:#475569}
 
 @media(max-width:700px) {
   .report-page {

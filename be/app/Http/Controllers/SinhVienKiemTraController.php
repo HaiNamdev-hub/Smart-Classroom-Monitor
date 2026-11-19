@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use App\Support\ExamScoreAllocator;
+use App\Support\ExamMode;
 
 class SinhVienKiemTraController extends Controller
 {
@@ -258,9 +259,10 @@ class SinhVienKiemTraController extends Controller
             ->where('loai_canh_bao', '!=', 'phat_hien_dien_thoai')
             ->count();
 
-        $reason = $phoneCount >= 3
+        $cameraRequired = ExamMode::requiresCamera($baiTapId);
+        $reason = ($cameraRequired && $phoneCount >= 3)
             ? 'dien_thoai'
-            : ($otherCameraCount >= 5
+            : ($cameraRequired && $otherCameraCount >= 5
                 ? 'camera'
                 : ($tabCount >= 3 ? 'roi_tab' : null));
 
@@ -450,6 +452,8 @@ class SinhVienKiemTraController extends Controller
                 'id' => $assignment->id,
                 'tieuDe' => $assignment->tieu_de,
                 'moTa' => $assignment->mo_ta,
+                'hinhThucKiemTra' => ExamMode::forAssignment($baiTapId),
+                'yeuCauCamera' => ExamMode::requiresCamera($baiTapId),
 
                 'deadline' =>
                 $deadline->toIso8601String(),
@@ -492,15 +496,21 @@ class SinhVienKiemTraController extends Controller
     /** Mark the moment the student has entered fullscreen and camera preparation is complete. */
     public function startExam(Request $request, int $baiTapId): JsonResponse
     {
-        $request->validate([
+        $validationRules = [
             'fullscreen' => ['required', 'accepted'],
-            'cameraReady' => ['required', 'accepted'],
-        ]);
+        ];
+        if (ExamMode::requiresCamera($baiTapId)) {
+            $validationRules['cameraReady'] = ['required', 'accepted'];
+        }
+        $request->validate($validationRules);
         $studentId = $this->studentId($request);
 
-        return DB::transaction(function () use ($baiTapId, $studentId) {
+        $cameraReady = $request->boolean('cameraReady');
+
+        return DB::transaction(function () use ($baiTapId, $studentId, $cameraReady) {
             DB::table('bai_tap')->where('id', $baiTapId)->lockForUpdate()->first();
             $assignment = $this->assignment($baiTapId, $studentId);
+            abort_unless(!ExamMode::requiresCamera($baiTapId) || $cameraReady, 422, 'Hình thức thi yêu cầu camera hoạt động trước khi bắt đầu.');
             $this->ensureStarted($assignment);
             $this->assertExamNotLocked($baiTapId, $studentId);
 
@@ -557,6 +567,8 @@ class SinhVienKiemTraController extends Controller
                 'status' => true,
                 'data' => [
                     'trangThaiLamBai' => 'IN_PROGRESS',
+                    'hinhThucKiemTra' => ExamMode::forAssignment($baiTapId),
+                    'yeuCauCamera' => ExamMode::requiresCamera($baiTapId),
                     'batDauLuc' => $startedAt->toIso8601String(),
                     'duplicate' => $duplicate,
                     // The client adopts this server-persisted order without reloading
@@ -1275,6 +1287,8 @@ class SinhVienKiemTraController extends Controller
             'trangThai' => $activeSession->trang_thai,
         ] : null;
         $state['sinhVienId'] = $sinhVienId;
+        $state['hinhThucKiemTra'] = ExamMode::forAssignment($baiTapId);
+        $state['yeuCauCamera'] = ExamMode::requiresCamera($baiTapId);
         $state['trangThaiLamBai'] = $state['daNop']
             ? 'SUBMITTED'
             : (DB::table('bai_kiem_tra_luot_lam')

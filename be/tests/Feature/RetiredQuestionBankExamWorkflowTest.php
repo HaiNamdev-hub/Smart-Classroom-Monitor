@@ -19,6 +19,24 @@ class RetiredQuestionBankExamWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_question_bank_api_routes_are_removed(): void
+    {
+        $routes = [
+            ['GET', '/api/giang-vien/ngan-hang-cau-hoi'],
+            ['POST', '/api/giang-vien/ngan-hang-cau-hoi'],
+            ['POST', '/api/giang-vien/ngan-hang-cau-hoi/import-preview'],
+            ['POST', '/api/giang-vien/ngan-hang-cau-hoi/import-save'],
+            ['GET', '/api/giang-vien/ngan-hang-cau-hoi/1'],
+            ['PUT', '/api/giang-vien/ngan-hang-cau-hoi/1'],
+            ['POST', '/api/giang-vien/ngan-hang-cau-hoi/1/duplicate'],
+            ['PATCH', '/api/giang-vien/ngan-hang-cau-hoi/1/deactivate'],
+        ];
+
+        foreach ($routes as [$method, $url]) {
+            $this->call($method, $url)->assertNotFound();
+        }
+    }
+
     public function test_phase_three_routes_are_removed(): void
     {
         $teacherId = $this->user('giang_vien', 'teacher');

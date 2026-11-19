@@ -63,7 +63,7 @@
           </div>
         </div>
 
-        <div class="stat-card">
+        <div v-if="cameraRequired" class="stat-card">
           <div class="stat-icon green">🎥</div>
           <div class="stat-info">
             <span>Đang truyền webcam</span>
@@ -72,7 +72,7 @@
           </div>
         </div>
 
-        <div class="stat-card">
+        <div v-if="cameraRequired" class="stat-card">
           <div class="stat-icon blue">↻</div>
           <div class="stat-info">
             <span>Đang kết nối</span>
@@ -81,7 +81,7 @@
           </div>
         </div>
 
-        <div class="stat-card">
+        <div v-if="cameraRequired" class="stat-card">
           <div class="stat-icon orange">⚠️</div>
           <div class="stat-info">
             <span>Chưa bật / Mất kết nối</span>
@@ -109,6 +109,11 @@
         </div>
       </div>
 
+      <div class="exam-mode-banner" :class="{ lab: !cameraRequired }">
+        <strong>{{ cameraRequired ? 'Thi trực tuyến — Camera AI bắt buộc' : 'Thi tại phòng máy — Không yêu cầu camera' }}</strong>
+        <span>{{ cameraRequired ? 'Kết nối webcam được báo cáo theo trạng thái WebRTC và video track.' : 'Không khởi tạo WebRTC video và không tính thiếu camera là mất kết nối. Trạng thái lượt làm và cảnh báo bảo vệ vẫn được cập nhật.' }}</span>
+      </div>
+
       <!-- MAIN LAYOUT: LƯỚI CAMERA VÀ SIDEBAR CẢNH BÁO -->
       <div class="monitor-content">
         <!-- CỘT TRÁI: THANH CÔNG CỤ & LƯỚI CAMERA -->
@@ -126,7 +131,7 @@
             </div>
 
             <div class="filter-group">
-              <select v-model="filterStatus" class="filter-select">
+              <select v-if="cameraRequired" v-model="filterStatus" class="filter-select">
                 <option value="all">Tất cả trạng thái camera</option>
                 <option value="live">Đang truyền trực tiếp</option>
                 <option value="connecting">Đang kết nối</option>
@@ -144,7 +149,7 @@
           </div>
 
           <!-- LƯỚI CAMERA SINH VIÊN -->
-          <div class="camera-grid">
+          <div v-if="cameraRequired" class="camera-grid">
             <StudentCamera
               v-for="st in students"
               :key="st.sinhVienId"
@@ -155,6 +160,18 @@
               @alert-received="handleAlertReceived"
               @connection-state="handleConnectionState"
             />
+          </div>
+
+          <div v-else class="lab-student-grid">
+            <article v-for="st in filteredStudents" :key="st.sinhVienId" class="lab-student-card">
+              <div><strong>{{ st.hoTen }}</strong><span>{{ st.maSinhVien }}</span></div>
+              <span class="lab-mode-status">Không yêu cầu camera</span>
+              <div class="lab-student-state">
+                <span>{{ st.daNopBai ? 'Đã nộp bài' : (st.attemptStarted ? 'Đang làm bài' : 'Chưa bắt đầu') }}</span>
+                <span v-if="st.biKhoa" class="locked-state">Bài bị khóa</span>
+                <span v-if="(st.soLanViPham || 0) > 0" class="violation-state">Rời tab {{ st.soLanViPham }}/3</span>
+              </div>
+            </article>
           </div>
 
           <div v-if="filteredStudents.length === 0" class="empty-state">
@@ -255,6 +272,7 @@ const phienId = computed(() => route.query.phienId || route.params.phienId)
 const loading = ref(false)
 const error = ref('')
 const phienInfo = ref(null)
+const cameraRequired = computed(() => phienInfo.value?.yeuCauCamera !== false)
 const students = ref([])
 const recentAlerts = ref([])
 const reviewingEventIds = ref([])
@@ -297,7 +315,7 @@ const lockedCount = computed(() => {
 
 const totalAlertCount = computed(() => {
   const monitoringCounts = students.value.reduce((acc, s) => {
-    return acc + (s.soLanViPham || 0) + (s.soLanCamera || 0) + (s.soLanDienThoai || 0)
+    return acc + (s.soLanViPham || 0) + (cameraRequired.value ? ((s.soLanCamera || 0) + (s.soLanDienThoai || 0)) : 0)
   }, 0)
   const screenshotEvents = recentAlerts.value.filter(
     alert => alert.loai === 'SCREENSHOT_SHORTCUT_DETECTED'
@@ -318,11 +336,11 @@ const filteredStudents = computed(() => {
     }
 
     // 2. Lọc theo trạng thái
-    if (filterStatus.value === 'submitted' && !s.daNopBai) return false
-    if (filterStatus.value === 'locked' && !s.biKhoa) return false
-    if (filterStatus.value === 'live' && (s.daNopBai || s.biKhoa || s.webcamStatus !== 'connected')) return false
-    if (filterStatus.value === 'connecting' && s.webcamStatus !== 'connecting') return false
-    if (filterStatus.value === 'offline' && (
+    if (cameraRequired.value && filterStatus.value === 'submitted' && !s.daNopBai) return false
+    if (cameraRequired.value && filterStatus.value === 'locked' && !s.biKhoa) return false
+    if (cameraRequired.value && filterStatus.value === 'live' && (s.daNopBai || s.biKhoa || s.webcamStatus !== 'connected')) return false
+    if (cameraRequired.value && filterStatus.value === 'connecting' && s.webcamStatus !== 'connecting') return false
+    if (cameraRequired.value && filterStatus.value === 'offline' && (
       s.daNopBai || s.biKhoa ||
       !['waiting', 'camera_stopped', 'disconnected', 'failed'].includes(s.webcamStatus)
     )) return false
@@ -412,7 +430,9 @@ async function fetchSessionDetail() {
     )
     students.value = (data.students || []).map((student) => ({
       ...student,
-      webcamStatus: previousStatuses.get(Number(student.sinhVienId)) || 'waiting',
+      webcamStatus: student.trangThaiCamera === 'not_required'
+        ? 'not_required'
+        : (previousStatuses.get(Number(student.sinhVienId)) || 'waiting'),
     }))
     recentAlerts.value = data.recentAlerts || []
 
@@ -764,6 +784,8 @@ onBeforeUnmount(() => {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
 }
+
+.exam-mode-banner{display:grid;gap:4px;margin:0 0 18px;padding:14px 18px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#1e3a8a}.exam-mode-banner span{font-size:13px}.exam-mode-banner.lab{border-color:#a7f3d0;background:#ecfdf5;color:#065f46}.lab-student-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}.lab-student-card{display:grid;gap:12px;padding:16px;border:1px solid var(--border-color,#cbd5e1);border-radius:12px;background:var(--bg-card,#fff)}.lab-student-card>div:first-child{display:grid;gap:3px}.lab-student-card>div:first-child span{font-size:12px;color:#64748b}.lab-mode-status{width:max-content;padding:5px 9px;border-radius:999px;background:#ecfdf5;color:#047857;font-size:12px;font-weight:700}.lab-student-state{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:#475569}.lab-student-state .locked-state{color:#b91c1c}.lab-student-state .violation-state{color:#b45309}
 
 .empty-state {
   padding: 48px 24px;

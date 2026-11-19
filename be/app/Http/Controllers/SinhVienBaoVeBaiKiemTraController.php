@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Events\ExamProtectionAlertEvent;
+use App\Support\ExamMode;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -89,7 +90,8 @@ class SinhVienBaoVeBaiKiemTraController extends Controller
                 ->where('sinh_vien_id', $student->id);
             $phoneCount = (clone $cameraQuery)->where('loai_canh_bao', 'phat_hien_dien_thoai')->count();
             $otherCameraCount = (clone $cameraQuery)->where('loai_canh_bao', '<>', 'phat_hien_dien_thoai')->count();
-            abort_if($tabCount >= 3 || $phoneCount >= 3 || $otherCameraCount >= 5, 403, 'Bài kiểm tra đã bị khóa.');
+            $cameraRequired = ExamMode::requiresCamera($baiTapId);
+            abort_if($tabCount >= 3 || ($cameraRequired && ($phoneCount >= 3 || $otherCameraCount >= 5)), 403, 'Bài kiểm tra đã bị khóa.');
 
             $existing = DB::table('su_kien_bao_ve_bai_kiem_tra')
                 ->where('event_id', $data['eventId'])

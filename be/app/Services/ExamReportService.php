@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\ExamMode;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -94,7 +95,18 @@ class ExamReportService
         $alertCounts = collect($events)->groupBy('type_label')->map(fn($group, $label) => ['label' => $label, 'count' => $group->count()])->values();
 
         return [
-            'meta' => ['class' => $class, 'exam' => $exam, 'sessions' => $sessions, 'filters' => $filters, 'generated_at' => now()->toISOString()],
+            'meta' => [
+                'class' => $class,
+                'exam' => $exam,
+                'sessions' => $sessions,
+                'filters' => $filters,
+                'generated_at' => now()->toISOString(),
+                'exam_mode' => ExamMode::forAssignment($examId),
+                'exam_mode_label' => ExamMode::forAssignment($examId) === ExamMode::LAB_NO_CAMERA
+                    ? 'Thi tại phòng máy — Không yêu cầu camera'
+                    : 'Thi trực tuyến — Camera AI bắt buộc',
+                'camera_monitoring' => ExamMode::requiresCamera($examId),
+            ],
             'students' => $selectedStudents->all(),
             'alerts' => $events,
             'summary' => [
