@@ -35,17 +35,21 @@ const wsHost =
         ? defaultWsHost
         : (rawWsHost || defaultWsHost)
 
-const wsPort = Number(
-    import.meta.env.VITE_REVERB_PORT ||
-    import.meta.env.VITE_PUSHER_PORT ||
-    (isProduction ? 443 : 8080)
-)
+const wsPort = isProduction
+    ? 443
+    : Number(
+        import.meta.env.VITE_REVERB_PORT ||
+        import.meta.env.VITE_PUSHER_PORT ||
+        8080
+    )
 
-const wssPort = Number(
-    import.meta.env.VITE_REVERB_PORT ||
-    import.meta.env.VITE_PUSHER_PORT ||
-    443
-)
+const wssPort = isProduction
+    ? 443
+    : Number(
+        import.meta.env.VITE_REVERB_PORT ||
+        import.meta.env.VITE_PUSHER_PORT ||
+        443
+    )
 
 const echo = new Echo({
     broadcaster: 'reverb',
