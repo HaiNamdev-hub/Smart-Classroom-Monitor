@@ -9,7 +9,8 @@ import "bootstrap/dist/css/bootstrap.min.css"
 import axios from "axios"
 
 // Thiết lập baseURL và timeout toàn cục cho axios
-const apiBase = import.meta.env.VITE_API_BASE_URL || ""
+const rawApiBase = import.meta.env.VITE_API_BASE_URL || ""
+const apiBase = rawApiBase.replace(/\/+$/, "")
 if (apiBase) {
   axios.defaults.baseURL = apiBase
 }

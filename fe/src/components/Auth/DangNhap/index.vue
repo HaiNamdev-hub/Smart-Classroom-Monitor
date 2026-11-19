@@ -522,7 +522,7 @@ async function dangNhap() {
         headers: {
           Accept: "application/json",
         },
-        timeout: 15000,
+        timeout: 60000,
       }
     )
 
