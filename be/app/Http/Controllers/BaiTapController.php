@@ -102,10 +102,15 @@ class BaiTapController extends CrudController
             // 3. LẤY LỚP ĐANG HỌC
             // =====================================
 
+            // thanh_vien_lop.sinh_vien_id references nguoi_dung.id.
+            // Keep the profile ID for attempt-related records, but use the
+            // authenticated account ID for class membership and submissions.
+            $studentUserId = (int) $nguoiDung->id;
+
             $lopHocIds = ThanhVienLop::query()
                 ->where(
                     'sinh_vien_id',
-                    $sinhVienId
+                    $studentUserId
                 )
                 ->where(
                     'trang_thai',
@@ -154,11 +159,11 @@ class BaiTapController extends CrudController
                     'nguoiTao:id,ho_ten,email',
 
                     'baiNops' => function ($query) use (
-                        $sinhVienId
+                        $studentUserId
                     ) {
                         $query->where(
                             'sinh_vien_id',
-                            $sinhVienId
+                            $studentUserId
                         );
                     },
                 ])
