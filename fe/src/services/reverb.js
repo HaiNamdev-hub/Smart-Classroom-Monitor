@@ -7,12 +7,17 @@ import { getToken } from '../router/checkToken'
 window.Pusher = Pusher
 
 const isProduction =
-    typeof window !== 'undefined' &&
-    window.location.hostname !== 'localhost' &&
-    window.location.hostname !== '127.0.0.1'
+    Boolean(import.meta.env.PROD) ||
+    (typeof window !== 'undefined' &&
+        window.location.hostname !== 'localhost' &&
+        window.location.hostname !== '127.0.0.1')
 
-const scheme =
-    import.meta.env.VITE_REVERB_SCHEME || (isProduction ? 'https' : 'http')
+const isHttps =
+    (typeof window !== 'undefined' && window.location.protocol === 'https:') ||
+    isProduction ||
+    import.meta.env.VITE_REVERB_SCHEME === 'https'
+
+const scheme = isHttps ? 'https' : (import.meta.env.VITE_REVERB_SCHEME || 'http')
 
 const rawApiBase =
     import.meta.env.VITE_API_BASE_URL ||
@@ -25,17 +30,26 @@ const defaultWsHost = isProduction
     ? 'smart-classroom-monitor.onrender.com'
     : '127.0.0.1'
 
-const rawWsHost =
+let rawWsHost = (
     import.meta.env.VITE_REVERB_HOST ||
-    import.meta.env.VITE_PUSHER_HOST
+    import.meta.env.VITE_PUSHER_HOST ||
+    ''
+).trim()
 
-// Khi chạy trên web Vercel, tự động trỏ về Render domain nếu bị set nhầm localhost
+// Tự động sửa lỗi gõ nhầm dấu gạch dưới '_' thay vì '-' trên domain Render
+if (rawWsHost.includes('onrender.com')) {
+    rawWsHost = rawWsHost.replace(/_/g, '-')
+}
+
+// Khi chạy trên web production (Vercel), tự động trỏ về Render domain nếu bị set nhầm localhost/127.0.0.1
 const wsHost =
     isProduction && (!rawWsHost || rawWsHost === 'localhost' || rawWsHost === '127.0.0.1')
         ? defaultWsHost
         : (rawWsHost || defaultWsHost)
 
-const wsPort = isProduction
+// Trên Cloud (Render), port bên ngoài luôn luôn là 443 (HTTPS/WSS).
+// Không bao giờ dùng port 8080 cho client WSS vì Render chỉ mở port 443 ra ngoài Internet.
+const wsPort = isHttps
     ? 443
     : Number(
         import.meta.env.VITE_REVERB_PORT ||
@@ -43,13 +57,15 @@ const wsPort = isProduction
         8080
     )
 
-const wssPort = isProduction
+const wssPort = isHttps
     ? 443
     : Number(
         import.meta.env.VITE_REVERB_PORT ||
         import.meta.env.VITE_PUSHER_PORT ||
         443
     )
+
+const forceTLS = scheme === 'https' || isHttps
 
 const echo = new Echo({
     broadcaster: 'reverb',
@@ -63,10 +79,9 @@ const echo = new Echo({
     wsPort,
     wssPort,
 
-    forceTLS: scheme === 'https',
+    forceTLS,
 
-    enabledTransports:
-        scheme === 'https' ? ['wss'] : ['ws'],
+    enabledTransports: forceTLS ? ['wss', 'ws'] : ['ws'],
 
     // Xác thực Private Channel bằng Sanctum
     authorizer: (channel) => ({

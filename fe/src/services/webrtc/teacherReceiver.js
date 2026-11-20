@@ -30,13 +30,17 @@ export class TeacherReceiver {
   }
 
   retainChannel(channelName) {
-    const entry = this.channelRefs.get(channelName)
+    let entry = this.channelRefs.get(channelName)
     if (entry) {
       entry.references++
       return entry.channel
     }
     const channel = echo.private(channelName)
-    this.channelRefs.set(channelName, { channel, references: 1 })
+    entry = { channel, references: 1, isSubscribed: false }
+    channel.subscribed(() => {
+      entry.isSubscribed = true
+    })
+    this.channelRefs.set(channelName, entry)
     return channel
   }
 
@@ -125,11 +129,23 @@ export class TeacherReceiver {
       })
 
       // Khi kênh đã xác thực và đăng ký thành công trên Reverb
-      conn.channel.subscribed(() => {
+      const onSubscribed = () => {
         debugLog(`Kênh đã subscribed thành công: ${channelName}`)
         conn.subscribed = true
         this.sendRequestOfferWithRetry(sId)
-      })
+      }
+
+      const channelEntry = this.channelRefs.get(channelName)
+      const isAlreadySubscribed =
+        Boolean(channelEntry?.isSubscribed) ||
+        Boolean(conn.channel?.subscribed) ||
+        Boolean(conn.channel?.subscription?.subscribed)
+
+      if (isAlreadySubscribed) {
+        onSubscribed()
+      } else {
+        conn.channel.subscribed(onSubscribed)
+      }
 
       conn.channel.error?.((error) => {
         conn.subscribed = false

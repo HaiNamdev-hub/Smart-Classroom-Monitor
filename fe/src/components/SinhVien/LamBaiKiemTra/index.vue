@@ -282,8 +282,8 @@
 
 
     <!-- POPUP CẢNH BÁO -->
-    <div v-if="showWarning && !locked" class="overlay">
-      <div class="modal warning-modal" role="alertdialog" aria-modal="true">
+    <div v-if="showWarning && !locked" class="exam-warning-overlay" @click.self="dismissWarning">
+      <div class="exam-warning-modal" role="alertdialog" aria-modal="true">
         <div class="modal-icon">⚠️</div>
 
         <h2>Cảnh báo rời tab!</h2>
@@ -304,15 +304,15 @@
           }}
         </p>
 
-        <button type="button" class="btn primary full-width" @click="showWarning = false">
+        <button type="button" class="btn primary full-width" @click="dismissWarning">
           Tôi đã hiểu
         </button>
       </div>
     </div>
 
     <!-- THÔNG BÁO KHÓA -->
-    <div v-if="showLockNotice" class="overlay">
-      <div class="modal warning-modal" role="alertdialog" aria-modal="true">
+    <div v-if="showLockNotice" class="exam-warning-overlay">
+      <div class="exam-warning-modal locked-modal" role="alertdialog" aria-modal="true">
         <div class="modal-icon">🔒</div>
         <h2>Bài kiểm tra bị khóa!</h2>
 
@@ -512,6 +512,13 @@ const protectionNoticeError = protection.noticeError
 
 const showWarning = ref(false)
 const showLockNotice = ref(false)
+
+const dismissWarning = () => {
+  showWarning.value = false
+  if (!fullscreenActive.value && officialExamActive.value) {
+    void requestExamFullscreen()
+  }
+}
 const showConfirm = ref(false)
 const submitDialogRef = ref(null)
 const submitReturnFocusRef = ref(null)
@@ -821,6 +828,12 @@ async function beginExamWhenReady() {
         visibilityRearmTimer = null
       }
       examPhase.value = 'IN_PROGRESS'
+      if (response.data?.data?.phienGiamSat?.id) {
+        phienGiamSatId.value = response.data.data.phienGiamSat.id
+      }
+      if (response.data?.data?.sinhVienId) {
+        sinhVienId.value = response.data.data.sinhVienId
+      }
       if (requiresCamera.value && examCameraStream.value && !initWebRtcIfReady()) {
         startWebRtcSessionBootstrap()
       }
@@ -2508,25 +2521,38 @@ onBeforeUnmount(() => {
   animation: spin 0.8s linear infinite;
 }
 
-/* MODAL */
+/* MODAL & WARNING OVERLAYS */
+.exam-warning-overlay,
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 2147483000;
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(3px);
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
 }
 
+.exam-warning-modal,
 .modal {
+  position: relative;
+  z-index: 1;
+  display: block;
   width: min(460px, 100%);
   padding: 30px;
   border-radius: 18px;
   background: #fff;
   text-align: center;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+
+.exam-warning-modal {
+  border-top: 5px solid #f59e0b;
+}
+
+.exam-warning-modal.locked-modal {
+  border-top: 5px solid #ef4444;
 }
 
 .modal-icon {
@@ -2587,6 +2613,7 @@ onBeforeUnmount(() => {
 :global(html.dark-theme) .sidebar,
 :global(html.dark-theme) .state-card,
 :global(html.dark-theme) .locked-card,
+:global(html.dark-theme) .exam-warning-modal,
 :global(html.dark-theme) .modal {
   background: #111;
   color: #f8fafc;

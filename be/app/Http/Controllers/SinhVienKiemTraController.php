@@ -564,6 +564,11 @@ class SinhVienKiemTraController extends Controller
                 $duplicate = true;
             }
 
+            $activeSession = DB::table('phien_giam_sat')
+                ->where('bai_tap_id', $baiTapId)
+                ->where('trang_thai', 'DANG_DIEN_RA')
+                ->first(['id', 'ten_phien', 'trang_thai']);
+
             return response()->json([
                 'status' => true,
                 'data' => [
@@ -575,6 +580,12 @@ class SinhVienKiemTraController extends Controller
                     // The client adopts this server-persisted order without reloading
                     // the exam or restarting camera/monitoring state.
                     'questions' => $this->questions($baiTapId, $attemptId),
+                    'phienGiamSat' => $activeSession ? [
+                        'id' => $activeSession->id,
+                        'tenPhien' => $activeSession->ten_phien,
+                        'trangThai' => $activeSession->trang_thai,
+                    ] : null,
+                    'sinhVienId' => $studentId,
                 ],
             ], $duplicate ? 200 : 201);
         }, 3);

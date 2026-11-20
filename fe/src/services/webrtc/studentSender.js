@@ -85,13 +85,22 @@ export class StudentSender {
       })
 
       // Khi kênh đã xác thực thành công trên Reverb
-      this.echoChannel.subscribed(() => {
+      const onSubscribed = () => {
         debugLog(`Kênh signaling đã subscribed thành công: ${channelName}`)
         this.subscribed = true
         if (this.stream) {
           this.sendSignal('camera_ready', null)
         }
-      })
+      }
+
+      if (
+        Boolean(this.echoChannel?.subscribed) ||
+        Boolean(this.echoChannel?.subscription?.subscribed)
+      ) {
+        onSubscribed()
+      } else {
+        this.echoChannel.subscribed(onSubscribed)
+      }
 
       this.echoChannel.error?.((error) => {
         this.subscribed = false
