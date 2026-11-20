@@ -55,5 +55,9 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(600)->by('ice-config-ip:'.$request->ip()),
             Limit::perMinute(30)->by('ice-config-user:'.($request->user()?->getAuthIdentifier() ?? 'guest')),
         ]);
+        RateLimiter::for('webrtc-signal', fn (Request $request) => [
+            Limit::perMinute(1200)->by('webrtc-signal-ip:'.$request->ip()),
+            Limit::perMinute(180)->by('webrtc-signal-user:'.($request->user()?->getAuthIdentifier() ?? 'guest')),
+        ]);
     }
 }

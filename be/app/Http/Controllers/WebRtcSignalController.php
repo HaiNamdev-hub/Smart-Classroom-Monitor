@@ -49,6 +49,10 @@ class WebRtcSignalController extends Controller
         $phienId = (int) $validated['phienId'];
         $sinhVienId = (int) $validated['sinhVienId'];
         $type = $validated['type'];
+
+        // Ràng buộc cấu trúc và giới hạn kích thước payload của từng loại tín hiệu WebRTC
+        $this->validateSignalPayload($request, $type);
+
         $data = $validated['data'] ?? null;
 
         // 1. Kiểm tra phiên giám sát
@@ -132,5 +136,36 @@ class WebRtcSignalController extends Controller
             'status' => true,
             'message' => 'Đã gửi tín hiệu WebRTC thành công.',
         ]);
+    }
+
+    /**
+     * Xác thực cấu trúc và giới hạn kích thước payload dữ liệu WebRTC.
+     */
+    private function validateSignalPayload(Request $request, string $type): void
+    {
+        if (in_array($type, ['offer', 'answer'], true)) {
+            $request->validate([
+                'data' => ['required', 'array'],
+                'data.type' => ['required', 'string', Rule::in(['offer', 'answer'])],
+                'data.sdp' => ['required', 'string', 'max:65536'],
+            ]);
+        } elseif ($type === 'candidate') {
+            if ($request->filled('data')) {
+                $request->validate([
+                    'data' => ['array'],
+                    'data.candidate' => ['required', 'string', 'max:4096'],
+                    'data.sdpMid' => ['nullable', 'string', 'max:255'],
+                    'data.sdpMLineIndex' => ['nullable', 'integer', 'min:0', 'max:65535'],
+                    'data.usernameFragment' => ['nullable', 'string', 'max:255'],
+                ]);
+            }
+        } elseif ($type === 'request_offer') {
+            if ($request->filled('data')) {
+                $request->validate([
+                    'data' => ['array'],
+                    'data.restart' => ['nullable', 'boolean'],
+                ]);
+            }
+        }
     }
 }

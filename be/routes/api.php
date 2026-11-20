@@ -152,7 +152,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post(
         '/webrtc/signal',
         [WebRtcSignalController::class, 'signal']
-    );
+    )->middleware('throttle:webrtc-signal');
     Route::get('/webrtc/ice-config', \App\Http\Controllers\WebRtcIceConfigController::class)
         ->middleware('throttle:ice-config');
 

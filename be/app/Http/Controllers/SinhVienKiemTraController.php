@@ -1004,10 +1004,11 @@ class SinhVienKiemTraController extends Controller
 
             /*
         |--------------------------------------------------------------------------
-        | C. LƯU TỪNG CÂU TRẢ LỜI
+        | C. LƯU TỪNG CÂU TRẢ LỜI (BATCH INSERT CHUNKED)
         |--------------------------------------------------------------------------
         */
 
+            $answerRecords = [];
             foreach ($answers as $questionId => $value) {
                 if (
                     $value === null ||
@@ -1019,19 +1020,21 @@ class SinhVienKiemTraController extends Controller
                     continue;
                 }
 
-                DB::table('cau_tra_loi')->insert([
+                $answerRecords[] = [
                     'bai_nop_id' => $baiNopId,
                     'cau_hoi_id' => (int) $questionId,
-
-                    'dap_an_id' =>
-                    is_int($value) ? $value : null,
-
-                    'noi_dung_tra_loi' =>
-                    is_string($value) ? $value : '',
-
+                    'dap_an_id' => is_int($value) ? $value : null,
+                    'noi_dung_tra_loi' => is_string($value) ? $value : '',
                     'created_at' => $submittedAt,
                     'updated_at' => $submittedAt,
-                ]);
+                ];
+            }
+
+            if (!empty($answerRecords)) {
+                // Giới hạn chunk size 100 để an toàn với parameter limit trên PostgreSQL/MySQL/SQLite
+                foreach (array_chunk($answerRecords, 100) as $chunk) {
+                    DB::table('cau_tra_loi')->insert($chunk);
+                }
             }
 
             /*
