@@ -19,9 +19,6 @@ php artisan key:generate --force
 echo "==> Chạy database migration..."
 php artisan migrate --force
 
-echo "==> Chạy database seed (tài khoản admin, vai trò, dữ liệu mẫu)..."
-php artisan db:seed --force
-
 echo "==> Xóa cache cũ..."
 php artisan config:clear
 php artisan cache:clear
